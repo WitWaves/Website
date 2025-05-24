@@ -37,7 +37,7 @@ export default function RootLayout({
     <html lang="en" className={cn(lora.variable, geistSans.variable, geistMono.variable)}>
       <body className="min-h-screen flex flex-col antialiased">
         <Header />
-        <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-3xl w-full">
+        <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-5xl w-full">
           {children}
         </main>
         <Footer />

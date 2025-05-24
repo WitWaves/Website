@@ -37,8 +37,8 @@ export default function BlogLayout({
         <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-row gap-6">
             <BlogLeftSidebar />
-            <main className="flex-1 min-w-0">
-              {children}
+            <main className="flex-1 min-w-0"> {/* This main is for content *within* the blog section */}
+              {children} {/* This will be /blog/page.tsx or other blog sub-pages */}
             </main>
             <BlogRightSidebar />
           </div>

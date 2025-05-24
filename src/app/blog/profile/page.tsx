@@ -1,5 +1,4 @@
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ const userProfile = {
   name: '#Fayee. ZRF',
   handle: '@fayeerzk',
   avatarUrl: 'https://placehold.co/128x128.png?text=FZ',
-  coverImageUrl: 'https://images.unsplash.com/photo-1485291571150-772bcfc10da5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxN3x8Y2FyfGVufDB8fHx8MTc0ODExNDI2NXww&ixlib=rb-4.1.0&q=80&w=1080',
+  // coverImageUrl removed
   bio: 'Exploring the intersections of technology, art, and philosophy. Avid reader, lifelong learner, and occasional writer. Sharing thoughts and discoveries.',
   stats: {
     following: 45,
@@ -44,20 +43,10 @@ export default async function ProfilePage() {
 
   return (
     <div className="w-full">
-      {/* Cover Image */}
-      <div className="relative h-40 md:h-48 w-full rounded-lg overflow-hidden shadow-inner">
-        <Image
-          src={userProfile.coverImageUrl}
-          alt="Cover image"
-          layout="fill"
-          objectFit="cover"
-          className="bg-muted"
-          data-ai-hint="car interior"
-        />
-      </div>
+      {/* Cover Image Removed */}
 
       {/* Profile Info Section */}
-      <div className="container mx-auto max-w-5xl px-4 -mt-10">
+      <div className="container mx-auto max-w-5xl px-4 pt-8"> {/* Adjusted top margin/padding */}
         <div className="flex flex-col md:flex-row items-center md:items-end md:space-x-6 bg-card p-6 rounded-lg shadow-lg">
           <Avatar className="h-28 w-28 border-4 border-background shadow-md">
             <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} data-ai-hint="person face"/>
@@ -189,5 +178,3 @@ function Card({ children, className }: { children: React.ReactNode, className?: 
     </div>
   );
 }
-
-    

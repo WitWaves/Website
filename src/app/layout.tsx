@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Lora } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google'; // Lora removed
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import Header from '@/components/layout/header';
@@ -16,16 +16,11 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-const lora = Lora({
-  subsets: ['latin'],
-  variable: '--font-lora',
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-});
+// Lora font removed to use Geist Sans for body text by default as per globals.css update
 
 export const metadata: Metadata = {
-  title: 'WitWaves - Weaving Words, Igniting Ideas',
-  description: 'A modern blog platform for insightful articles and discussions.',
+  title: 'WitWaves - Diverse Thoughts, One Ocean', // Updated tagline
+  description: 'Dive into a sea of diverse content, where every wave brings new insights and endless exploration.',
 };
 
 export default function RootLayout({
@@ -34,10 +29,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn(lora.variable, geistSans.variable, geistMono.variable)}>
+    <html lang="en" className={cn(geistSans.variable, geistMono.variable)}>
       <body className="min-h-screen flex flex-col antialiased">
         <Header />
-        <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-5xl w-full">
+        {/* Main content area expanded and padding adjusted */}
+        <main className="flex-grow w-full">
           {children}
         </main>
         <Footer />

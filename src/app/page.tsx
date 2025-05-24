@@ -1,43 +1,170 @@
-import { getPosts, type Post } from '@/lib/posts';
-import PostCard from '@/components/posts/post-card';
-import ArchiveLinks from '@/components/layout/archive-links';
-import AllTagsLinks from '@/components/layout/all-tags-links';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import Image from 'next/image';
+import Link from 'next/link';
+import { Globe, Users, FileCheck2, MessageSquare, Instagram, Linkedin, Facebook, ArrowRight } from 'lucide-react';
 
 export default async function HomePage() {
-  const posts = await getPosts();
-
   return (
-    <div className="space-y-16">
-      <section className="text-center py-8 rounded-lg bg-gradient-to-r from-primary/10 via-background to-accent/10">
-        <h1 className="text-5xl font-bold mb-4 tracking-tight text-primary">Welcome to WitWaves</h1>
-        <p className="text-xl text-foreground/80 max-w-2xl mx-auto">
-          Weaving words, igniting ideas. Explore our latest articles and insights from the community.
-        </p>
+    <div className="flex flex-col">
+      {/* Hero Section */}
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div className="space-y-6">
+            <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter">
+              <span className="block text-destructive">Dive.</span>
+              <span className="block text-primary relative">
+                <Image 
+                  src="https://placehold.co/80x80.png" 
+                  alt="Decorative illustration" 
+                  width={60} 
+                  height={60} 
+                  className="inline-block mr-2 -mt-2 relative top-[-0.1em] lg:top-[-0.15em]" 
+                  data-ai-hint="abstract shape"
+                />
+                Explore.
+              </span>
+              <span className="block text-accent">Wonder.</span>
+            </h1>
+          </div>
+          <div className="space-y-6">
+            <p className="text-lg md:text-xl text-muted-foreground">
+              Dive into a sea of diverse content, where every wave
+              brings new insights and endless exploration.
+            </p>
+            <Button size="lg" variant="destructive" asChild>
+              <Link href="/#get-started">
+                Get started <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
+            </Button>
+          </div>
+        </div>
       </section>
 
-      <Separator />
+      <Separator className="my-8 md:my-12 container max-w-5xl" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-8">
-        <main className="lg:col-span-8 space-y-10">
-          <h2 className="text-3xl font-semibold tracking-tight border-b pb-3 mb-8">Latest Posts</h2>
-          {posts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-center py-16 bg-card rounded-lg shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text text-muted-foreground mb-4"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
-              <h3 className="text-xl font-medium text-foreground">No Posts Yet</h3>
-              <p className="text-muted-foreground mt-1">Check back soon, or create the first post!</p>
+      {/* Small Newsletter Subscription Section */}
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <p className="text-md text-foreground">
+              Subscribe to our newsletter for the latest news, insights, and exclusive
+              content delivered straight to your inbox.
+            </p>
+            <Button variant="destructive" className="mt-4" asChild>
+              <Link href="/#subscribe-small">Subscribe</Link>
+            </Button>
+          </div>
+          <div className="flex items-center justify-start md:justify-end space-x-4">
+            <Link href="#" aria-label="Whatsapp" className="text-muted-foreground hover:text-primary"><MessageSquare size={24} /></Link>
+            <Link href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary"><Instagram size={24} /></Link>
+            <Link href="#" aria-label="LinkedIn" className="text-muted-foreground hover:text-primary"><Linkedin size={24} /></Link>
+            <Link href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary"><Facebook size={24} /></Link>
+          </div>
+        </div>
+      </section>
+      
+      {/* Blogs Section */}
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="grid md:grid-cols-2 gap-12 items-center">
+          <div className="order-2 md:order-1">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">Blogs</h2>
+            <p className="text-lg text-muted-foreground mb-6">
+              Welcome to our vibrant community space! Share your thoughts, stories, and creativity with the world.
+            </p>
+            <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
+              <Link href="/">
+                Discover Blogs <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
+            </Button>
+          </div>
+          <div className="order-1 md:order-2">
+            <Image
+              src="https://placehold.co/600x400.png"
+              alt="Blog preview"
+              width={600}
+              height={400}
+              className="rounded-lg shadow-xl"
+              data-ai-hint="technology article"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Publication Section */}
+      <section className="bg-muted/30 py-16 md:py-24">
+        <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-4xl md:text-5xl font-bold mb-6">Publication</h2>
+              <p className="text-lg text-muted-foreground mb-6">
+                Step into the world of ideas and insights! Publish your work, share your research and let your content reach a broader audience.
+              </p>
+              <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
+                <Link href="/#publication-discover">
+                  Discover Publications <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
             </div>
-          ) : (
-            posts.map(post => (
-              <PostCard key={post.id} post={post} />
-            ))
-          )}
-        </main>
-        <aside className="lg:col-span-4 space-y-10 lg:mt-[76px]">
-          <ArchiveLinks />
-          <AllTagsLinks />
-        </aside>
-      </div>
+            <div className="space-y-4">
+              <Badge className="text-lg py-3 px-5 w-full justify-start bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <Globe className="mr-3 h-6 w-6" />
+                International
+              </Badge>
+              <Badge className="text-lg py-3 px-5 w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90">
+                <Users className="mr-3 h-6 w-6" />
+                Multidisciplinary
+              </Badge>
+              <Badge className="text-lg py-3 px-5 w-full justify-start bg-accent text-accent-foreground hover:bg-accent/90">
+                <FileCheck2 className="mr-3 h-6 w-6" />
+                Peer-Reviewed
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Events Section */}
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="text-center max-w-3xl mx-auto">
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">Events</h2>
+          <p className="text-lg text-muted-foreground mb-8">
+            Join us for engaging events designed to inspire, educate, and uplift! From knowledge-building
+            workshops to motivational sessions, our events are crafted to empower you and spark your growth.
+          </p>
+          <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90" asChild>
+            <Link href="/#events-discover">
+              Discover Events <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+
+      {/* Large Newsletter Subscription Section */}
+      <section className="bg-accent py-16 md:py-24">
+        <div className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-4xl md:text-5xl font-bold text-accent-foreground mb-4">
+            Subscribe to our newsletter!
+          </h2>
+          <p className="text-lg text-accent-foreground/90 mb-8">
+            Stay connected and never miss an update! Subscribe to our newsletter for the latest
+            news, insights, and exclusive content delivered straight to your inbox.
+          </p>
+          <form className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+            <Input
+              type="email"
+              placeholder="jhon@gmail.com"
+              className="bg-background/90 text-foreground placeholder:text-muted-foreground flex-grow text-base"
+              aria-label="Email for newsletter"
+            />
+            <Button type="submit" size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto w-full">
+              Discover
+            </Button>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }

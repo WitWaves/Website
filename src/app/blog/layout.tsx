@@ -1,43 +1,56 @@
 
 import type { Metadata } from 'next';
+import { Jost } from 'next/font/google';
+import '../globals.css'; // Import global styles relative to this layout
+import { Toaster } from "@/components/ui/toaster";
+import { cn } from '@/lib/utils';
 import BlogHeader from '@/components/layout/blog-header';
 import BlogLeftSidebar from '@/components/layout/blog-left-sidebar';
 import BlogRightSidebar from '@/components/layout/blog-right-sidebar';
 import Link from 'next/link';
+
+const jost = Jost({
+  variable: '--font-jost',
+  subsets: ['latin'],
+  weights: ['100', '200', '300', '400', '500', '600', '700', '800', '900']
+});
 
 export const metadata: Metadata = {
   title: 'Blog | WitWaves',
   description: 'Explore articles and insights on WitWaves.',
 };
 
-export default function BlogLayout({
+export default function BlogRootLayout({ // Renamed for clarity, though filename dictates behavior
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <BlogHeader />
-      <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-row gap-6">
-          <BlogLeftSidebar />
-          <main className="flex-1 min-w-0">
-            {children}
-          </main>
-          <BlogRightSidebar />
+    <html lang="en" className={cn(jost.variable, 'bg-background')}> {/* Ensure bg-background for html if needed */}
+      <body className="min-h-screen flex flex-col antialiased">
+        <BlogHeader />
+        <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-row gap-6">
+            <BlogLeftSidebar />
+            <main className="flex-1 min-w-0">
+              {children}
+            </main>
+            <BlogRightSidebar />
+          </div>
         </div>
-      </div>
-      <footer className="border-t border-border/50 py-8 bg-muted/30">
-        <div className="container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
-          <Link href="/" className="flex flex-col mb-4 md:mb-0">
-            <span className="text-2xl font-bold tracking-tight text-gray-800 dark:text-gray-100">WitWaves.</span>
-            <span className="text-xs text-muted-foreground -mt-1">/ Diverse Thoughts, One Ocean</span>
-          </Link>
-          <p className="text-sm text-muted-foreground">
-            Copyright &copy; {new Date().getFullYear()} WitWaves.in
-          </p>
-        </div>
-      </footer>
-    </div>
+        <footer className="border-t border-border/50 py-8 bg-muted/30">
+          <div className="container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
+            <Link href="/blog" className="flex flex-col mb-4 md:mb-0">
+              <span className="text-2xl font-bold tracking-tight text-gray-800 dark:text-gray-100">WitWaves.</span>
+              <span className="text-xs text-muted-foreground -mt-1">/ Blog Section</span>
+            </Link>
+            <p className="text-sm text-muted-foreground">
+              Copyright &copy; {new Date().getFullYear()} WitWaves Blog.
+            </p>
+          </div>
+        </footer>
+        <Toaster />
+      </body>
+    </html>
   );
 }

@@ -1,49 +1,34 @@
 
 import type { Metadata } from 'next';
-import { Jost } from 'next/font/google';
-import '../globals.css'; // Import global styles relative to this layout
-import { Toaster } from "@/components/ui/toaster";
-import { cn } from '@/lib/utils';
+// Removed Jost import, globals.css import, and Toaster as they will come from the root src/app/layout.tsx
+// This layout is now a standard layout component, not a new root layout.
+// This means it will be nested within src/app/layout.tsx and will inherit its header/footer.
+
 import BlogLeftSidebar from '@/components/layout/blog-left-sidebar';
 import BlogRightSidebar from '@/components/layout/blog-right-sidebar';
 
-const jost = Jost({
-  variable: '--font-jost',
-  subsets: ['latin'],
-  weights: ['100', '200', '300', '400', '500', '600', '700', '800', '900']
-});
-
+// Metadata can still be defined for this segment
 export const metadata: Metadata = {
   title: 'Blog | WitWaves',
   description: 'Explore articles and insights on WitWaves.',
 };
 
-// CRITICAL: This layout defines its own <html> and <body> tags.
-// This makes it a NEW ROOT LAYOUT for the /blog segment and all its children.
-// It will NOT inherit from src/app/layout.tsx.
 export default function BlogLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn(jost.variable)}>
-      {/* Ensure the <body /> tag directly follows, without any intermediate text nodes (spaces/newlines)
-          that could be misinterpreted. Next.js injects <head /> automatically. */}
-      <body className="min-h-screen flex flex-col antialiased"> {/* Removed bg-background text-foreground to fix hydration issues if they arise again */}
-        {/* BlogHeader was removed as per user request */}
-        <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-row gap-6">
-            <BlogLeftSidebar />
-            <main className="flex-1 min-w-0"> {/* This main is for content *within* the blog section */}
-              {children} {/* This will be /blog/page.tsx or other blog sub-pages */}
-            </main>
-            <BlogRightSidebar />
-          </div>
-        </div>
-        {/* Footer was removed as per user request */}
-        <Toaster />
-      </body>
-    </html>
+    // This div structure will be injected into the <main> tag of the parent layout (src/app/layout.tsx)
+    <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
+      <div className="flex flex-row gap-6">
+        <BlogLeftSidebar />
+        <main className="flex-1 min-w-0"> {/* This main is for content *within* the blog section */}
+          {children} {/* This will be /blog/page.tsx or other blog sub-pages */}
+        </main>
+        <BlogRightSidebar />
+      </div>
+    </div>
+    // Removed Toaster, it should be in the root layout if needed globally
   );
 }

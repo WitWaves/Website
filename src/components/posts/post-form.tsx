@@ -134,8 +134,7 @@ export default function PostForm({ post }: PostFormProps) {
               name="content"
               defaultValue={post?.content}
               placeholder="Write your masterpiece here..."
-              rows={15}
-              className="text-base leading-relaxed"
+              className="text-base leading-relaxed min-h-[400px]"
               onChange={(e) => setContentForAI(e.target.value)}
               required
             />

@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import Link from 'next/link';
-import { MessageSquare, Instagram, Linkedin, Facebook, ArrowRight } from 'lucide-react';
+import { MessageSquare, Instagram, Linkedin, Facebook, ArrowRight, Globe, Users, FileCheck2 } from 'lucide-react';
 
 export default async function HomePage() {
   return (
@@ -43,7 +43,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <Separator className="my-8 md:my-12 container max-w-5xl" />
+      {/* Separator was here, now removed */}
       
       {/* Blogs Section */}
       <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">
@@ -54,7 +54,7 @@ export default async function HomePage() {
               Welcome to our vibrant community space! Share your thoughts, stories, and creativity with the world.
             </p>
             <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
-              <Link href="/blog"> {/* Updated Link */}
+              <Link href="/blog">
                 Discover Blogs <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>

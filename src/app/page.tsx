@@ -114,6 +114,12 @@ export default async function HomePage() {
               Discover
             </Button>
           </form>
+          <div className="mt-8 flex justify-center items-center space-x-6">
+            <Link href="#" aria-label="Whatsapp" className="text-accent-foreground/80 hover:text-accent-foreground"><MessageSquare size={28} /></Link>
+            <Link href="#" aria-label="Instagram" className="text-accent-foreground/80 hover:text-accent-foreground"><Instagram size={28} /></Link>
+            <Link href="#" aria-label="LinkedIn" className="text-accent-foreground/80 hover:text-accent-foreground"><Linkedin size={28} /></Link>
+            <Link href="#" aria-label="Facebook" className="text-accent-foreground/80 hover:text-accent-foreground"><Facebook size={28} /></Link>
+          </div>
         </div>
       </section>
     </div>

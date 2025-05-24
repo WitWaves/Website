@@ -4,13 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import Link from 'next/link';
-import { MessageSquare, Instagram, Linkedin, Facebook, ArrowRight, Globe, Users, FileCheck2 } from 'lucide-react';
+import { MessageSquare, Instagram, Linkedin, Facebook, ArrowRight } from 'lucide-react';
 
 export default async function HomePage() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 md:py-20"> {/* Reduced padding */}
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div className="space-y-6">
             <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter">
@@ -42,11 +42,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Separator was here, now removed */}
       
       {/* Blogs Section */}
-      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 md:py-20"> {/* Reduced padding */}
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="order-2 md:order-1">
             <h2 className="text-4xl md:text-5xl font-bold mb-6">Blogs</h2>
@@ -73,7 +71,7 @@ export default async function HomePage() {
       </section>
 
       {/* Large Newsletter Subscription Section */}
-      <section className="bg-accent py-16 md:py-24">
+      <section className="bg-accent py-12 md:py-20"> {/* Reduced padding */}
         <div className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-accent-foreground mb-4">
             Subscribe to our newsletter!

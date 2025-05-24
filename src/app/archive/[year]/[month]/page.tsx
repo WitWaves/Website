@@ -51,7 +51,7 @@ export default async function ArchivePage({ params }: ArchivePageProps) {
   return (
     <div className="py-8">
       <Button variant="outline" asChild className="mb-8">
-        <Link href="/">
+        <Link href="/blog"> {/* Updated link to /blog */}
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to all posts
         </Link>

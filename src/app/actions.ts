@@ -22,6 +22,7 @@ export type FormState = {
     tags?: string[];
   };
   success?: boolean;
+  newPostId?: string; // Added to carry new post ID for redirection
 } | undefined;
 
 
@@ -60,14 +61,13 @@ export async function createPostAction(prevState: FormState, formData: FormData)
 
   postsData.unshift(newPost); // Add to the beginning
 
-  revalidatePath('/');
-  revalidatePath('/posts/[id]', 'page');
-  revalidatePath('/tags/[tag]', 'page');
-  revalidatePath('/archive/[year]/[month]', 'page');
+  revalidatePath('/blog'); // Main blog listing page
+  revalidatePath(`/posts/${newPost.id}`); // The new post's page
+  // Revalidate all affected tag pages (can be broad, consider revalidateTag if using fetch tags)
+  (tags || []).forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
+  revalidatePath('/archive/[year]/[month]', 'page'); // For archive pages
   
-  // Not redirecting from here to allow success message display
-  // The component will redirect on success state
-  return { message: `Post "${title}" created successfully!`, success: true, errors: {}, newPostId: newPost.id } as FormState & {newPostId: string};
+  return { message: `Post "${title}" created successfully!`, success: true, errors: {}, newPostId: newPost.id };
 }
 
 export async function updatePostAction(id: string, prevState: FormState, formData: FormData): Promise<FormState> {
@@ -91,9 +91,7 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     return { message: 'Error: Post not found.', errors: {} };
   }
 
-  // Potentially update slug if title changed, ensuring uniqueness (more complex in real app)
-  // For simplicity, keeping slug same on update, or regenerating carefully
-  // postsData[postIndex].id = generateSlug(title); // If slug should change, handle uniqueness
+  const oldTags = postsData[postIndex].tags;
 
   postsData[postIndex] = {
     ...postsData[postIndex],
@@ -103,10 +101,12 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     updatedAt: new Date().toISOString(),
   };
 
-  revalidatePath('/');
-  revalidatePath(`/posts/${id}`);
-  revalidatePath('/tags/[tag]', 'page');
-  revalidatePath('/archive/[year]/[month]', 'page');
+  revalidatePath('/blog'); // Main blog listing page
+  revalidatePath(`/posts/${id}`); // The updated post's page
+  // Revalidate all affected tag pages (old and new)
+  const allTagsToRevalidate = new Set([...oldTags, ...(tags || [])]);
+  allTagsToRevalidate.forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
+  revalidatePath('/archive/[year]/[month]', 'page'); // For archive pages
   
   return { message: `Post "${title}" updated successfully!`, success: true, errors: {} };
 }
@@ -121,7 +121,6 @@ export async function getAISuggestedTagsAction(postContent: string): Promise<str
     return result.tags.map(tag => tag.toLowerCase());
   } catch (error) {
     console.error('Error suggesting tags with AI:', error);
-    // Potentially return a user-friendly error or specific tags indicating an issue
     return ['ai-suggestion-error'];
   }
 }

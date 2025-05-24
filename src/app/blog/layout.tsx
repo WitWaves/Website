@@ -32,7 +32,7 @@ export default function BlogLayout({
     <html lang="en" className={cn(jost.variable)}>
       {/* Ensure the <body /> tag directly follows, without any intermediate text nodes (spaces/newlines)
           that could be misinterpreted. Next.js injects <head /> automatically. */}
-      <body className="min-h-screen flex flex-col antialiased bg-background text-foreground">
+      <body className="min-h-screen flex flex-col antialiased"> {/* Removed bg-background text-foreground to fix hydration */}
         <BlogHeader />
         <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-row gap-6">

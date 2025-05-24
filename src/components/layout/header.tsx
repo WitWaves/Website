@@ -1,12 +1,15 @@
+
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 
 const navLinks = [
   { href: '/', label: 'Home' },
   { href: '/#about', label: 'About us' }, // Placeholder links
-  { href: '/#blog', label: 'Blog' },
+  { href: '/blog', label: 'Blog' },
   { href: '/#events', label: 'Events' },
   { href: '/#publication', label: 'Publication' },
 ];
@@ -20,17 +23,30 @@ export default function Header() {
             <span className="text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">WitWaves.</span>
             <span className="text-xs text-muted-foreground -mt-1">/ Diverse Thoughts, One Ocean</span>
           </Link>
-          <nav className="hidden md:flex items-center space-x-6">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="flex items-center space-x-6">
+            <nav className="hidden md:flex items-center space-x-6">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+            {/* New Search Input Section */}
+            <div className="hidden md:flex items-center">
+              <div className="relative max-w-xs"> {/* Reduced max-width */}
+                <Input
+                  type="search"
+                  placeholder="Search..."
+                  className="pl-9 pr-3 py-2 w-full rounded-full border-border bg-muted/50 focus:bg-background h-9 text-sm" // Smaller height, text, and padding
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" /> {/* Smaller icon */}
+              </div>
+            </div>
+          </div>
           {/* Mobile menu button (optional, can be added later) */}
           {/* <div className="md:hidden">
             <Button variant="ghost" size="icon">

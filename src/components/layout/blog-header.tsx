@@ -23,16 +23,7 @@ export default function BlogHeader() {
             </Link>
           </div>
 
-          <div className="flex-1 max-w-xl mx-4 hidden md:flex"> {/* Hidden on sm, shown on md and up */}
-            <div className="relative w-full">
-              <Input
-                type="search"
-                placeholder="Search..."
-                className="pl-10 pr-4 py-2 w-full rounded-full border-border bg-muted/50 focus:bg-background"
-              />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            </div>
-          </div>
+          {/* Search bar removed from here */}
 
           <div className="flex items-center space-x-3">
             <Button variant="ghost" size="icon" className="rounded-full">

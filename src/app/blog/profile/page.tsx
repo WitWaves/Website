@@ -45,7 +45,7 @@ export default async function ProfilePage() {
   return (
     <div className="w-full">
       {/* Cover Image */}
-      <div className="relative h-48 md:h-64 w-full rounded-lg overflow-hidden shadow-inner">
+      <div className="relative h-40 md:h-48 w-full rounded-lg overflow-hidden shadow-inner">
         <Image
           src={userProfile.coverImageUrl}
           alt="Cover image"
@@ -57,9 +57,9 @@ export default async function ProfilePage() {
       </div>
 
       {/* Profile Info Section */}
-      <div className="container mx-auto max-w-5xl px-4 -mt-16">
+      <div className="container mx-auto max-w-5xl px-4 -mt-10">
         <div className="flex flex-col md:flex-row items-center md:items-end md:space-x-6 bg-card p-6 rounded-lg shadow-lg">
-          <Avatar className="h-32 w-32 border-4 border-background shadow-md">
+          <Avatar className="h-28 w-28 border-4 border-background shadow-md">
             <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} data-ai-hint="person face"/>
             <AvatarFallback>{userProfile.name.substring(1,3).toUpperCase()}</AvatarFallback>
           </Avatar>

@@ -15,7 +15,7 @@ const userProfile = {
   name: '#Fayee. ZRF',
   handle: '@fayeerzk',
   avatarUrl: 'https://placehold.co/128x128.png?text=FZ',
-  coverImageUrl: 'https://placehold.co/1200x300.png',
+  coverImageUrl: 'https://images.unsplash.com/photo-1485291571150-772bcfc10da5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxN3x8Y2FyfGVufDB8fHx8MTc0ODExNDI2NXww&ixlib=rb-4.1.0&q=80&w=1080',
   bio: 'Exploring the intersections of technology, art, and philosophy. Avid reader, lifelong learner, and occasional writer. Sharing thoughts and discoveries.',
   stats: {
     following: 45,
@@ -52,7 +52,7 @@ export default async function ProfilePage() {
           layout="fill"
           objectFit="cover"
           className="bg-muted"
-          data-ai-hint="abstract gradient"
+          data-ai-hint="car interior"
         />
       </div>
 

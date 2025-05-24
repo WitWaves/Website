@@ -75,7 +75,7 @@ export default async function HomePage() {
               Welcome to our vibrant community space! Share your thoughts, stories, and creativity with the world.
             </p>
             <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
-              <Link href="/">
+              <Link href="/blog"> {/* Updated Link */}
                 Discover Blogs <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>

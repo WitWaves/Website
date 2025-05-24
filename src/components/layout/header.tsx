@@ -10,8 +10,8 @@ const navLinks = [
   { href: '/', label: 'Home' },
   { href: '/#about', label: 'About us' }, // Placeholder links
   { href: '/blog', label: 'Blog' },
-  { href: '/#events', label: 'Events' },
-  { href: '/#publication', label: 'Publication' },
+  // { href: '/#events', label: 'Events' }, // Removed
+  // { href: '/#publication', label: 'Publication' }, // Removed
 ];
 
 export default function Header() {

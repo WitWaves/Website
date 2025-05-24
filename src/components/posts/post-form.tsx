@@ -1,7 +1,8 @@
+
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useEffect, useState, useTransition, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -45,7 +46,7 @@ export default function PostForm({ post }: PostFormProps) {
   const [contentForAI, setContentForAI] = useState(post?.content || '');
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
-  const [state, formAction] = useFormState(action, undefined);
+  const [state, formAction] = useActionState(action, undefined);
 
   useEffect(() => {
     if (state?.success) {

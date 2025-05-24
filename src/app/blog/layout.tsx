@@ -20,7 +20,10 @@ export const metadata: Metadata = {
   description: 'Explore articles and insights on WitWaves.',
 };
 
-export default function BlogRootLayout({ // Renamed for clarity, though filename dictates behavior
+// This layout defines its own <html> and <body> tags,
+// making it a new root layout for the /blog segment.
+// It will NOT inherit from src/app/layout.tsx.
+export default function BlogLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -29,7 +32,7 @@ export default function BlogRootLayout({ // Renamed for clarity, though filename
     <html lang="en" className={cn(jost.variable)}>
       {/* Ensure the <body /> tag directly follows, without any intermediate text nodes (spaces/newlines)
           that could be misinterpreted. Next.js injects <head /> automatically. */}
-      <body className="min-h-screen flex flex-col antialiased">
+      <body className="min-h-screen flex flex-col antialiased bg-background text-foreground">
         <BlogHeader />
         <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-row gap-6">
@@ -43,11 +46,11 @@ export default function BlogRootLayout({ // Renamed for clarity, though filename
         <footer className="border-t border-border/50 py-8 bg-muted/30">
           <div className="container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
             <Link href="/blog" className="flex flex-col mb-4 md:mb-0">
-              <span className="text-2xl font-bold tracking-tight text-gray-800 dark:text-gray-100">WitWaves.</span>
+              <span className="text-2xl font-bold tracking-tight text-foreground">WitWaves.</span>
               <span className="text-xs text-muted-foreground -mt-1">/ Blog Section</span>
             </Link>
             <p className="text-sm text-muted-foreground">
-              Copyright &copy; {new Date().getFullYear()} WitWaves Blog.
+              Copyright &copy; {new Date().getFullYear()} WitWaves Blog. All Rights Reserved.
             </p>
           </div>
         </footer>

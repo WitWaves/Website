@@ -32,7 +32,7 @@ export default async function PostPage({ params }: PostPageProps) {
   }
 
   return (
-    <article className="py-8">
+    <article className="py-8 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <Button variant="outline" asChild className="mb-8">
         <Link href="/">
           <ArrowLeft className="mr-2 h-4 w-4" />

@@ -43,17 +43,7 @@ export default function BlogLayout({
             <BlogRightSidebar />
           </div>
         </div>
-        <footer className="border-t border-border/50 py-8 bg-muted/30">
-          <div className="container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
-            <Link href="/blog" className="flex flex-col mb-4 md:mb-0">
-              <span className="text-2xl font-bold tracking-tight text-foreground">WitWaves.</span>
-              <span className="text-xs text-muted-foreground -mt-1">/ Blog Section</span>
-            </Link>
-            <p className="text-sm text-muted-foreground">
-              Copyright &copy; {new Date().getFullYear()} WitWaves Blog. All Rights Reserved.
-            </p>
-          </div>
-        </footer>
+        {/* Footer removed as per user request */}
         <Toaster />
       </body>
     </html>

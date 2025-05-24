@@ -1,4 +1,6 @@
 
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Post } from '@/lib/posts';
@@ -6,19 +8,25 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Heart, Bookmark, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
+import type { MockAuthor } from '@/lib/authors'; // Import MockAuthor type
+import { useState, useEffect } from 'react';
 
 type BlogPostCardProps = {
   post: Post;
+  author: MockAuthor; // Add author prop
 };
 
-// Mock author for display, in a real app this would come from post data
-const mockAuthor = {
-  name: 'Subhi', // Placeholder, ideally post.author.name
-  avatarUrl: 'https://placehold.co/40x40.png?text=S', // Placeholder, ideally post.author.avatarUrl
-};
-
-export default function BlogPostCard({ post }: BlogPostCardProps) {
+export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const summary = post.content.substring(0, 100) + (post.content.length > 100 ? '...' : '');
+
+  const [likes, setLikes] = useState<string | null>(null);
+  const [bookmarks, setBookmarks] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Generate random "k" numbers like "1.2k", "15.3k" for client-side display
+    setLikes(`${(Math.random() * 18 + 1).toFixed(1)}k`);
+    setBookmarks(`${(Math.random() * 18 + 1).toFixed(1)}k`);
+  }, []);
 
   return (
     <article className="flex flex-col md:flex-row gap-6 p-4 border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow bg-card">
@@ -36,10 +44,10 @@ export default function BlogPostCard({ post }: BlogPostCardProps) {
         <div>
           <div className="flex items-center space-x-2 text-xs text-muted-foreground mb-2">
             <button className="flex items-center hover:text-destructive">
-              <Heart className="h-4 w-4 mr-1" /> 12.5k
+              <Heart className="h-4 w-4 mr-1" /> {likes !== null ? likes : '...'}
             </button>
             <button className="flex items-center hover:text-primary">
-              <Bookmark className="h-4 w-4 mr-1" /> 12.5k
+              <Bookmark className="h-4 w-4 mr-1" /> {bookmarks !== null ? bookmarks : '...'}
             </button>
             {/* <div className="flex items-center">
               <MessageCircle className="h-4 w-4 mr-1" /> 50
@@ -55,11 +63,11 @@ export default function BlogPostCard({ post }: BlogPostCardProps) {
         <div className="flex items-center justify-between mt-auto pt-3">
           <div className="flex items-center space-x-2">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={mockAuthor.avatarUrl} alt={mockAuthor.name} data-ai-hint="author avatar"/>
-              <AvatarFallback>{mockAuthor.name.substring(0,1).toUpperCase()}</AvatarFallback>
+              <AvatarImage src={author.avatarUrl} alt={author.name} data-ai-hint="author avatar"/>
+              <AvatarFallback>{author.name.substring(0,1).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div>
-              <p className="text-sm font-medium text-foreground">{mockAuthor.name}</p>
+              <p className="text-sm font-medium text-foreground">{author.name}</p>
               {/* <p className="text-xs text-muted-foreground">Web Developer</p> */}
             </div>
           </div>

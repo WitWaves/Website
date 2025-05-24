@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { PlusCircle } from 'lucide-react';
 import Link from 'next/link';
+import { getMockAuthors, type MockAuthor } from '@/lib/authors'; // Import author functions
 
 // Mock filter tabs
 const filterTabs = ["All", "For you", "Top reads", "Following", "Music", "Gaming"];
 
 export default async function BlogPage() {
   const posts = await getPosts();
+  const mockAuthors = await getMockAuthors();
 
   return (
     <div className="w-full">
@@ -43,9 +45,13 @@ export default async function BlogPage() {
         </p>
       ) : (
         <div className="space-y-8">
-          {posts.map(post => (
-            <BlogPostCard key={post.id} post={post} />
-          ))}
+          {posts.map((post, index) => {
+            // Cycle through mock authors for variety
+            const author = mockAuthors.length > 0 ? mockAuthors[index % mockAuthors.length] : { id: '0', name: 'WitWaves User', role: 'Author', avatarUrl: 'https://placehold.co/40x40.png?text=WW' };
+            return (
+              <BlogPostCard key={post.id} post={post} author={author} />
+            );
+          })}
         </div>
       )}
     </div>

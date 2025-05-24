@@ -1,7 +1,5 @@
+
 import PostForm from '@/components/posts/post-form';
-import { ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 
 export const metadata = {
   title: 'Create New Post | WitWaves',
@@ -10,13 +8,7 @@ export const metadata = {
 
 export default function NewPostPage() {
   return (
-    <div className="py-8">
-       <Button variant="outline" asChild className="mb-8">
-        <Link href="/">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Home
-        </Link>
-      </Button>
+    <div className="w-full py-8 px-4 md:px-0"> {/* Adjusted padding for better full-width feel */}
       <PostForm />
     </div>
   );

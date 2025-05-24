@@ -4,10 +4,8 @@ import { Jost } from 'next/font/google';
 import '../globals.css'; // Import global styles relative to this layout
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from '@/lib/utils';
-// import BlogHeader from '@/components/layout/blog-header'; // Removed
 import BlogLeftSidebar from '@/components/layout/blog-left-sidebar';
 import BlogRightSidebar from '@/components/layout/blog-right-sidebar';
-import Link from 'next/link';
 
 const jost = Jost({
   variable: '--font-jost',
@@ -32,8 +30,8 @@ export default function BlogLayout({
     <html lang="en" className={cn(jost.variable)}>
       {/* Ensure the <body /> tag directly follows, without any intermediate text nodes (spaces/newlines)
           that could be misinterpreted. Next.js injects <head /> automatically. */}
-      <body className="min-h-screen flex flex-col antialiased"> {/* Removed bg-background text-foreground to fix hydration */}
-        {/* <BlogHeader /> */} {/* Removed BlogHeader component instance */}
+      <body className="min-h-screen flex flex-col antialiased"> {/* Removed bg-background text-foreground to fix hydration issues if they arise again */}
+        {/* BlogHeader was removed as per user request */}
         <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-row gap-6">
             <BlogLeftSidebar />
@@ -43,7 +41,7 @@ export default function BlogLayout({
             <BlogRightSidebar />
           </div>
         </div>
-        {/* Footer removed as per user request */}
+        {/* Footer was removed as per user request */}
         <Toaster />
       </body>
     </html>

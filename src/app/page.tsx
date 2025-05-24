@@ -44,27 +44,6 @@ export default async function HomePage() {
       </section>
 
       <Separator className="my-8 md:my-12 container max-w-5xl" />
-
-      {/* Small Newsletter Subscription Section */}
-      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div>
-            <p className="text-md text-foreground">
-              Subscribe to our newsletter for the latest news, insights, and exclusive
-              content delivered straight to your inbox.
-            </p>
-            <Button variant="destructive" className="mt-4" asChild>
-              <Link href="/#subscribe-small">Subscribe</Link>
-            </Button>
-          </div>
-          <div className="flex items-center justify-start md:justify-end space-x-4">
-            <Link href="#" aria-label="Whatsapp" className="text-muted-foreground hover:text-primary"><MessageSquare size={24} /></Link>
-            <Link href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary"><Instagram size={24} /></Link>
-            <Link href="#" aria-label="LinkedIn" className="text-muted-foreground hover:text-primary"><Linkedin size={24} /></Link>
-            <Link href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary"><Facebook size={24} /></Link>
-          </div>
-        </div>
-      </section>
       
       {/* Blogs Section */}
       <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">

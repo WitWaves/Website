@@ -26,7 +26,9 @@ export default function BlogRootLayout({ // Renamed for clarity, though filename
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn(jost.variable, 'bg-background')}> {/* Ensure bg-background for html if needed */}
+    <html lang="en" className={cn(jost.variable, 'bg-background')}>
+      {/* Ensure the <body /> tag directly follows, without any intermediate text nodes (spaces/newlines)
+          that could be misinterpreted. Next.js injects <head /> automatically. */}
       <body className="min-h-screen flex flex-col antialiased">
         <BlogHeader />
         <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">

@@ -1,10 +1,10 @@
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Globe, Users, FileCheck2, MessageSquare, Instagram, Linkedin, Facebook, ArrowRight } from 'lucide-react';
+import { MessageSquare, Instagram, Linkedin, Facebook, ArrowRight } from 'lucide-react';
 
 export default async function HomePage() {
   return (
@@ -108,19 +108,15 @@ export default async function HomePage() {
                 </Link>
               </Button>
             </div>
-            <div className="space-y-4">
-              <Badge className="text-lg py-3 px-5 w-full justify-start bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                <Globe className="mr-3 h-6 w-6" />
-                International
-              </Badge>
-              <Badge className="text-lg py-3 px-5 w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90">
-                <Users className="mr-3 h-6 w-6" />
-                Multidisciplinary
-              </Badge>
-              <Badge className="text-lg py-3 px-5 w-full justify-start bg-accent text-accent-foreground hover:bg-accent/90">
-                <FileCheck2 className="mr-3 h-6 w-6" />
-                Peer-Reviewed
-              </Badge>
+            <div className="flex justify-center items-center">
+              <Image
+                src="https://placehold.co/500x300.png"
+                alt="Publication features: International, Multidisciplinary, Peer-Reviewed"
+                width={500}
+                height={300}
+                className="rounded-lg shadow-xl"
+                data-ai-hint="journal features"
+              />
             </div>
           </div>
         </div>

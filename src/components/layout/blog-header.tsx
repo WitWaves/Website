@@ -2,10 +2,8 @@
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Menu, Search, Bell } from 'lucide-react';
-import Image from 'next/image';
+import { Menu, Bell } from 'lucide-react';
 
 export default function BlogHeader() {
   return (
@@ -23,17 +21,9 @@ export default function BlogHeader() {
             </Link>
           </div>
 
-          {/* Search bar removed from here */}
-
+          {/* User-related icons moved to main header */}
           <div className="flex items-center space-x-3">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Bell className="h-5 w-5" />
-              <span className="sr-only">Notifications</span>
-            </Button>
-            <Avatar className="h-9 w-9">
-              <AvatarImage src="https://placehold.co/40x40.png" alt="User avatar" data-ai-hint="person face"/>
-              <AvatarFallback>U</AvatarFallback>
-            </Avatar>
+            {/* Avatar and Bell icon removed from here */}
           </div>
         </div>
       </div>

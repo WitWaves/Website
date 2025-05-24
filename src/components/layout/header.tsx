@@ -2,9 +2,9 @@
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Search, Bell } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -35,16 +35,26 @@ export default function Header() {
                 </Link>
               ))}
             </nav>
-            {/* New Search Input Section */}
             <div className="hidden md:flex items-center">
-              <div className="relative max-w-xs"> {/* Reduced max-width */}
+              <div className="relative max-w-xs">
                 <Input
                   type="search"
                   placeholder="Search..."
-                  className="pl-9 pr-3 py-2 w-full rounded-full border-border bg-muted/50 focus:bg-background h-9 text-sm" // Smaller height, text, and padding
+                  className="pl-9 pr-3 py-2 w-full rounded-full border-border bg-muted/50 focus:bg-background h-9 text-sm"
                 />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" /> {/* Smaller icon */}
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
+            </div>
+            {/* Added Notifications Button and Avatar */}
+            <div className="flex items-center space-x-3">
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <Bell className="h-5 w-5" />
+                <span className="sr-only">Notifications</span>
+              </Button>
+              <Avatar className="h-9 w-9">
+                <AvatarImage src="https://placehold.co/40x40.png" alt="User avatar" data-ai-hint="person face"/>
+                <AvatarFallback>U</AvatarFallback>
+              </Avatar>
             </div>
           </div>
           {/* Mobile menu button (optional, can be added later) */}

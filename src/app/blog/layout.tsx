@@ -18,8 +18,8 @@ export const metadata: Metadata = {
   description: 'Explore articles and insights on WitWaves.',
 };
 
-// This layout defines its own <html> and <body> tags,
-// making it a new root layout for the /blog segment.
+// CRITICAL: This layout defines its own <html> and <body> tags.
+// This makes it a NEW ROOT LAYOUT for the /blog segment and all its children.
 // It will NOT inherit from src/app/layout.tsx.
 export default function BlogLayout({
   children,

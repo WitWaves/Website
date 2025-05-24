@@ -10,8 +10,6 @@ const navLinks = [
   { href: '/', label: 'Home' },
   { href: '/#about', label: 'About us' }, // Placeholder links
   { href: '/blog', label: 'Blog' },
-  // { href: '/#events', label: 'Events' }, // Removed
-  // { href: '/#publication', label: 'Publication' }, // Removed
 ];
 
 export default function Header() {
@@ -24,7 +22,7 @@ export default function Header() {
             <span className="text-xs text-muted-foreground -mt-1">/ Diverse Thoughts, One Ocean</span>
           </Link>
           <div className="flex items-center space-x-6">
-            {/* Search Input - Moved to the left */}
+            {/* Search Input */}
             <div className="hidden md:flex items-center">
               <div className="relative max-w-xs">
                 <Input
@@ -54,10 +52,12 @@ export default function Header() {
                 <Bell className="h-5 w-5" />
                 <span className="sr-only">Notifications</span>
               </Button>
-              <Avatar className="h-9 w-9">
-                <AvatarImage src="https://placehold.co/40x40.png" alt="User avatar" data-ai-hint="person face"/>
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
+              <Link href="/blog/profile">
+                <Avatar className="h-9 w-9 cursor-pointer">
+                  <AvatarImage src="https://placehold.co/40x40.png?text=FZ" alt="User Profile" data-ai-hint="person face"/>
+                  <AvatarFallback>FZ</AvatarFallback>
+                </Avatar>
+              </Link>
             </div>
           </div>
           {/* Mobile menu button (optional, can be added later) */}

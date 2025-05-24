@@ -93,51 +93,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Publication Section */}
-      <section className="bg-muted/30 py-16 md:py-24">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-4xl md:text-5xl font-bold mb-6">Publication</h2>
-              <p className="text-lg text-muted-foreground mb-6">
-                Step into the world of ideas and insights! Publish your work, share your research and let your content reach a broader audience.
-              </p>
-              <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
-                <Link href="/#publication-discover">
-                  Discover Publications <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-            </div>
-            <div className="flex justify-center items-center">
-              <Image
-                src="https://placehold.co/500x300.png"
-                alt="Publication features: International, Multidisciplinary, Peer-Reviewed"
-                width={500}
-                height={300}
-                className="rounded-lg shadow-xl"
-                data-ai-hint="journal features"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Events Section */}
-      <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24">
-        <div className="text-center max-w-3xl mx-auto">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">Events</h2>
-          <p className="text-lg text-muted-foreground mb-8">
-            Join us for engaging events designed to inspire, educate, and uplift! From knowledge-building
-            workshops to motivational sessions, our events are crafted to empower you and spark your growth.
-          </p>
-          <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90" asChild>
-            <Link href="/#events-discover">
-              Discover Events <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-          </Button>
-        </div>
-      </section>
-
       {/* Large Newsletter Subscription Section */}
       <section className="bg-accent py-16 md:py-24">
         <div className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">

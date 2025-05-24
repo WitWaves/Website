@@ -126,11 +126,10 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Using Geist Sans for body to match sans-serif look of the image */
-    font-family: var(--font-geist-sans), sans-serif;
+    font-family: var(--font-jost), sans-serif; /* Changed from --font-geist-sans */
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-geist-sans), sans-serif;
+    font-family: var(--font-jost), sans-serif; /* Changed from --font-geist-sans */
     @apply font-bold; /* Ensure headings are bold by default */
   }
 }

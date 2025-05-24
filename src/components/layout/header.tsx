@@ -24,6 +24,18 @@ export default function Header() {
             <span className="text-xs text-muted-foreground -mt-1">/ Diverse Thoughts, One Ocean</span>
           </Link>
           <div className="flex items-center space-x-6">
+            {/* Search Input - Moved to the left */}
+            <div className="hidden md:flex items-center">
+              <div className="relative max-w-xs">
+                <Input
+                  type="search"
+                  placeholder="Search..."
+                  className="pl-9 pr-3 py-2 w-full rounded-full border-border bg-muted/50 focus:bg-background h-9 text-sm"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+
             <nav className="hidden md:flex items-center space-x-6">
               {navLinks.map((link) => (
                 <Link
@@ -35,16 +47,7 @@ export default function Header() {
                 </Link>
               ))}
             </nav>
-            <div className="hidden md:flex items-center">
-              <div className="relative max-w-xs">
-                <Input
-                  type="search"
-                  placeholder="Search..."
-                  className="pl-9 pr-3 py-2 w-full rounded-full border-border bg-muted/50 focus:bg-background h-9 text-sm"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
+            
             {/* Added Notifications Button and Avatar */}
             <div className="flex items-center space-x-3">
               <Button variant="ghost" size="icon" className="rounded-full">

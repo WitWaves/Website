@@ -77,23 +77,23 @@ export default function ProfilePage() {
         return;
       }
       if (!user?.uid) {
-        // console.log('ProfilePage: No user or user.uid, clearing posts.');
+        console.log('ProfilePage: No user or user.uid, clearing posts.');
         setIsLoadingPosts(false);
         setUserPosts([]);
         return;
       }
       setIsLoadingPosts(true);
-      // console.log('ProfilePage: Fetching posts for user:', user.uid);
+      console.log('ProfilePage: Fetching posts for user:', user.uid);
       try {
         const allPosts = await getPosts(); 
-        // console.log('ProfilePage: All posts fetched from DB:', allPosts);
+        console.log('ProfilePage: All posts fetched from DB:', allPosts);
 
         const filteredPosts = allPosts.filter(post => {
             const matches = post.userId === user.uid;
             // console.log(`Post ID: ${post.id}, Post UserID: ${post.userId}, Current UserID: ${user.uid}, Matches: ${matches}`);
             return matches;
         });
-        // console.log('ProfilePage: Filtered posts for current user:', filteredPosts);
+        console.log('ProfilePage: Filtered posts for current user:', filteredPosts);
         setUserPosts(filteredPosts);
       } catch (error) {
         console.error("Error fetching user posts:", error);
@@ -114,13 +114,13 @@ export default function ProfilePage() {
       }
       if (user?.uid) {
         setIsLoadingProfile(true);
-        // console.log('ProfilePage: Fetching custom profile for user:', user.uid);
+        console.log('ProfilePage: Fetching custom profile for user:', user.uid);
         const profileDataFromDb = await getUserProfile(user.uid);
-        // console.log('ProfilePage: Custom profile data from DB:', profileDataFromDb);
+        console.log('ProfilePage: Custom profile data from DB:', profileDataFromDb);
         if (profileDataFromDb) {
           setCustomProfile(profileDataFromDb);
         } else {
-          // console.log('ProfilePage: No custom profile in DB, creating fallback from Auth data.');
+          console.log('ProfilePage: No custom profile in DB, creating fallback from Auth data.');
           setCustomProfile({
             uid: user.uid,
             displayName: user.displayName || "User",
@@ -132,7 +132,7 @@ export default function ProfilePage() {
         }
         setIsLoadingProfile(false);
       } else {
-        // console.log('ProfilePage: No user or user.uid, clearing custom profile.');
+        console.log('ProfilePage: No user or user.uid, clearing custom profile.');
         setIsLoadingProfile(false);
         setCustomProfile(null);
       }
@@ -150,13 +150,13 @@ export default function ProfilePage() {
       setSelectedFile(null); 
       setPreviewUrl(null);
       if (user?.uid) {
-        // console.log('ProfilePage: Re-fetching custom profile after successful edit for user:', user.uid);
+        console.log('ProfilePage: Re-fetching custom profile after successful edit for user:', user.uid);
         getUserProfile(user.uid).then(profileDataFromDb => {
-            // console.log('ProfilePage: Re-fetched custom profile data:', profileDataFromDb);
+            console.log('ProfilePage: Re-fetched custom profile data:', profileDataFromDb);
             if (profileDataFromDb) {
                 setCustomProfile(profileDataFromDb);
             } else {
-                // console.log('ProfilePage: Re-fetched custom profile is null, creating fallback from Auth data.');
+                console.log('ProfilePage: Re-fetched custom profile is null, creating fallback from Auth data.');
                  setCustomProfile({ 
                     uid: user.uid,
                     displayName: auth.currentUser?.displayName || "User", // Use current auth user data
@@ -330,7 +330,7 @@ export default function ProfilePage() {
       <div className="bg-card border-b border-border">
         <div className="container mx-auto max-w-5xl px-4 pt-8 pb-4">
            <div className="relative flex flex-col md:flex-row items-center md:items-end md:space-x-6"> 
-            <Avatar className="h-28 w-28 md:h-28 md:w-28 border-4 border-background shadow-lg shrink-0 -mt-16 md:-mt-10"> 
+            <Avatar className="h-28 w-28 md:h-28 md:w-28 border-4 border-background shadow-lg shrink-0 -mt-10"> 
               <AvatarImage src={currentAvatarUrl} alt={displayName} data-ai-hint="person fashion"/>
               <AvatarFallback>{fallbackAvatar}</AvatarFallback>
             </Avatar>
@@ -474,11 +474,9 @@ export default function ProfilePage() {
 
       <div className="container mx-auto max-w-5xl px-4 pb-8">
         <Tabs defaultValue="posts" className="w-full" onValueChange={setActiveActivityTab}>
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-6 bg-muted/50 p-1 rounded-lg">
+          <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1 rounded-lg">
             <TabsTrigger value="posts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Posts</TabsTrigger>
             <TabsTrigger value="activity" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Activity</TabsTrigger>
-            <TabsTrigger value="lists" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Lists</TabsTrigger>
-            <TabsTrigger value="papers" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Papers</TabsTrigger>
           </TabsList>
 
           <TabsContent value="posts">
@@ -553,18 +551,6 @@ export default function ProfilePage() {
                     <Heart className="mr-2 h-5 w-5 text-destructive" /> Liked Posts
                 </h3>
                 <p className="text-muted-foreground">Your liked posts will appear here. (Feature coming soon)</p>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="lists">
-            <Card className="p-6 min-h-[200px] flex items-center justify-center">
-              <p className="text-muted-foreground">User-created lists will be displayed here.</p>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="papers">
-            <Card className="p-6 min-h-[200px] flex items-center justify-center">
-              <p className="text-muted-foreground">User&apos;s academic papers will be displayed here.</p>
             </Card>
           </TabsContent>
         </Tabs>

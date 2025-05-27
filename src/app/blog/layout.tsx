@@ -3,12 +3,27 @@
 
 import type { Metadata } from 'next';
 import { usePathname } from 'next/navigation'; // Import usePathname
-
+import { Jost } from 'next/font/google';
+import Script from 'next/script';
+import '../globals.css'; // Adjusted path
+import { Toaster } from "@/components/ui/toaster";
+// Removed main Header and Footer imports, as this layout is now self-contained for /blog
+// import Header from '@/components/layout/header';
+// import Footer from '@/components/layout/footer';
 import BlogLeftSidebar from '@/components/layout/blog-left-sidebar';
 import BlogRightSidebar from '@/components/layout/blog-right-sidebar';
+import { cn } from '@/lib/utils';
+import { AuthProvider } from '@/contexts/auth-context';
 
-// Metadata can still be defined for this segment
-// export const metadata: Metadata = { // Metadata cannot be exported from client components. Consider moving to a parent Server Component or page.
+const jost = Jost({
+  variable: '--font-jost',
+  subsets: ['latin'],
+  weights: ['100', '200', '300', '400', '500', '600', '700', '800', '900']
+});
+
+// Metadata cannot be exported from client components. 
+// Consider moving to a parent Server Component or page if this metadata is for /blog segment.
+// export const metadata: Metadata = {
 //   title: 'Blog | WitWaves',
 //   description: 'Explore articles and insights on WitWaves.',
 // };
@@ -19,19 +34,22 @@ export default function BlogLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
-  const showRightSidebar = pathname !== '/blog/profile'; // Hide on profile page
+  const showSidebars = pathname !== '/blog/profile'; // Hide on profile page
 
   return (
     // This div structure will be injected into the <main> tag of the parent layout (src/app/layout.tsx)
+    // OR, if this is meant to be a new root layout for /blog, it needs <html> and <body> tags.
+    // Assuming for now it's a nested layout within the main app structure.
     <div className="flex-grow container mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6">
       <div className="flex flex-row gap-6">
-        <BlogLeftSidebar />
+        {showSidebars && <BlogLeftSidebar />}
         <main className="flex-1 min-w-0"> {/* This main is for content *within* the blog section */}
           {children} {/* This will be /blog/page.tsx or other blog sub-pages */}
         </main>
-        {showRightSidebar && <BlogRightSidebar />}
+        {showSidebars && <BlogRightSidebar />}
       </div>
     </div>
-    // Removed Toaster, it should be in the root layout if needed globally
+    // Toaster should ideally be in the root layout (src/app/layout.tsx)
+    // If this blog layout is a full root, then Toaster here is fine.
   );
 }

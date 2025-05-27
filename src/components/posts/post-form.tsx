@@ -1,10 +1,9 @@
 
 'use client';
 
-import { useEffect, useState, useTransition, useActionState } from 'react';
+import { useEffect, useState, useTransition, useActionState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic'; // Import dynamic for client-side only components
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState } from '@/app/actions';
@@ -13,22 +12,9 @@ import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, Image as Imag
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
+import Link from 'next/link';
 
-// Dynamically import ReactQuill to ensure it's only loaded on the client-side
-// Attempting a more robust import pattern for ReactQuill
-const ReactQuill = dynamic(
-  () => import('react-quill').then(mod => mod.default || mod), // Handle if it's a default export or the module itself
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-[200px] border border-input rounded-md bg-muted/50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2">Loading editor...</p>
-      </div>
-    )
-  }
-);
-import 'react-quill/dist/quill.snow.css'; // Import Quill styles
+// Quill is now loaded via CDN, no direct import needed here for the library itself
 
 interface PostFormProps {
   post?: Post;
@@ -63,10 +49,56 @@ export default function PostForm({ post }: PostFormProps) {
   const [titleValue, setTitleValue] = useState(post?.title || '');
 
   const [isClient, setIsClient] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const quillInstanceRef = useRef<any>(null); // To store Quill instance
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEffect(() => {
+    if (isClient && editorRef.current && typeof window.Quill !== 'undefined') {
+      if (quillInstanceRef.current) return; // Initialize only once
+
+      const quill = new window.Quill(editorRef.current, {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+            [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
+            ['link', 'image'], 
+            ['clean']
+          ],
+        },
+        placeholder: "Write your amazing post content here...",
+      });
+      quillInstanceRef.current = quill;
+
+      if (post?.content) {
+        quill.clipboard.dangerouslyPasteHTML(0, post.content);
+      } else {
+        quill.setText(''); // Clear initial content if not editing
+      }
+      
+      quill.on('text-change', () => {
+        setQuillContent(quill.root.innerHTML);
+      });
+
+      // Cleanup
+      return () => {
+        if (quillInstanceRef.current) {
+          // Quill's own cleanup if available, or nullify ref
+          // Quill doesn't have a formal destroy method in v2, so unsetting event listeners and refs is common.
+          // For robust cleanup, one might need to remove listeners and clear the DOM manually if issues arise.
+          quill.off('text-change', () => {}); // Deregister listener
+          quillInstanceRef.current = null;
+          if (editorRef.current) editorRef.current.innerHTML = ''; // Clear the div
+        }
+      };
+    }
+  }, [isClient, post?.content]);
+
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
   const [state, formAction] = useActionState(action, undefined);
@@ -97,10 +129,8 @@ export default function PostForm({ post }: PostFormProps) {
   }, [state, router, toast, post, titleValue]);
 
   const handleSuggestTags = () => {
-    if (!isClient) return; 
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = quillContent;
-    const textContentForAI = tempDiv.textContent || tempDiv.innerText || "";
+    if (!isClient || !quillInstanceRef.current) return; 
+    const textContentForAI = quillInstanceRef.current.getText(); // Get plain text from Quill
     
     startAITransition(async () => {
       const tags = await getAISuggestedTagsAction(textContentForAI);
@@ -131,24 +161,6 @@ export default function PostForm({ post }: PostFormProps) {
       addTag(tagInput);
     }
   };
-
-  const quillModules = {
-    toolbar: [
-      [{ 'header': [1, 2, 3, false] }],
-      ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-      [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
-      ['link', 'image'], 
-      ['clean']
-    ],
-  };
-
-  const quillFormats = [
-    'header',
-    'bold', 'italic', 'underline', 'strike', 'blockquote',
-    'list', 'bullet', 'indent',
-    'link', 'image'
-  ];
-
 
   if (authLoading) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
@@ -182,7 +194,8 @@ export default function PostForm({ post }: PostFormProps) {
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow lg:w-2/3 space-y-6">
-           <div className="relative flex items-start">
+          <div className="space-y-1">
+            <label htmlFor="title" className="sr-only">Post Title</label>
             <Input
               id="title"
               name="title"
@@ -192,22 +205,17 @@ export default function PostForm({ post }: PostFormProps) {
               className="text-2xl md:text-3xl font-bold border-b border-input focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent focus:border-primary"
               required
             />
+             {state?.errors?.title && <p className="text-sm text-destructive mt-1">{state.errors.title.join(', ')}</p>}
           </div>
-          {state?.errors?.title && <p className="text-sm text-destructive mt-1">{state.errors.title.join(', ')}</p>}
+         
 
           <div className="bg-card border border-input rounded-md">
             {isClient ? (
-              <ReactQuill 
-                theme="snow" 
-                value={quillContent} 
-                onChange={setQuillContent}
-                modules={quillModules}
-                formats={quillFormats}
-                placeholder="Write your amazing post content here..."
-                className="min-h-[200px] [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md" 
-              />
+              <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md">
+                {/* Quill will attach here */}
+              </div>
             ) : (
-              <div className="min-h-[200px] border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
+              <div className="min-h-[300px] border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-3 text-muted-foreground">Initializing editor...</p>
               </div>
@@ -267,7 +275,7 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !quillContent.trim() || !isClient } className="w-full text-xs py-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || (!isClient || !quillInstanceRef.current) || !quillContent.trim() } className="w-full text-xs py-2">
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>
@@ -298,6 +306,3 @@ export default function PostForm({ post }: PostFormProps) {
     </form>
   );
 }
-    
-
-    

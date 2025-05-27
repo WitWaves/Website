@@ -135,40 +135,18 @@
   }
 }
 
-/* Quill editor styling adjustments */
+/* Quill editor styling adjustments will now primarily come from CDN quill.snow.css */
+/* We might keep minimal overrides here if needed, but better to rely on the theme CSS */
 @layer components {
-  .ql-editor {
-    @apply min-h-[200px] text-base; /* Ensure text size is consistent */
-    /* font-family: var(--font-jost), sans-serif; */ /* Apply Jost font if needed, Quill might inherit */
-  }
-  .ql-toolbar.ql-snow {
-    @apply rounded-t-md border-input;
-    background-color: hsl(var(--card)); /* Replaced @apply bg-card */
-  }
-  .ql-container.ql-snow {
-    @apply rounded-b-md border-input;
-    background-color: hsl(var(--card)); /* Replaced @apply bg-card */
-    color: hsl(var(--card-foreground)); /* Replaced @apply text-card-foreground */
-  }
-  /* Ensure toolbar buttons are visible in dark mode */
-  .dark .ql-snow .ql-stroke {
-    @apply stroke-current text-foreground/70;
-  }
-  .dark .ql-snow .ql-fill {
-    @apply fill-current text-foreground/70;
-  }
-  .dark .ql-snow .ql-picker-label {
-    @apply text-foreground/70;
-  }
-   /* Ensure Quill editor uses card background and foreground if wrapped in .bg-card */
-  /* These rules are fine as they apply border-border, not bg-card itself. */
+  /* Example: Ensure Quill editor uses card background and foreground if it's inside a .bg-card div */
+  /* This might not be needed if quill.snow.css handles theming well with CSS variables */
+  /*
   .bg-card .ql-toolbar.ql-snow {
     @apply border-border;
   }
   .bg-card .ql-container.ql-snow {
     @apply border-border;
   }
-  /* .bg-card .ql-editor is handled by parent */
   .dark .bg-card .ql-stroke {
      @apply stroke-current text-card-foreground/70;
   }
@@ -178,4 +156,5 @@
   .dark .bg-card .ql-picker-label {
     @apply text-card-foreground/70;
   }
+  */
 }

@@ -1,12 +1,13 @@
 
 import type { Metadata } from 'next';
 import { Jost } from 'next/font/google';
+import Script from 'next/script'; // Import Script
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
 import { cn } from '@/lib/utils';
-import { AuthProvider } from '@/contexts/auth-context'; // Import AuthProvider
+import { AuthProvider } from '@/contexts/auth-context';
 
 const jost = Jost({
   variable: '--font-jost',
@@ -26,8 +27,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn(jost.variable)}>
+      <head>
+        {/* Quill Snow Theme CSS from CDN */}
+        <link
+          href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css"
+          rel="stylesheet"
+        />
+      </head>
       <body className="min-h-screen flex flex-col antialiased">
-        <AuthProvider> {/* Wrap with AuthProvider */}
+        <AuthProvider>
           <Header />
           <main className="flex-grow w-full">
             {children}
@@ -35,6 +43,11 @@ export default function RootLayout({
           <Footer />
           <Toaster />
         </AuthProvider>
+        {/* Quill Library JS from CDN */}
+        <Script
+          src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
+          strategy="lazyOnload" // Load after page content is interactive
+        />
       </body>
     </html>
   );

@@ -14,12 +14,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import { getPosts, type Post } from '@/lib/posts';
-import type { AuthorProfileForCard } from '@/lib/userProfile'; // Use AuthorProfileForCard for consistency
+import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { getUserProfile, type UserProfile, type SocialLinks } from '@/lib/userProfile';
-import { auth } from '@/lib/firebase/config'; 
+import { auth } from '@/lib/firebase/config';
 import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 
 const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
@@ -31,8 +31,8 @@ const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
 };
 
 const staticProfileStats = {
-    following: 0, 
-    followers: '0', 
+    following: 0,
+    followers: '0',
 };
 
 
@@ -44,7 +44,7 @@ export default function ProfilePage() {
   const [customProfile, setCustomProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [, startTransition] = useTransition(); 
+  const [isEditPendingTransition, startEditTransition] = useTransition();
 
   const [editProfileState, handleProfileFormSubmit, isEditPending] = useActionState(
     user && user.uid ? updateUserProfileAction.bind(null, user.uid) : async () => ({ message: "User not available for action binding.", success: false }),
@@ -53,15 +53,28 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function fetchAndFilterPosts() {
+      if (authLoading) {
+        console.log('ProfilePage: Auth is loading, deferring post fetch.');
+        return;
+      }
       if (!user?.uid) {
+        console.log('ProfilePage: No user or user.uid, clearing posts.');
         setIsLoadingPosts(false);
         setUserPosts([]);
         return;
       }
       setIsLoadingPosts(true);
+      console.log('ProfilePage: Fetching posts for user:', user.uid);
       try {
         const allPosts = await getPosts();
-        const filteredPosts = allPosts.filter(post => post.userId === user.uid);
+        console.log('ProfilePage: All posts fetched from DB:', allPosts);
+
+        const filteredPosts = allPosts.filter(post => {
+            const matches = post.userId === user.uid;
+            // console.log(`ProfilePage: Filtering post "${post.title}" (ID: ${post.id}, post.userId: ${post.userId}) for user ${user.uid}. Match: ${matches}`);
+            return matches;
+        });
+        console.log('ProfilePage: Filtered posts for current user:', filteredPosts);
         setUserPosts(filteredPosts);
       } catch (error) {
         console.error("Error fetching user posts:", error);
@@ -71,41 +84,42 @@ export default function ProfilePage() {
       }
     }
 
-    if (user && !authLoading) {
-      fetchAndFilterPosts();
-    } else if (!authLoading && !user) {
-      setIsLoadingPosts(false);
-      setUserPosts([]);
-    }
+    fetchAndFilterPosts();
   }, [user, authLoading]);
 
   useEffect(() => {
     async function fetchCustomProfile() {
+      if (authLoading) {
+          console.log('ProfilePage: Auth is loading, deferring custom profile fetch.');
+          return;
+      }
       if (user?.uid) {
         setIsLoadingProfile(true);
-        const profileData = await getUserProfile(user.uid);
-        if (profileData) {
-          setCustomProfile(profileData);
+        console.log('ProfilePage: Fetching custom profile for user:', user.uid);
+        const profileDataFromDb = await getUserProfile(user.uid);
+        console.log('ProfilePage: Custom profile data from DB:', profileDataFromDb);
+        if (profileDataFromDb) {
+          setCustomProfile(profileDataFromDb);
         } else {
-          // If no profile in Firestore, create a basic one from Auth data
+          // If no profile in Firestore, create a basic one from Auth data for display
+          console.log('ProfilePage: No custom profile in DB, creating fallback from Auth data.');
           setCustomProfile({
             uid: user.uid,
             displayName: user.displayName || "User",
             photoURL: user.photoURL || undefined,
-            username: user.email?.split('@')[0], // Basic username from email
+            username: user.email?.split('@')[0],
             bio: "",
             socialLinks: {},
           });
         }
         setIsLoadingProfile(false);
-      } else if (!authLoading && !user) {
+      } else {
+        console.log('ProfilePage: No user or user.uid, clearing custom profile.');
         setIsLoadingProfile(false);
         setCustomProfile(null);
       }
     }
-    if (user && !authLoading) {
-      fetchCustomProfile();
-    }
+    fetchCustomProfile();
   }, [user, authLoading]);
 
   useEffect(() => {
@@ -117,12 +131,14 @@ export default function ProfilePage() {
       setIsEditModalOpen(false);
       if (user?.uid) {
         // Re-fetch the profile from Firestore to ensure UI consistency
+        console.log('ProfilePage: Re-fetching custom profile after successful edit for user:', user.uid);
         getUserProfile(user.uid).then(profileDataFromDb => {
+            console.log('ProfilePage: Re-fetched custom profile data:', profileDataFromDb);
             if (profileDataFromDb) {
                 setCustomProfile(profileDataFromDb);
             } else {
-                // Fallback if profile somehow became null after update (unlikely but good to handle)
-                setCustomProfile({
+                console.log('ProfilePage: Re-fetched custom profile is null, creating fallback from Auth data.');
+                setCustomProfile({ // Fallback if profile somehow became null after update
                     uid: user.uid,
                     displayName: user.displayName || "User",
                     photoURL: user.photoURL || undefined,
@@ -186,18 +202,22 @@ export default function ProfilePage() {
     }
     const newDisplayName = formData.get('displayName') as string | null;
 
+    // Client-side update of Firebase Auth displayName if changed
     if (newDisplayName && newDisplayName !== auth.currentUser.displayName && auth.currentUser) {
-        try {
-            await updateFirebaseAuthProfile(auth.currentUser, { displayName: newDisplayName });
-            toast({ title: "Display Name Updated", description: "Your display name in Firebase Authentication has been updated."});
-            // The useAuth context will update via onAuthStateChanged
-        } catch (error) {
-            console.error("Error updating Firebase Auth display name:", error);
-            toast({ title: "Auth Update Error", description: `Failed to update display name in Firebase. ${ (error as Error).message }`, variant: "destructive" });
-        }
+      try {
+        await updateFirebaseAuthProfile(auth.currentUser, { displayName: newDisplayName });
+        toast({ title: "Display Name Updated", description: "Your display name in Firebase Authentication has been updated."});
+        // The useAuth context will update via onAuthStateChanged, which should trigger profile re-fetch
+      } catch (error) {
+        console.error("Error updating Firebase Auth display name:", error);
+        toast({ title: "Auth Update Error", description: `Failed to update display name in Firebase. ${ (error as Error).message }`, variant: "destructive" });
+        // Optionally, don't proceed with Firestore update if Firebase Auth update fails
+        // return; 
+      }
     }
-    startTransition(() => {
-      handleProfileFormSubmit(formData);
+    // Proceed to call the server action for Firestore profile data
+    startEditTransition(() => {
+        handleProfileFormSubmit(formData);
     });
   };
 
@@ -273,8 +293,8 @@ export default function ProfilePage() {
                             <DialogClose asChild>
                                 <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
                             </DialogClose>
-                            <Button type="submit" disabled={isEditPending}>
-                                {isEditPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
+                            <Button type="submit" disabled={isEditPending || isEditPendingTransition}>
+                                {(isEditPending || isEditPendingTransition) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
                             </Button>
                         </DialogFooter>
                       </form>
@@ -373,6 +393,7 @@ export default function ProfilePage() {
   );
 }
 
+// Simple Card component for placeholder content
 function Card({ children, className }: { children: React.ReactNode, className?: string }) {
   return (
     <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>

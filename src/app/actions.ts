@@ -4,9 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getPost, generateSlug, isSlugUnique, type Post } from '@/lib/posts';
 import { db } from '@/lib/firebase/config';
-import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore'; 
-// import type { Post } from '@/lib/posts'; // Already imported above
-import type { UserProfile, SocialLinks } from '@/lib/userProfile'; // Import SocialLinks
+import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection } from 'firebase/firestore'; 
+import type { UserProfile, SocialLinks } from '@/lib/userProfile';
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
 
 
@@ -29,6 +28,14 @@ const UserProfileSchema = z.object({
   portfolio: z.string().url('Invalid Portfolio URL.').optional().or(z.literal('')),
 });
 
+const AddCommentSchema = z.object({
+  postId: z.string().min(1, 'Post ID is required.'),
+  userId: z.string().min(1, 'User ID is required.'),
+  userDisplayName: z.string().min(1, 'User display name is required.'),
+  userPhotoURL: z.string().url().optional().or(z.literal('')),
+  commentText: z.string().min(1, 'Comment cannot be empty.').max(1000, 'Comment cannot exceed 1000 characters.'),
+});
+
 
 export type FormState = {
   message: string;
@@ -48,11 +55,14 @@ export type FormState = {
     portfolio?: string[];
     // Like action specific
     postId?: string[];
+    // Comment action specific
+    commentText?: string[];
   };
   success?: boolean;
   newPostId?: string;
   updatedProfile?: Partial<UserProfile>;
   updatedLikeStatus?: { postId: string; liked: boolean; newCount: number };
+  newCommentId?: string;
 } | undefined;
 
 
@@ -99,6 +109,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     userId,
     likedBy: [],
     likeCount: 0,
+    commentCount: 0, // Initialize comment count
     createdAt: serverTimestamp(), 
     updatedAt: serverTimestamp(), 
   };
@@ -218,7 +229,7 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
 
   revalidatePath('/blog/profile');
   revalidatePath(`/blog/profile/${userId}`); 
-  revalidatePath('/blog'); // Revalidate blog page in case author names need update
+  revalidatePath('/blog'); 
 
   return { message: 'Profile updated successfully!', success: true, updatedProfile: updatedProfileForState };
 }
@@ -249,15 +260,13 @@ export async function toggleLikePostAction(prevState: FormState, formData: FormD
     let liked = false;
 
     if (likedBy.includes(userId)) {
-      // User has already liked, so unlike
       await updateDoc(postDocRef, {
         likedBy: arrayRemove(userId),
         likeCount: increment(-1),
       });
-      newLikeCount = Math.max(0, newLikeCount - 1); // Ensure count doesn't go below 0
+      newLikeCount = Math.max(0, newLikeCount - 1); 
       liked = false;
     } else {
-      // User has not liked, so like
       await updateDoc(postDocRef, {
         likedBy: arrayUnion(userId),
         likeCount: increment(1),
@@ -268,7 +277,7 @@ export async function toggleLikePostAction(prevState: FormState, formData: FormD
 
     revalidatePath('/blog');
     revalidatePath(`/posts/${postId}`);
-    revalidatePath('/blog/profile'); // If liked posts are shown on profile
+    revalidatePath('/blog/profile'); 
 
     return {
       message: liked ? 'Post liked!' : 'Post unliked!',
@@ -282,3 +291,53 @@ export async function toggleLikePostAction(prevState: FormState, formData: FormD
   }
 }
 
+export async function addCommentAction(prevState: FormState, formData: FormData): Promise<FormState> {
+  const validatedFields = AddCommentSchema.safeParse({
+    postId: formData.get('postId'),
+    userId: formData.get('userId'),
+    userDisplayName: formData.get('userDisplayName'),
+    userPhotoURL: formData.get('userPhotoURL') || undefined,
+    commentText: formData.get('commentText'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      message: 'Validation Error: Failed to add comment.',
+      errors: validatedFields.error.flatten().fieldErrors,
+      success: false,
+    };
+  }
+
+  const { postId, userId, userDisplayName, userPhotoURL, commentText } = validatedFields.data;
+
+  try {
+    const postDocRef = doc(db, 'posts', postId);
+    const commentsColRef = collection(db, 'posts', postId, 'comments');
+
+    // Add the comment to the subcollection
+    const newCommentRef = await addDoc(commentsColRef, {
+      userId,
+      userDisplayName,
+      userPhotoURL: userPhotoURL || null, // Store null if undefined
+      text: commentText,
+      createdAt: serverTimestamp(),
+    });
+
+    // Increment commentCount on the post document
+    await updateDoc(postDocRef, {
+      commentCount: increment(1),
+    });
+
+    revalidatePath(`/posts/${postId}`);
+
+    return {
+      message: 'Comment added successfully!',
+      success: true,
+      newCommentId: newCommentRef.id,
+    };
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { message: `Error: Failed to add comment. ${errorMessage}`, success: false };
+  }
+}

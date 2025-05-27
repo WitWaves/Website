@@ -2,51 +2,76 @@
 'use client'; 
 
 import { getPost, type Post } from '@/lib/posts';
+import { getCommentsForPost, type Comment } from '@/lib/comments'; // Import comment types and functions
 import { notFound, useParams } from 'next/navigation'; 
 import TagBadge from '@/components/posts/tag-badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Bookmark, Share2, Loader2 } from 'lucide-react';
+import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Bookmark, Share2, Loader2, UserCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { useEffect, useState, useActionState, useTransition } from 'react'; // Added useTransition
+import { useEffect, useState, useActionState, useTransition, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, type FormState as LikeFormState } from '@/app/actions';
+import { toggleLikePostAction, addCommentAction, type FormState as LikeFormState, type FormState as CommentFormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-
+import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function PostPage() {
   const params = useParams();
   const postId = params.id as string;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [isPendingTransition, startTransition] = useTransition(); // Added for startTransition
+  const [isLikePendingTransition, startLikeTransition] = useTransition();
+  const [isCommentPendingTransition, startCommentTransition] = useTransition();
+  const commentFormRef = useRef<HTMLFormElement>(null);
+
 
   const [post, setPost] = useState<Post | null | undefined>(undefined); 
+  const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
 
   const [optimisticLiked, setOptimisticLiked] = useState(false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(0);
+  const [optimisticCommentCount, setOptimisticCommentCount] = useState(0);
 
-  const [likeState, handleLikeAction, isLikePending] = useActionState<LikeFormState, FormData>(
+  const [likeState, handleLikeAction, isLikeActionPending] = useActionState<LikeFormState, FormData>(
     toggleLikePostAction,
+    undefined
+  );
+
+  const [commentState, handleCommentAction, isCommentActionPending] = useActionState<CommentFormState, FormData>(
+    addCommentAction,
     undefined
   );
   
   useEffect(() => {
-    async function fetchPost() {
+    async function fetchPostAndComments() {
       if (postId) {
         setIsLoading(true);
-        const fetchedPost = await getPost(postId);
-        setPost(fetchedPost);
-        if (fetchedPost) {
-          setOptimisticLiked(fetchedPost.likedBy?.includes(user?.uid || '') || false);
-          setOptimisticLikeCount(fetchedPost.likeCount || 0);
+        setIsLoadingComments(true);
+        try {
+            const fetchedPost = await getPost(postId);
+            setPost(fetchedPost);
+            if (fetchedPost) {
+                setOptimisticLiked(fetchedPost.likedBy?.includes(user?.uid || '') || false);
+                setOptimisticLikeCount(fetchedPost.likeCount || 0);
+                setOptimisticCommentCount(fetchedPost.commentCount || 0);
+
+                const fetchedComments = await getCommentsForPost(postId);
+                setComments(fetchedComments);
+            }
+        } catch (error) {
+            console.error("Error fetching post or comments: ", error);
+            setPost(null); // To trigger notFound if post itself fails
+        } finally {
+            setIsLoading(false);
+            setIsLoadingComments(false);
         }
-        setIsLoading(false);
       }
     }
-    fetchPost();
+    fetchPostAndComments();
   }, [postId, user?.uid]);
 
 
@@ -56,12 +81,25 @@ export default function PostPage() {
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
     } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === postId) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
-      if (post) {
+      if (post) { // Revert optimistic update
         setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
         setOptimisticLikeCount(post.likeCount || 0);
       }
     }
   }, [likeState, postId, toast, user?.uid, post]);
+
+  useEffect(() => {
+    if (commentState?.success) {
+      toast({ title: 'Success', description: commentState.message });
+      // Refetch comments to show the new one
+      getCommentsForPost(postId).then(setComments);
+      // Increment optimistic comment count
+      setOptimisticCommentCount(prev => prev + 1);
+      commentFormRef.current?.reset(); // Reset the comment form
+    } else if (commentState?.message && !commentState.success) {
+      toast({ title: 'Error adding comment', description: commentState.errors?.commentText?.join(', ') || commentState.message, variant: 'destructive' });
+    }
+  }, [commentState, postId, toast]);
 
 
   const handleLikeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -73,18 +111,31 @@ export default function PostPage() {
     if (!post) return;
 
     const formData = new FormData(event.currentTarget);
-    formData.set('userId', user.uid);
-
+    // userId is already part of formData via hidden input
+    
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
     
-    startTransition(() => {
+    startLikeTransition(() => {
       handleLikeAction(formData);
+    });
+  };
+  
+  const handleCommentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+     if (!user) {
+      toast({ title: 'Authentication Required', description: 'Please log in to comment.', variant: 'destructive'});
+      return;
+    }
+    const formData = new FormData(event.currentTarget);
+    // postId, userId, userDisplayName, userPhotoURL are set via hidden inputs
+    startCommentTransition(() => {
+        handleCommentAction(formData);
     });
   };
 
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return <div className="flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading post...</p></div>;
   }
 
@@ -95,7 +146,6 @@ export default function PostPage() {
   if (!post) { 
       return <div className="text-center py-10">Post could not be loaded.</div>;
   }
-
 
   return (
     <article className="py-8 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -143,14 +193,14 @@ export default function PostPage() {
                 size="sm" 
                 className={`flex items-center gap-1.5 text-sm ${optimisticLiked ? 'text-destructive border-destructive hover:bg-destructive/10' : 'hover:text-destructive'}`} 
                 title="Like"
-                disabled={isLikePending || isPendingTransition || !user}
+                disabled={isLikeActionPending || isLikePendingTransition || !user}
             >
-                {(isLikePending || isPendingTransition) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />} 
+                {(isLikeActionPending || isLikePendingTransition) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />} 
                 Like <span className="text-xs text-muted-foreground">({optimisticLikeCount})</span>
             </Button>
         </form>
-        <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Comment">
-          <MessageCircle className="h-4 w-4 text-primary" /> Comment <span className="text-xs text-muted-foreground">(e.g., 87)</span>
+        <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Comment" onClick={() => commentFormRef.current?.querySelector('textarea')?.focus()}>
+          <MessageCircle className="h-4 w-4 text-primary" /> Comment <span className="text-xs text-muted-foreground">({optimisticCommentCount})</span>
         </Button>
         <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Save">
           <Bookmark className="h-4 w-4 text-blue-500" /> Save
@@ -167,6 +217,66 @@ export default function PostPage() {
       />
       
       <Separator className="my-10" />
+
+      {/* Comments Section */}
+      <section className="space-y-8">
+        <h2 className="text-2xl font-semibold">Comments ({optimisticCommentCount})</h2>
+        {user ? (
+          <form onSubmit={handleCommentSubmit} ref={commentFormRef} className="space-y-3">
+            <input type="hidden" name="postId" value={post.id} />
+            {user.uid && <input type="hidden" name="userId" value={user.uid} />}
+            {user.displayName && <input type="hidden" name="userDisplayName" value={user.displayName} />}
+            {user.photoURL && <input type="hidden" name="userPhotoURL" value={user.photoURL} />}
+            <div>
+              <Textarea
+                name="commentText"
+                placeholder="Write your comment..."
+                rows={4}
+                required
+                className="text-base"
+              />
+              {commentState?.errors?.commentText && (
+                <p className="text-sm text-destructive mt-1">{commentState.errors.commentText.join(', ')}</p>
+              )}
+            </div>
+            <Button type="submit" disabled={isCommentActionPending || isCommentPendingTransition}>
+              {(isCommentActionPending || isCommentPendingTransition) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Post Comment
+            </Button>
+          </form>
+        ) : (
+          <p className="text-muted-foreground">
+            Please <Link href="/login" className="text-primary hover:underline">log in</Link> to post a comment.
+          </p>
+        )}
+
+        {isLoadingComments ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="ml-2 text-muted-foreground">Loading comments...</p>
+          </div>
+        ) : comments.length > 0 ? (
+          <div className="space-y-6">
+            {comments.map((comment) => (
+              <div key={comment.id} className="flex items-start space-x-3 p-4 border rounded-lg bg-card">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={comment.userPhotoURL || `https://placehold.co/40x40.png?text=${comment.userDisplayName.substring(0,1)}`} alt={comment.userDisplayName} data-ai-hint="person avatar" />
+                  <AvatarFallback>{comment.userDisplayName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-sm text-foreground">{comment.userDisplayName}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(comment.createdAt), 'MMM d, yyyy')}</p>
+                  </div>
+                  <p className="text-sm text-foreground/90 mt-1">{comment.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          !isLoadingComments && <p className="text-muted-foreground">No comments yet. Be the first to comment!</p>
+        )}
+      </section>
 
       <div className="mt-12 flex justify-center">
          <Button variant="ghost" asChild>

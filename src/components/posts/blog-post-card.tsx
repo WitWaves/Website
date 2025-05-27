@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Heart, Bookmark, MessageCircle, MoreHorizontal, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
-import { useState, useEffect, useActionState, useTransition } from 'react'; // Added useTransition
+import { useState, useEffect, useActionState, useTransition } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { toggleLikePostAction, type FormState as LikeFormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +22,7 @@ type BlogPostCardProps = {
 export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isPendingTransition, startTransition] = useTransition(); // Added for startTransition
+  const [isPendingTransition, startTransition] = useTransition();
 
   const generateSummary = (content: string, length: number = 100) => {
     if (!content) return '';
@@ -31,11 +31,12 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     return strippedContent.substring(0, length) + '...';
   };
   
-  const postSummary = generateSummary(post.content, 60);
+  const postSummary = generateSummary(post.content, 150); // Increased summary length
 
-  // State for like button interaction
   const [optimisticLiked, setOptimisticLiked] = useState(post.likedBy?.includes(user?.uid || '') || false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(post.likeCount || 0);
+  const [optimisticCommentCount, setOptimisticCommentCount] = useState(post.commentCount || 0);
+
 
   const [likeState, handleLikeAction, isLikePending] = useActionState<LikeFormState, FormData>(
     toggleLikePostAction,
@@ -45,17 +46,15 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   useEffect(() => {
     setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
     setOptimisticLikeCount(post.likeCount || 0);
-  }, [post.likedBy, post.likeCount, user?.uid]);
+    setOptimisticCommentCount(post.commentCount || 0);
+  }, [post.likedBy, post.likeCount, post.commentCount, user?.uid]);
 
   useEffect(() => {
     if (likeState?.success && likeState.updatedLikeStatus?.postId === post.id) {
       setOptimisticLiked(likeState.updatedLikeStatus.liked);
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
-      // Optional: Show a toast, but can be noisy for likes
-      // toast({ title: likeState.message });
-    } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === post.id) { // Ensure error matches post
+    } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === post.id) { 
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
-      // Revert optimistic update on error
       setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
       setOptimisticLikeCount(post.likeCount || 0);
     }
@@ -68,9 +67,8 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
       return;
     }
     const formData = new FormData(event.currentTarget);
-    formData.set('userId', user.uid); // Ensure userId is set for the action
-
-    // Optimistic update
+    // userId is now set via hidden input
+    
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
     
@@ -79,15 +77,11 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     });
   };
 
-
-  // Placeholder counts for bookmarks, comments - can be randomized too if desired
   const [bookmarks, setBookmarks] = useState<string | null>(null);
-  const [commentsCount, setCommentsCount] = useState<string | null>(null);
 
   useEffect(() => {
     setBookmarks(`${(Math.random() * 18 + 0.1).toFixed(1)}k`);
-    setCommentsCount(`${Math.floor(Math.random() * 100)}`); 
-  }, []); // Run once on mount
+  }, []); 
 
   const authorDisplayName = author?.displayName || 'WitWaves User';
   const authorAvatarUrl = author?.photoURL;
@@ -133,9 +127,9 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                 </Button>
             </form>
 
-            <button className="flex items-center hover:text-primary disabled:opacity-70 p-0 h-auto" title="Comment" disabled={commentsCount === null}>
-              <MessageCircle className="h-4 w-4 mr-1" /> {commentsCount !== null ? commentsCount : '...'}
-            </button>
+            <Link href={`/posts/${post.id}#comments`} className="flex items-center hover:text-primary disabled:opacity-70 p-0 h-auto" title="Comment">
+              <MessageCircle className="h-4 w-4 mr-1" /> {optimisticCommentCount}
+            </Link>
             <button className="flex items-center hover:text-blue-500 disabled:opacity-70 p-0 h-auto" title="Save" disabled={bookmarks === null}>
               <Bookmark className="h-4 w-4 mr-1" /> {bookmarks !== null ? bookmarks : '...'}
             </button>

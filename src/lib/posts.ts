@@ -24,6 +24,7 @@ export interface Post {
   imageUrl?: string; // Optional field for post image
   likedBy?: string[]; // Array of user IDs who liked the post
   likeCount?: number; // Total number of likes
+  commentCount?: number; // Total number of comments
 }
 
 // Helper to convert Firestore Timestamp to ISO string or return existing string
@@ -62,6 +63,7 @@ export async function getPosts(count?: number): Promise<Post[]> {
         imageUrl: data.imageUrl,
         likedBy: data.likedBy || [],
         likeCount: data.likeCount || 0,
+        commentCount: data.commentCount || 0,
       } as Post;
     });
     return postsList;
@@ -92,6 +94,7 @@ export async function getPost(id: string): Promise<Post | undefined> {
         imageUrl: data.imageUrl,
         likedBy: data.likedBy || [],
         likeCount: data.likeCount || 0,
+        commentCount: data.commentCount || 0,
       } as Post;
     } else {
       console.log(`No post found with ID: ${id}`);
@@ -127,6 +130,7 @@ export async function getPostsByTag(tag: string): Promise<Post[]> {
         imageUrl: data.imageUrl,
         likedBy: data.likedBy || [],
         likeCount: data.likeCount || 0,
+        commentCount: data.commentCount || 0,
       } as Post;
     });
   } catch (error) {
@@ -161,6 +165,7 @@ export async function getPostsByArchive(year: number, month: number): Promise<Po
         imageUrl: data.imageUrl,
         likedBy: data.likedBy || [],
         likeCount: data.likeCount || 0,
+        commentCount: data.commentCount || 0,
       } as Post;
     });
   } catch (error)
@@ -238,13 +243,12 @@ export function generateSlug(title: string): string {
 
 export async function isSlugUnique(slug: string): Promise<boolean> {
   try {
-    if (!slug) return false; // Or throw an error, depending on desired behavior
+    if (!slug) return false; 
     const postDocRef = doc(db, 'posts', slug);
     const docSnap = await getDoc(postDocRef);
     return !docSnap.exists();
   } catch (error) {
     console.error(`Error checking slug uniqueness for ${slug} in Firestore:`, error);
-    // Depending on policy, either default to not unique (safer) or throw
     return false; 
   }
 }

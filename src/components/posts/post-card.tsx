@@ -11,7 +11,7 @@ import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { useAuth } from '@/contexts/auth-context';
 import { toggleLikePostAction, type FormState as LikeFormState } from '@/app/actions';
-import { useActionState, useEffect, useState, useTransition } from 'react'; // Added useTransition
+import { useActionState, useEffect, useState, useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 type PostCardProps = {
@@ -21,12 +21,12 @@ type PostCardProps = {
 export default function PostCard({ post }: PostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isPendingTransition, startTransition] = useTransition(); // Added for startTransition
+  const [isPendingTransition, startTransition] = useTransition();
   const summary = post.content.substring(0, 180) + (post.content.length > 180 ? '...' : '');
 
-  // State for like button interaction
   const [optimisticLiked, setOptimisticLiked] = useState(post.likedBy?.includes(user?.uid || '') || false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(post.likeCount || 0);
+  const [optimisticCommentCount, setOptimisticCommentCount] = useState(post.commentCount || 0);
 
   const [likeState, handleLikeAction, isLikePending] = useActionState<LikeFormState, FormData>(
     toggleLikePostAction,
@@ -36,7 +36,8 @@ export default function PostCard({ post }: PostCardProps) {
   useEffect(() => {
     setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
     setOptimisticLikeCount(post.likeCount || 0);
-  }, [post.likedBy, post.likeCount, user?.uid]);
+    setOptimisticCommentCount(post.commentCount || 0);
+  }, [post.likedBy, post.likeCount, post.commentCount, user?.uid]);
 
   useEffect(() => {
     if (likeState?.success && likeState.updatedLikeStatus?.postId === post.id) {
@@ -44,7 +45,6 @@ export default function PostCard({ post }: PostCardProps) {
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
     } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === post.id) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
-      // Revert optimistic update on error
       setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
       setOptimisticLikeCount(post.likeCount || 0);
     }
@@ -57,8 +57,8 @@ export default function PostCard({ post }: PostCardProps) {
       return;
     }
     const formData = new FormData(event.currentTarget);
-    formData.set('userId', user.uid); 
-
+    // userId is now set via hidden input
+    
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
     
@@ -80,7 +80,6 @@ export default function PostCard({ post }: PostCardProps) {
         </div>
       </CardHeader>
       <CardContent className="pt-2 pb-4 flex-grow">
-        {/* Ensure content is not dangerouslySetInnerHTML unless it's sanitized HTML */}
         <p className="text-foreground/80 leading-relaxed text-md">{summary.replace(/<[^>]+>/g, '')}</p>
       </CardContent>
       <CardFooter className="flex flex-col items-start gap-4 bg-muted/30 py-4 px-6 border-t">
@@ -109,9 +108,11 @@ export default function PostCard({ post }: PostCardProps) {
                         <span className="hidden sm:inline">Like</span> ({optimisticLikeCount})
                     </Button>
                 </form>
-                <Button variant="ghost" size="sm" className="px-2 hover:text-primary" title="Comment">
-                    <MessageCircle className="mr-1 h-4 w-4" /> 
-                    <span className="hidden sm:inline">Comment</span>
+                <Button asChild variant="ghost" size="sm" className="px-2 hover:text-primary" title="Comment">
+                    <Link href={`/posts/${post.id}#comments`}>
+                        <MessageCircle className="mr-1 h-4 w-4" /> 
+                        <span className="hidden sm:inline">Comment</span> ({optimisticCommentCount})
+                    </Link>
                 </Button>
                 <Button variant="ghost" size="sm" className="px-2 hover:text-blue-500" title="Save">
                     <Bookmark className="mr-1 h-4 w-4" /> 
@@ -123,7 +124,7 @@ export default function PostCard({ post }: PostCardProps) {
                 </Button>
             </div>
             <div className="flex gap-2 self-start sm:self-center">
-                {post.userId === user?.uid && ( // Show Edit button only to post owner
+                {post.userId === user?.uid && ( 
                     <Button asChild variant="outline" size="sm">
                         <Link href={`/posts/${post.id}/edit`}>
                         <Edit3 className="mr-1.5 h-4 w-4" />

@@ -12,18 +12,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon } from 'lucide-react'; // Added icons
+import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon, Edit3 } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
-import PostCard from '@/components/posts/post-card'; // For saved posts
+import PostCard from '@/components/posts/post-card';
 import { getPosts, type Post } from '@/lib/posts';
-import type { AuthorProfileForCard } from '@/lib/userProfile';
+import type { AuthorProfileForCard, UserProfile, SocialLinks } from '@/lib/userProfile'; // Ensure UserProfile is imported
 import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { getUserProfile, getSavedPostsDetailsForUser, type UserProfile, type SocialLinks } from '@/lib/userProfile'; // Added getSavedPostsDetailsForUser
+import { getUserProfile, getSavedPostsDetailsForUser } from '@/lib/userProfile'; 
 import { auth, storage } from '@/lib/firebase/config'; 
 import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'; 
+import { getCommentsByUser, type UserActivityComment } from '@/lib/comments'; // Import comment types and fetch function
+import { format } from 'date-fns';
 
 const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
     twitter: X,
@@ -60,36 +62,38 @@ export default function ProfilePage() {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // State for Activity Tab
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [isLoadingSavedPosts, setIsLoadingSavedPosts] = useState(false);
-  const [activeActivityTab, setActiveActivityTab] = useState<string | null>(null);
+  const [userComments, setUserComments] = useState<UserActivityComment[]>([]);
+  const [isLoadingUserComments, setIsLoadingUserComments] = useState(false);
+  // Initialize activeActivityTab to 'posts' or null. Default to 'posts' if it's the default tab.
+  const [activeActivityTab, setActiveActivityTab] = useState<string>("posts");
 
 
   useEffect(() => {
     async function fetchAndFilterPosts() {
       if (authLoading) {
-        console.log('ProfilePage: Auth is loading, deferring post fetch.');
+        // console.log('ProfilePage: Auth is loading, deferring post fetch.');
         return;
       }
       if (!user?.uid) {
-        console.log('ProfilePage: No user or user.uid, clearing posts.');
+        // console.log('ProfilePage: No user or user.uid, clearing posts.');
         setIsLoadingPosts(false);
         setUserPosts([]);
         return;
       }
       setIsLoadingPosts(true);
-      console.log('ProfilePage: Fetching posts for user:', user.uid);
+      // console.log('ProfilePage: Fetching posts for user:', user.uid);
       try {
-        const allPosts = await getPosts(); // Fetches ALL posts from Firestore
-        console.log('ProfilePage: All posts fetched from DB:', allPosts);
+        const allPosts = await getPosts(); 
+        // console.log('ProfilePage: All posts fetched from DB:', allPosts);
 
         const filteredPosts = allPosts.filter(post => {
             const matches = post.userId === user.uid;
             // console.log(`Post ID: ${post.id}, Post UserID: ${post.userId}, Current UserID: ${user.uid}, Matches: ${matches}`);
             return matches;
         });
-        console.log('ProfilePage: Filtered posts for current user:', filteredPosts);
+        // console.log('ProfilePage: Filtered posts for current user:', filteredPosts);
         setUserPosts(filteredPosts);
       } catch (error) {
         console.error("Error fetching user posts:", error);
@@ -105,18 +109,18 @@ export default function ProfilePage() {
   useEffect(() => {
     async function fetchCustomProfile() {
       if (authLoading) {
-          console.log('ProfilePage: Auth is loading, deferring custom profile fetch.');
+          // console.log('ProfilePage: Auth is loading, deferring custom profile fetch.');
           return;
       }
       if (user?.uid) {
         setIsLoadingProfile(true);
-        console.log('ProfilePage: Fetching custom profile for user:', user.uid);
+        // console.log('ProfilePage: Fetching custom profile for user:', user.uid);
         const profileDataFromDb = await getUserProfile(user.uid);
-        console.log('ProfilePage: Custom profile data from DB:', profileDataFromDb);
+        // console.log('ProfilePage: Custom profile data from DB:', profileDataFromDb);
         if (profileDataFromDb) {
           setCustomProfile(profileDataFromDb);
         } else {
-          console.log('ProfilePage: No custom profile in DB, creating fallback from Auth data.');
+          // console.log('ProfilePage: No custom profile in DB, creating fallback from Auth data.');
           setCustomProfile({
             uid: user.uid,
             displayName: user.displayName || "User",
@@ -128,7 +132,7 @@ export default function ProfilePage() {
         }
         setIsLoadingProfile(false);
       } else {
-        console.log('ProfilePage: No user or user.uid, clearing custom profile.');
+        // console.log('ProfilePage: No user or user.uid, clearing custom profile.');
         setIsLoadingProfile(false);
         setCustomProfile(null);
       }
@@ -146,17 +150,17 @@ export default function ProfilePage() {
       setSelectedFile(null); 
       setPreviewUrl(null);
       if (user?.uid) {
-        console.log('ProfilePage: Re-fetching custom profile after successful edit for user:', user.uid);
+        // console.log('ProfilePage: Re-fetching custom profile after successful edit for user:', user.uid);
         getUserProfile(user.uid).then(profileDataFromDb => {
-            console.log('ProfilePage: Re-fetched custom profile data:', profileDataFromDb);
+            // console.log('ProfilePage: Re-fetched custom profile data:', profileDataFromDb);
             if (profileDataFromDb) {
                 setCustomProfile(profileDataFromDb);
             } else {
-                console.log('ProfilePage: Re-fetched custom profile is null, creating fallback from Auth data.');
-                setCustomProfile({ 
+                // console.log('ProfilePage: Re-fetched custom profile is null, creating fallback from Auth data.');
+                 setCustomProfile({ 
                     uid: user.uid,
-                    displayName: user.displayName || "User",
-                    photoURL: user.photoURL || undefined,
+                    displayName: auth.currentUser?.displayName || "User", // Use current auth user data
+                    photoURL: auth.currentUser?.photoURL || undefined,
                     username: user.email?.split('@')[0],
                     bio: "",
                     socialLinks: {},
@@ -171,21 +175,36 @@ export default function ProfilePage() {
         variant: 'destructive',
       });
     }
-  }, [editProfileState, toast, user]);
+  }, [editProfileState, toast, user]); // Added user to dependencies
 
-  // Fetch saved posts when activity tab is opened
+
   useEffect(() => {
-    if (activeActivityTab === 'activity' && user?.uid) { // Assuming 'activity' tab is the one to show saved posts for now
+    if (activeActivityTab === 'activity' && user?.uid) { 
+      console.log('[ProfilePage] Activity tab active for user:', user.uid);
       setIsLoadingSavedPosts(true);
       getSavedPostsDetailsForUser(user.uid)
         .then(data => {
+          console.log('[ProfilePage] Fetched saved posts:', data);
           setSavedPosts(data);
           setIsLoadingSavedPosts(false);
         })
         .catch(err => {
-          console.error("Error fetching saved posts:", err);
+          console.error("[ProfilePage] Error fetching saved posts:", err);
           toast({ title: "Error", description: "Could not load saved posts.", variant: "destructive" });
           setIsLoadingSavedPosts(false);
+        });
+
+      setIsLoadingUserComments(true);
+      getCommentsByUser(user.uid)
+        .then(data => {
+          console.log('[ProfilePage] Fetched user comments:', data);
+          setUserComments(data);
+          setIsLoadingUserComments(false);
+        })
+        .catch(err => {
+          console.error("[ProfilePage] Error fetching user comments:", err);
+          toast({ title: "Error", description: "Could not load your comments.", variant: "destructive" });
+          setIsLoadingUserComments(false);
         });
     }
   }, [activeActivityTab, user?.uid, toast]);
@@ -259,11 +278,12 @@ export default function ProfilePage() {
       }
     }
     
-    if (newPhotoURL && newPhotoURL !== (customProfile?.photoURL || user?.photoURL)) {
+    if (newPhotoURL) {
         formData.set('photoURL', newPhotoURL);
     } else if (!newPhotoURL && (customProfile?.photoURL || user?.photoURL)) {
         formData.set('photoURL', ''); 
     }
+
 
     startEditTransition(() => {
         handleProfileFormSubmit(formData);
@@ -309,8 +329,8 @@ export default function ProfilePage() {
     <div className="w-full">
       <div className="bg-card border-b border-border">
         <div className="container mx-auto max-w-5xl px-4 pt-8 pb-4">
-           <div className="relative flex flex-col md:flex-row items-center md:items-end md:space-x-6"> {/* Removed -mt-10 for avatar positioning */}
-            <Avatar className="h-28 w-28 md:h-28 md:w-28 border-4 border-background shadow-lg shrink-0 -mt-16 md:-mt-10"> {/* Adjusted margins */}
+           <div className="relative flex flex-col md:flex-row items-center md:items-end md:space-x-6"> 
+            <Avatar className="h-28 w-28 md:h-28 md:w-28 border-4 border-background shadow-lg shrink-0 -mt-16 md:-mt-10"> 
               <AvatarImage src={currentAvatarUrl} alt={displayName} data-ai-hint="person fashion"/>
               <AvatarFallback>{fallbackAvatar}</AvatarFallback>
             </Avatar>
@@ -501,20 +521,38 @@ export default function ProfilePage() {
                 ) : (
                     <div className="space-y-6">
                         {savedPosts.map(post => (
-                            <PostCard key={post.id} post={post} /> // Using PostCard for a slightly different layout than BlogPostCard
+                            <PostCard key={post.id} post={post} /> 
                         ))}
                     </div>
                 )}
                 <Separator className="my-6"/>
-                <h3 className="text-lg font-semibold mb-4 flex items-center">
-                    <Heart className="mr-2 h-5 w-5 text-destructive" /> Liked Posts
-                </h3>
-                <p className="text-muted-foreground">Your liked posts will appear here.</p>
-                 <Separator className="my-6"/>
                  <h3 className="text-lg font-semibold mb-4 flex items-center">
                     <MessageSquareIcon className="mr-2 h-5 w-5 text-green-500" /> Your Comments
                 </h3>
-                <p className="text-muted-foreground">Your comments will appear here.</p>
+                {isLoadingUserComments ? (
+                    <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading your comments...</p></div>
+                ) : userComments.length === 0 ? (
+                    <p className="text-muted-foreground">You haven&apos;t made any comments yet.</p>
+                ) : (
+                    <div className="space-y-4">
+                        {userComments.map(comment => (
+                            <div key={comment.id} className="p-3 border rounded-md bg-muted/50 text-sm">
+                                <p className="mb-1 text-foreground/80">
+                                    You commented on <Link href={`/posts/${comment.postSlug || comment.postId}`} className="text-primary hover:underline font-medium">{comment.postTitle || `Post ID: ${comment.postId}`}</Link>:
+                                </p>
+                                <blockquote className="pl-3 border-l-2 border-border italic text-foreground">
+                                    "{comment.text.length > 100 ? `${comment.text.substring(0, 100)}...` : comment.text}"
+                                </blockquote>
+                                <p className="text-xs text-muted-foreground mt-1.5">{format(new Date(comment.createdAt), 'MMM d, yyyy, HH:mm')}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                 <Separator className="my-6"/>
+                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                    <Heart className="mr-2 h-5 w-5 text-destructive" /> Liked Posts
+                </h3>
+                <p className="text-muted-foreground">Your liked posts will appear here. (Feature coming soon)</p>
             </Card>
           </TabsContent>
 
@@ -542,3 +580,4 @@ function Card({ children, className }: { children: React.ReactNode, className?: 
     </div>
   );
 }
+

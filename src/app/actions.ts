@@ -92,6 +92,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
         errors: { userId: ['User authentication is required.'] }
     };
   }
+  console.log('[createPostAction] User ID:', userId);
 
   let slug = generateSlug(title);
   let counter = 1;
@@ -102,6 +103,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
         return { message: 'Error: Could not generate a unique slug for the post.', errors: {} };
     }
   }
+  console.log('[createPostAction] Generated slug:', slug);
 
   const newPostRef = doc(db, 'posts', slug);
   
@@ -118,9 +120,11 @@ export async function createPostAction(prevState: FormState, formData: FormData)
   };
 
   try {
+    console.log('[createPostAction] Attempting to save post to Firestore with data:', newPostData);
     await setDoc(newPostRef, newPostData);
+    console.log('[createPostAction] Post saved successfully to Firestore. Slug:', slug);
   } catch (error) {
-    console.error("Error creating post in Firestore:", error);
+    console.error("[createPostAction] Error creating post in Firestore:", error);
     return { message: `Error: Failed to save post. ${error instanceof Error ? error.message : ''}`, errors: {} };
   }
 
@@ -149,6 +153,7 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
 
   const { title, content, tags } = validatedFields.data;
   const postDocRef = doc(db, 'posts', id);
+  console.log('[updatePostAction] Attempting to update post. ID:', id);
 
   const updatedPostData: Partial<Omit<Post, 'id'| 'createdAt'>> & {updatedAt: any} = {
     title,
@@ -159,8 +164,9 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
 
   try {
     await updateDoc(postDocRef, updatedPostData);
+    console.log('[updatePostAction] Post updated successfully in Firestore. ID:', id);
   } catch (error) {
-    console.error("Error updating post in Firestore:", error);
+    console.error("[updatePostAction] Error updating post in Firestore:", error);
     return { message: `Error: Failed to update post. ${error instanceof Error ? error.message : ''}`, errors: {} };
   }
 
@@ -221,8 +227,9 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
 
   try {
     await updateUserProfileDataInDb(userId, profileUpdateData);
+    console.log('[updateUserProfileAction] User profile updated successfully for userId:', userId);
   } catch (error) {
-    console.error("Error updating user profile in DB:", error);
+    console.error("[updateUserProfileAction] Error updating user profile in DB:", error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { message: `Error: Failed to update profile in database. ${errorMessage}`, success: false };
   }
@@ -242,8 +249,10 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
 export async function toggleLikePostAction(prevState: FormState, formData: FormData): Promise<FormState> {
   const postId = formData.get('postId') as string;
   const userId = formData.get('userId') as string;
+  console.log('[toggleLikePostAction] Initiated. PostID:', postId, 'UserID:', userId);
 
   if (!postId || !userId) {
+    console.warn('[toggleLikePostAction] Failed: Missing postId or userId.');
     return {
       message: 'Error: Post ID and User ID are required to like a post.',
       errors: { form: ['Post ID and User ID are required.'] },
@@ -254,10 +263,13 @@ export async function toggleLikePostAction(prevState: FormState, formData: FormD
   const postDocRef = doc(db, 'posts', postId);
 
   try {
+    console.log(`[toggleLikePostAction] Fetching post document: posts/${postId}`);
     const postSnap = await getDoc(postDocRef);
     if (!postSnap.exists()) {
+      console.warn('[toggleLikePostAction] Failed: Post not found in Firestore. PostID:', postId);
       return { message: 'Error: Post not found.', success: false };
     }
+    console.log('[toggleLikePostAction] Post document fetched successfully.');
 
     const postData = postSnap.data() as Post;
     const likedBy = postData.likedBy || [];
@@ -265,24 +277,30 @@ export async function toggleLikePostAction(prevState: FormState, formData: FormD
     let liked = false;
 
     if (likedBy.includes(userId)) {
+      console.log('[toggleLikePostAction] User already liked the post. Unliking...');
       await updateDoc(postDocRef, {
         likedBy: arrayRemove(userId),
         likeCount: increment(-1),
       });
       newLikeCount = Math.max(0, newLikeCount - 1); 
       liked = false;
+      console.log('[toggleLikePostAction] Post unliked successfully.');
     } else {
+      console.log('[toggleLikePostAction] User has not liked the post. Liking...');
       await updateDoc(postDocRef, {
         likedBy: arrayUnion(userId),
         likeCount: increment(1),
       });
       newLikeCount += 1;
       liked = true;
+      console.log('[toggleLikePostAction] Post liked successfully.');
     }
 
+    console.log('[toggleLikePostAction] Revalidating paths...');
     revalidatePath('/blog');
     revalidatePath(`/posts/${postId}`);
     revalidatePath('/blog/profile'); 
+    console.log('[toggleLikePostAction] Paths revalidated.');
 
     return {
       message: liked ? 'Post liked!' : 'Post unliked!',
@@ -290,7 +308,7 @@ export async function toggleLikePostAction(prevState: FormState, formData: FormD
       updatedLikeStatus: { postId, liked, newCount: newLikeCount },
     };
   } catch (error) {
-    console.error('Error toggling like:', error);
+    console.error('[toggleLikePostAction] CRITICAL ERROR during Firestore operation or revalidation:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { message: `Error: Failed to update like status. ${errorMessage}`, success: false };
   }
@@ -314,9 +332,11 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
   }
 
   const { postId, userId, userDisplayName, userPhotoURL, commentText } = validatedFields.data;
+  console.log('[addCommentAction] Attempting to add comment to postId:', postId, 'by userId:', userId);
 
   try {
     const postDocRef = doc(db, 'posts', postId);
+    // Ensure the postId field is added to the comment document for collectionGroup queries
     const commentsColRef = collection(db, 'posts', postId, 'comments');
 
     const newCommentRef = await addDoc(commentsColRef, {
@@ -325,11 +345,14 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
       userPhotoURL: userPhotoURL || null, 
       text: commentText,
       createdAt: serverTimestamp(),
+      postId: postId, // Explicitly add postId to the comment document
     });
+    console.log('[addCommentAction] Comment added with ID:', newCommentRef.id);
 
     await updateDoc(postDocRef, {
       commentCount: increment(1),
     });
+    console.log('[addCommentAction] Post commentCount incremented for postId:', postId);
 
     revalidatePath(`/posts/${postId}`);
 
@@ -339,7 +362,7 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
       newCommentId: newCommentRef.id,
     };
   } catch (error) {
-    console.error('Error adding comment:', error);
+    console.error('[addCommentAction] Error adding comment:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { message: `Error: Failed to add comment. ${errorMessage}`, success: false };
   }
@@ -348,8 +371,11 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
 export async function toggleSavePostAction(prevState: FormState, formData: FormData): Promise<FormState> {
   const postId = formData.get('postId') as string;
   const userId = formData.get('userId') as string;
+  console.log('[toggleSavePostAction] Initiated. PostID:', postId, 'UserID:', userId);
+
 
   if (!postId || !userId) {
+     console.warn('[toggleSavePostAction] Failed: Missing postId or userId.');
     return {
       message: 'Error: Post ID and User ID are required to save a post.',
       errors: { form: ['Post ID and User ID are required.'] },
@@ -358,36 +384,46 @@ export async function toggleSavePostAction(prevState: FormState, formData: FormD
   }
 
   const userProfileDocRef = doc(db, 'userProfiles', userId);
+  if (!userProfileDocRef) { // Should not happen if userId is valid
+    console.error('[toggleSavePostAction] Failed: Could not create userProfileDocRef for UserID:', userId);
+    return { message: 'Error: User profile context not found.', success: false };
+  }
   const savedPostDocRef = doc(userProfileDocRef, 'savedPosts', postId);
+  console.log(`[toggleSavePostAction] Accessing saved post document: userProfiles/${userId}/savedPosts/${postId}`);
 
   try {
     const savedPostSnap = await getDoc(savedPostDocRef);
     let saved = false;
 
     if (savedPostSnap.exists()) {
-      // Post is saved, so unsave it
+      console.log('[toggleSavePostAction] Post is currently saved. Unsaving...');
       await deleteDoc(savedPostDocRef);
       saved = false;
+      console.log('[toggleSavePostAction] Post unsaved successfully.');
     } else {
-      // Post is not saved, so save it
+      console.log('[toggleSavePostAction] Post is not saved. Saving...');
       await setDoc(savedPostDocRef, {
         savedAt: serverTimestamp(),
+        postId: postId // Storing postId here for clarity, though doc ID is postId
       });
       saved = true;
+      console.log('[toggleSavePostAction] Post saved successfully.');
     }
 
-    revalidatePath(`/posts/${postId}`); // Revalidate the specific post page
-    revalidatePath('/blog/profile'); // Revalidate the profile page (for activity tab)
-    // Optionally revalidate /blog if saved status affects card display there
-
+    console.log('[toggleSavePostAction] Revalidating paths...');
+    revalidatePath(`/posts/${postId}`); 
+    revalidatePath('/blog/profile'); 
+    console.log('[toggleSavePostAction] Paths revalidated.');
+    
     return {
       message: saved ? 'Post saved!' : 'Post unsaved!',
       success: true,
       updatedSaveStatus: { postId, saved },
     };
   } catch (error) {
-    console.error('Error toggling save post:', error);
+    console.error('[toggleSavePostAction] CRITICAL ERROR during Firestore operation or revalidation:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { message: `Error: Failed to update save status. ${errorMessage}`, success: false };
   }
 }
+

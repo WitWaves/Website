@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-// import { getFirestore, type Firestore } from 'firebase/firestore'; // Will be needed later for database
+import { getFirestore, type Firestore } from 'firebase/firestore'; // Import Firestore
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -10,12 +10,12 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Make sure to add this if you use Analytics
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 let app: FirebaseApp;
 let auth: Auth;
-// let db: Firestore; // Will be needed later
+let db: Firestore; // Declare db variable
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
@@ -24,6 +24,6 @@ if (getApps().length === 0) {
 }
 
 auth = getAuth(app);
-// db = getFirestore(app); // Initialize Firestore later
+db = getFirestore(app); // Initialize Firestore
 
-export { app, auth /*, db */ };
+export { app, auth, db }; // Export db

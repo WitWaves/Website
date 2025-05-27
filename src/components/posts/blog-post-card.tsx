@@ -56,14 +56,14 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
       </Link>
       <div className="flex-1 flex flex-col justify-between">
         <div>
-          {summary && (
-            <p className="text-sm text-muted-foreground mb-2 leading-relaxed">{summary}</p>
-          )}
           <Link href={`/posts/${post.id}`}>
             <h2 className="text-xl font-semibold text-foreground hover:text-primary transition-colors mb-2 leading-tight">
               {post.title}
             </h2>
           </Link>
+          {summary && (
+            <p className="text-sm text-muted-foreground mb-2 leading-relaxed">{summary}</p>
+          )}
            <div className="flex items-center space-x-3 text-xs text-muted-foreground mt-1 mb-3">
             <button className="flex items-center hover:text-destructive disabled:opacity-70" disabled={likes === null}>
               <Heart className="h-4 w-4 mr-1" /> {likes !== null ? likes : '...'}

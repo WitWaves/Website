@@ -4,8 +4,9 @@
 import { useEffect, useState, useTransition, useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic'; // Import dynamic for client-side only components
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+// Textarea is replaced by ReactQuill
 import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState } from '@/app/actions';
 import type { Post } from '@/lib/posts';
@@ -13,6 +14,10 @@ import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, Image as Imag
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
+
+// Dynamically import ReactQuill to ensure it's only loaded on the client-side
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface PostFormProps {
   post?: Post;
@@ -42,7 +47,8 @@ export default function PostForm({ post }: PostFormProps) {
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
   const [tagInput, setTagInput] = useState('');
-  const [contentForAI, setContentForAI] = useState(post?.content || '');
+  
+  const [quillContent, setQuillContent] = useState(post?.content || ''); // State for Quill editor content
   const [titleValue, setTitleValue] = useState(post?.title || '');
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
@@ -74,8 +80,10 @@ export default function PostForm({ post }: PostFormProps) {
   }, [state, router, toast, post, titleValue]);
 
   const handleSuggestTags = () => {
+    // Basic tag stripping for AI suggestion (more robust stripping might be needed for complex HTML)
+    const textContentForAI = quillContent.replace(/<[^>]*>?/gm, ' '); 
     startAITransition(async () => {
-      const tags = await getAISuggestedTagsAction(contentForAI);
+      const tags = await getAISuggestedTagsAction(textContentForAI);
       setSuggestedTags(tags.filter(tag => !currentTags.includes(tag)));
     });
   };
@@ -104,25 +112,43 @@ export default function PostForm({ post }: PostFormProps) {
     }
   };
 
+  // Quill editor modules configuration (optional, for customization)
+  const quillModules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+      [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
+      ['link', 'image'], // 'image' can be added if image handling is set up
+      ['clean']
+    ],
+  };
+
+  // Quill editor formats (optional)
+  const quillFormats = [
+    'header',
+    'bold', 'italic', 'underline', 'strike', 'blockquote',
+    'list', 'bullet', 'indent',
+    'link', 'image'
+  ];
+
+
   if (authLoading) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
   }
 
-  // For creating new post, user must be logged in.
   if (!user && !post) {
     return (
       <div className="text-center py-10">
-        <p className="text-lg text-muted-foreground">Please <Link href="/login" className="text-primary hover:underline">log in</Link> to create a post.</p>
+        <p className="text-lg text-muted-foreground">Please <a href="/login" className="text-primary hover:underline">log in</a> to create a post.</p>
       </div>
     );
   }
-  // For editing, ensure user is the owner (additional check should be in action for security)
   if (post && post.userId && user && post.userId !== user.uid) {
       return (
           <div className="text-center py-10">
               <p className="text-lg text-destructive">You are not authorized to edit this post.</p>
               <Button asChild variant="link" className="mt-4">
-                  <Link href="/blog">Back to Blog</Link>
+                  <a href="/blog">Back to Blog</a>
               </Button>
           </div>
       );
@@ -131,59 +157,53 @@ export default function PostForm({ post }: PostFormProps) {
 
   return (
     <form action={formAction} className="w-full max-w-5xl mx-auto">
-      {/* Hidden input for userId when creating a new post */}
       {!post && user && (
         <input type="hidden" name="userId" value={user.uid} />
       )}
-      {/* For updates, post.userId is used on the server for validation, not from form */}
+      
+      {/* Hidden input to send Quill content to the server action */}
+      <input type="hidden" name="content" value={quillContent} />
 
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow lg:w-2/3 space-y-6">
           <div className="relative flex items-start">
             <div className="absolute left-0 top-2 bottom-2 w-1 bg-destructive rounded-full -ml-4 md:-ml-6"></div>
-            <Textarea
+            <Input // Using Input for title, Textarea was too similar to Quill
               id="title"
               name="title"
               value={titleValue}
               onChange={(e) => setTitleValue(e.target.value)}
-              placeholder="The Timeless Beauty of Floral Patterns in Art and Design"
-              className="text-3xl md:text-4xl lg:text-5xl font-bold border-none focus:ring-0 focus-visible:ring-0 p-0 h-auto resize-none overflow-hidden shadow-none leading-tight"
-              rows={2}
+              placeholder="The Timeless Beauty of Floral Patterns..."
+              className="text-3xl md:text-4xl lg:text-5xl font-bold border-none focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent"
               required
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = 'auto';
-                target.style.height = `${target.scrollHeight}px`;
-              }}
-              onFocus={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = 'auto';
-                target.style.height = `${target.scrollHeight}px`;
-              }}
             />
           </div>
           {state?.errors?.title && <p className="text-sm text-destructive mt-1">{state.errors.title.join(', ')}</p>}
 
-          <Textarea
-            id="content"
-            name="content"
-            defaultValue={post?.content}
-            placeholder="This stunning image showcases an intricate floral pattern..."
-            className="text-base leading-relaxed min-h-[500px] border-border focus:ring-primary"
-            onChange={(e) => setContentForAI(e.target.value)}
-            required
-          />
+          {/* ReactQuill editor replacing Textarea */}
+          <div className="bg-card border border-input rounded-md"> {/* Added a wrapper for Quill for potential styling consistency */}
+            <ReactQuill 
+              theme="snow" 
+              value={quillContent} 
+              onChange={setQuillContent}
+              modules={quillModules}
+              formats={quillFormats}
+              placeholder="This stunning image showcases an intricate floral pattern..."
+              className="min-h-[400px] [&_.ql-editor]:min-h-[400px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md" 
+            />
+          </div>
           {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
 
           <div className="flex items-center space-x-2 p-2 border border-border rounded-md bg-muted/50 sticky bottom-4 z-10">
-            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground">
+            {/* These buttons are now placeholders as Quill provides its own toolbar */}
+            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Divider (handled by Quill)">
               <Minus className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Image (handled by Quill)">
               <ImageIcon className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Code block (handled by Quill)">
               <Code2 className="h-5 w-5" />
             </Button>
           </div>
@@ -228,7 +248,7 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !contentForAI.trim()} className="w-full text-xs py-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !quillContent.trim()} className="w-full text-xs py-2">
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>

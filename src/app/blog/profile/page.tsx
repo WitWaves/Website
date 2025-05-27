@@ -1,9 +1,8 @@
 
 'use client';
 
-import { useEffect, useState, useActionState, useTransition } from 'react'; // Added useTransition
+import { useEffect, useState, useActionState, useTransition } from 'react';
 import Link from 'next/link';
-// import Image from 'next/image'; // Not used directly in this version for cover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,12 +14,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import { getPosts, type Post } from '@/lib/posts';
-import type { MockAuthor } from '@/lib/authors';
+import type { AuthorProfileForCard } from '@/lib/userProfile'; // Use AuthorProfileForCard for consistency
 import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { getUserProfile, type UserProfile, type SocialLinks } from '@/lib/userProfile';
-import { auth } from '@/lib/firebase/config'; // Import auth for current user access
+import { auth } from '@/lib/firebase/config'; 
 import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 
 const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
@@ -31,10 +30,9 @@ const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
     github: Github,
 };
 
-// Placeholder stats - in a real app, these would come from Firestore or calculations
 const staticProfileStats = {
-    following: 0, // Example placeholder
-    followers: '0', // Example placeholder
+    following: 0, 
+    followers: '0', 
 };
 
 
@@ -46,15 +44,13 @@ export default function ProfilePage() {
   const [customProfile, setCustomProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [, startTransition] = useTransition(); // For wrapping action call
+  const [, startTransition] = useTransition(); 
 
-  // Form state for profile editing
   const [editProfileState, handleProfileFormSubmit, isEditPending] = useActionState(
     user && user.uid ? updateUserProfileAction.bind(null, user.uid) : async () => ({ message: "User not available for action binding.", success: false }),
     undefined
   );
 
-  // Effect to fetch user's posts
   useEffect(() => {
     async function fetchAndFilterPosts() {
       if (!user?.uid) {
@@ -83,13 +79,24 @@ export default function ProfilePage() {
     }
   }, [user, authLoading]);
 
-  // Effect to fetch custom user profile data from Firestore
   useEffect(() => {
     async function fetchCustomProfile() {
       if (user?.uid) {
         setIsLoadingProfile(true);
         const profileData = await getUserProfile(user.uid);
-        setCustomProfile(profileData);
+        if (profileData) {
+          setCustomProfile(profileData);
+        } else {
+          // If no profile in Firestore, create a basic one from Auth data
+          setCustomProfile({
+            uid: user.uid,
+            displayName: user.displayName || "User",
+            photoURL: user.photoURL || undefined,
+            username: user.email?.split('@')[0], // Basic username from email
+            bio: "",
+            socialLinks: {},
+          });
+        }
         setIsLoadingProfile(false);
       } else if (!authLoading && !user) {
         setIsLoadingProfile(false);
@@ -101,7 +108,6 @@ export default function ProfilePage() {
     }
   }, [user, authLoading]);
 
-  // Effect to handle form submission result from server action
   useEffect(() => {
     if (editProfileState?.success) {
       toast({
@@ -109,16 +115,23 @@ export default function ProfilePage() {
         description: editProfileState.message,
       });
       setIsEditModalOpen(false);
-      if (editProfileState.updatedProfile && user) {
-        // Optimistically update customProfile state
-        setCustomProfile(prev => ({
-            ...(prev || { uid: user.uid }), 
-            ...editProfileState.updatedProfile
-        } as UserProfile));
-        // Re-fetch to ensure consistency, especially if displayName was updated in Auth
-        if (user?.uid) {
-            getUserProfile(user.uid).then(setCustomProfile);
-        }
+      if (user?.uid) {
+        // Re-fetch the profile from Firestore to ensure UI consistency
+        getUserProfile(user.uid).then(profileDataFromDb => {
+            if (profileDataFromDb) {
+                setCustomProfile(profileDataFromDb);
+            } else {
+                // Fallback if profile somehow became null after update (unlikely but good to handle)
+                setCustomProfile({
+                    uid: user.uid,
+                    displayName: user.displayName || "User",
+                    photoURL: user.photoURL || undefined,
+                    username: user.email?.split('@')[0],
+                    bio: "",
+                    socialLinks: {},
+                });
+            }
+        });
       }
     } else if (editProfileState?.message && !editProfileState.success) {
       toast({
@@ -131,7 +144,7 @@ export default function ProfilePage() {
 
 
   const displayName = customProfile?.displayName || user?.displayName || "User";
-  const avatarUrl = user?.photoURL || `https://placehold.co/128x128.png?text=${displayName.substring(0,1).toUpperCase()}`;
+  const avatarUrl = customProfile?.photoURL || user?.photoURL || `https://placehold.co/128x128.png?text=${displayName.substring(0,1).toUpperCase()}`;
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
 
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
@@ -146,11 +159,10 @@ export default function ProfilePage() {
       }))
     : [];
 
-  const authorForCards: MockAuthor = {
-    id: user?.uid || 'mock-user-id',
-    name: displayName,
-    role: 'Author',
-    avatarUrl: user?.photoURL || `https://placehold.co/40x40.png?text=${displayName.substring(0,1).toUpperCase()}`,
+  const authorForCards: AuthorProfileForCard = {
+    uid: user?.uid || 'mock-user-id',
+    displayName: customProfile?.displayName || user?.displayName || 'WitWaves User',
+    photoURL: customProfile?.photoURL || user?.photoURL,
   };
 
   if (authLoading || (user && (isLoadingProfile || isLoadingPosts))) {
@@ -167,7 +179,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Wrapper for form submission to handle Firebase Auth update first
   const clientSideProfileUpdateAndServerAction = async (formData: FormData) => {
     if (!auth.currentUser) {
         toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
@@ -175,19 +186,16 @@ export default function ProfilePage() {
     }
     const newDisplayName = formData.get('displayName') as string | null;
 
-    if (newDisplayName && newDisplayName !== user.displayName && auth.currentUser) { // Check auth.currentUser
+    if (newDisplayName && newDisplayName !== auth.currentUser.displayName && auth.currentUser) {
         try {
             await updateFirebaseAuthProfile(auth.currentUser, { displayName: newDisplayName });
             toast({ title: "Display Name Updated", description: "Your display name in Firebase Authentication has been updated."});
-            // Consider manually updating the user object in useAuth or relying on onAuthStateChanged
+            // The useAuth context will update via onAuthStateChanged
         } catch (error) {
             console.error("Error updating Firebase Auth display name:", error);
             toast({ title: "Auth Update Error", description: `Failed to update display name in Firebase. ${ (error as Error).message }`, variant: "destructive" });
-            // Optionally, do not proceed with server action if this critical part fails
-            // return;
         }
     }
-    // Proceed to call the server action for Firestore profile data
     startTransition(() => {
       handleProfileFormSubmit(formData);
     });
@@ -224,7 +232,7 @@ export default function ProfilePage() {
                       <form action={clientSideProfileUpdateAndServerAction} className="space-y-4 py-4">
                         <div>
                           <Label htmlFor="displayNameForm">Display Name</Label>
-                          <Input id="displayNameForm" name="displayName" defaultValue={user?.displayName || customProfile?.displayName || ''} />
+                          <Input id="displayNameForm" name="displayName" defaultValue={customProfile?.displayName || user?.displayName || ''} />
                           {editProfileState?.errors?.displayName && <p className="text-sm text-destructive mt-1">{editProfileState.errors.displayName.join(', ')}</p>}
                         </div>
                         <div>
@@ -372,5 +380,3 @@ function Card({ children, className }: { children: React.ReactNode, className?: 
     </div>
   );
 }
-
-    

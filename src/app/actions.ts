@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { generateSlug, isSlugUnique } from '@/lib/posts';
 import { db } from '@/lib/firebase/config';
-import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'; 
+import { doc, setDoc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore'; 
 import type { Post } from '@/lib/posts';
 import type { UserProfile, SocialLinks } from '@/lib/userProfile'; // Import SocialLinks
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
@@ -20,7 +20,7 @@ const PostFormSchema = z.object({
 });
 
 const UserProfileSchema = z.object({
-  displayName: z.string().min(1, 'Display name cannot be empty.').optional(),
+  displayName: z.string().min(1, 'Display name cannot be empty.'), // Made non-optional
   username: z.string().min(3, 'Username must be at least 3 characters.').regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, underscores, and periods.').optional(),
   bio: z.string().max(200, 'Bio cannot exceed 200 characters.').optional(),
   twitter: z.string().url('Invalid Twitter URL.').optional().or(z.literal('')),
@@ -190,37 +190,29 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
   }
 
   const { displayName, username, bio, ...socialLinksInput } = validatedFields.data;
-
-  // Construct the profile data to be saved. 
-  // Empty strings from socialLinksInput will be handled by updateUserProfileDataInDb.
+  
   const profileUpdateData: Partial<UserProfile> = {
     username: username,
     displayName: displayName, // This displayName is for the Firestore profile document
     bio: bio,
-    socialLinks: socialLinksInput as SocialLinks, // Pass as is; '' values are fine here
+    socialLinks: socialLinksInput as SocialLinks, 
   };
-
-  // The loop that converted '' to undefined has been removed.
-  // updateUserProfileDataInDb will now handle cleaning of socialLinks.
 
   try {
     await updateUserProfileDataInDb(userId, profileUpdateData);
   } catch (error) {
     console.error("Error updating user profile in DB:", error);
-    // Provide more specific error message if possible
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { message: `Error: Failed to update profile in database. ${errorMessage}`, success: false };
   }
-
-  // Prepare data for optimistic UI update or state.
-  // Ensure this only includes fields that were actually part of the update.
+ 
   const updatedProfileForState: Partial<UserProfile> = {
       uid: userId,
       ...profileUpdateData 
   };
 
   revalidatePath('/blog/profile');
-  revalidatePath(`/blog/profile/${userId}`); // If you have dynamic profile pages by ID
+  revalidatePath(`/blog/profile/${userId}`); 
 
   return { message: 'Profile updated successfully!', success: true, updatedProfile: updatedProfileForState };
 }

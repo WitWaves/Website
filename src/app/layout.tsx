@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
 import { cn } from '@/lib/utils';
+import { AuthProvider } from '@/contexts/auth-context'; // Import AuthProvider
 
 const jost = Jost({
   variable: '--font-jost',
@@ -25,15 +26,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn(jost.variable)}>
-      {/* Ensure the <body /> tag directly follows, without any intermediate text nodes (spaces/newlines)
-          that could be misinterpreted. Next.js injects <head /> automatically. */}
       <body className="min-h-screen flex flex-col antialiased">
-        <Header />
-        <main className="flex-grow w-full">
-          {children}
-        </main>
-        <Footer />
-        <Toaster />
+        <AuthProvider> {/* Wrap with AuthProvider */}
+          <Header />
+          <main className="flex-grow w-full">
+            {children}
+          </main>
+          <Footer />
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );

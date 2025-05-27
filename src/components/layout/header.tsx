@@ -3,16 +3,19 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, LogOut, UserPlus, LogIn } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAuth } from '@/contexts/auth-context'; // Import useAuth
 
 const navLinks = [
   { href: '/', label: 'Home' },
-  { href: '/#about', label: 'About us' }, // Placeholder links
+  { href: '/#about', label: 'About us' },
   { href: '/blog', label: 'Blog' },
 ];
 
 export default function Header() {
+  const { user, loading, logout } = useAuth(); // Get auth state and functions
+
   return (
     <header className="bg-background border-b border-border/50 sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
@@ -22,7 +25,6 @@ export default function Header() {
             <span className="text-xs text-muted-foreground -mt-1">/ Diverse Thoughts, One Ocean</span>
           </Link>
           <div className="flex items-center space-x-6">
-            {/* Search Input */}
             <div className="hidden md:flex items-center">
               <div className="relative max-w-xs">
                 <Input
@@ -46,26 +48,44 @@ export default function Header() {
               ))}
             </nav>
             
-            {/* Added Notifications Button and Avatar */}
             <div className="flex items-center space-x-3">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Bell className="h-5 w-5" />
-                <span className="sr-only">Notifications</span>
-              </Button>
-              <Link href="/blog/profile">
-                <Avatar className="h-9 w-9 cursor-pointer">
-                  <AvatarImage src="https://placehold.co/40x40.png?text=FZ" alt="User Profile" data-ai-hint="person face"/>
-                  <AvatarFallback>FZ</AvatarFallback>
-                </Avatar>
-              </Link>
+              {loading ? (
+                <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> // Skeleton loader for auth buttons
+              ) : user ? (
+                <>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <Bell className="h-5 w-5" />
+                    <span className="sr-only">Notifications</span>
+                  </Button>
+                  <Link href="/blog/profile">
+                    <Avatar className="h-9 w-9 cursor-pointer">
+                      <AvatarImage src={user.photoURL || "https://placehold.co/40x40.png?text=U"} alt={user.displayName || "User Profile"} data-ai-hint="person face"/>
+                      <AvatarFallback>{user.displayName ? user.displayName.substring(0,1).toUpperCase() : (user.email ? user.email.substring(0,1).toUpperCase() : 'U')}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Button variant="ghost" size="icon" onClick={logout} title="Logout" className="rounded-full">
+                    <LogOut className="h-5 w-5" />
+                    <span className="sr-only">Logout</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link href="/login">
+                      <LogIn className="mr-2 h-4 w-4" />
+                      Login
+                    </Link>
+                  </Button>
+                  <Button variant="default" asChild>
+                    <Link href="/signup">
+                       <UserPlus className="mr-2 h-4 w-4" />
+                      Sign Up
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
-          {/* Mobile menu button (optional, can be added later) */}
-          {/* <div className="md:hidden">
-            <Button variant="ghost" size="icon">
-              <Menu className="h-6 w-6" />
-            </Button>
-          </div> */}
         </div>
       </div>
     </header>

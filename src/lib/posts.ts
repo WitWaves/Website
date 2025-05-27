@@ -1,24 +1,22 @@
 
-'use server';
-
 import { db } from '@/lib/firebase/config';
 import {
   collection,
   getDocs,
   doc,
   getDoc,
-  setDoc,
-  updateDoc,
+  // setDoc, // setDoc is used in actions.ts, not directly here for reads
+  // updateDoc, // updateDoc is used in actions.ts
   query,
   where,
   orderBy,
   Timestamp,
-  serverTimestamp,
-  QuerySnapshot,
-  DocumentData,
+  // serverTimestamp, // serverTimestamp is used in actions.ts
 } from 'firebase/firestore';
+import type { DocumentSnapshot } from 'firebase/firestore'; // For explicit typing
 import { format } from 'date-fns';
 
+// Centralized Post type definition
 export interface Post {
   id: string; // Corresponds to Firestore document ID (which will be the slug)
   title: string;
@@ -30,8 +28,13 @@ export interface Post {
 }
 
 // Helper function to convert Firestore document to Post object
-const postFromDoc = (docSnap: DocumentData): Post => {
+const postFromDoc = (docSnap: DocumentSnapshot): Post => {
   const data = docSnap.data();
+  if (!data) {
+    // This case should ideally not be hit if docSnap.exists() was checked before calling,
+    // or if it's from a query result which guarantees data.
+    throw new Error(`Document ${docSnap.id} has no data!`);
+  }
   return {
     id: docSnap.id,
     title: data.title,
@@ -103,9 +106,13 @@ export async function getPostsByArchive(year: number, month: number): Promise<Po
 
 export async function getAllTags(): Promise<string[]> {
   try {
-    const posts = await getPosts();
+    const posts = await getPosts(); // Re-uses getPosts to derive tags
     const tagSet = new Set<string>();
-    posts.forEach(post => post.tags.forEach(tag => tagSet.add(tag)));
+    posts.forEach(post => {
+      if (post.tags && Array.isArray(post.tags)) {
+        post.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
     return Array.from(tagSet).sort();
   } catch (error) {
     console.error("Error fetching all tags:", error);
@@ -122,20 +129,23 @@ export type ArchivePeriod = {
 
 export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
   try {
-    const posts = await getPosts();
+    const posts = await getPosts(); // Re-uses getPosts
     const periodsMap = new Map<string, ArchivePeriod>();
 
     posts.forEach(post => {
-      const date = new Date(post.createdAt);
-      const year = date.getFullYear();
-      const month = date.getMonth(); // 0-indexed
-      const monthName = format(date, 'MMMM');
-      const key = `${year}-${month}`;
+      if (post.createdAt) {
+        const date = new Date(post.createdAt);
+        const year = date.getFullYear();
+        const month = date.getMonth(); // 0-indexed
+        const monthName = format(date, 'MMMM');
+        const key = `${year}-${month}`;
 
-      if (periodsMap.has(key)) {
-        periodsMap.get(key)!.count++;
-      } else {
-        periodsMap.set(key, { year, month, monthName, count: 1 });
+        if (periodsMap.has(key)) {
+          const existing = periodsMap.get(key)!; // Non-null assertion
+          periodsMap.set(key, { ...existing, count: existing.count + 1 });
+        } else {
+          periodsMap.set(key, { year, month, monthName, count: 1 });
+        }
       }
     });
 
@@ -151,18 +161,20 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
   }
 }
 
+// Utility function to generate a slug from a title.
+// This is NOT a Server Action itself.
 export function generateSlug(title: string): string {
   return title
     .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^\w-]+/g, '')
-    .replace(/--+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
+    .replace(/\s+/g, '-')       // Replace spaces with -
+    .replace(/[^\w-]+/g, '')  // Remove all non-word chars (keeps alphanumeric, underscore, hyphen)
+    .replace(/--+/g, '-')       // Replace multiple - with single -
+    .replace(/^-+/, '')          // Trim - from start of text
+    .replace(/-+$/, '');         // Trim - from end of text
 }
 
 // Helper function to check if a slug already exists in Firestore.
-// This is a simple check; for high-concurrency apps, more robust mechanisms might be needed.
+// This is NOT a Server Action itself.
 export async function isSlugUnique(slug: string): Promise<boolean> {
   try {
     const postDocRef = doc(db, 'posts', slug);

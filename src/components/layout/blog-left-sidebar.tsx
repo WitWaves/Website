@@ -3,16 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, Bookmark, User, Settings, Tags, CalendarDays, LayoutList } from 'lucide-react'; // Changed Tag to Tags
+import { Home, Bookmark, User, Settings, LayoutList, CalendarDays, Tags } from 'lucide-react'; // Keep Tags for potential other uses, or clean up if unused
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/blog', label: 'Home', icon: Home },
   { href: '/blog/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/blog/profile', label: 'Profile', icon: User },
-  { href: '/blog/tags', label: 'Tags', icon: Tags }, // Changed icon
-  { href: '/blog/lists', label: 'My Lists', icon: LayoutList },
-  { href: '/blog/archive', label: 'Archive', icon: CalendarDays },
+  // { href: '/blog/tags', label: 'Tags', icon: Tags }, // Removed
+  // { href: '/blog/lists', label: 'My Lists', icon: LayoutList }, // Removed
+  // { href: '/blog/archive', label: 'Archive', icon: CalendarDays }, // Removed
   { href: '/blog/settings', label: 'Settings', icon: Settings },
 ];
 

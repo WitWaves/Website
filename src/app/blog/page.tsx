@@ -1,5 +1,5 @@
 
-import { getPosts, type Post } from '@/lib/posts';
+import { getPosts, type Post } from '@/lib/posts'; // Keep import for potential uncommenting
 import BlogPostCard from '@/components/posts/blog-post-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -11,7 +11,8 @@ import { getMockAuthors, type MockAuthor } from '@/lib/authors'; // Import autho
 const filterTabs = ["All", "For you", "Top reads", "Following", "Music", "Gaming"];
 
 export default async function BlogPage() {
-  const posts = await getPosts();
+  // const posts = await getPosts(); // Temporarily commented out
+  const posts: Post[] = []; // Use empty array for now
   const mockAuthors = await getMockAuthors();
 
   return (
@@ -39,7 +40,13 @@ export default async function BlogPage() {
       
       <Separator className="my-6" />
 
-      {posts.length === 0 ? (
+      <div className="text-center text-lg py-12">
+        <p>Attempting to load blog page structure.</p>
+        <p>If you see this, the basic page renders, and the issue is likely with fetching post data from Firestore.</p>
+        <p>Please check your Firestore security rules and ensure your `posts` collection has data and is readable.</p>
+      </div>
+
+      {/* {posts.length === 0 ? (
         <p className="text-center text-muted-foreground text-lg py-12">
           No posts found. Start by creating one!
         </p>
@@ -53,7 +60,7 @@ export default async function BlogPage() {
             );
           })}
         </div>
-      )}
+      )} */}
     </div>
   );
 }

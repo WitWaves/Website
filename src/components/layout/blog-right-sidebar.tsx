@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ArrowRight } from 'lucide-react';
-import { getAllTags } from '@/lib/posts';
+// import { getAllTags } from '@/lib/posts'; // Temporarily commented out
 import { getMockAuthors, type MockAuthor } from '@/lib/authors';
 import TagBadge from '@/components/posts/tag-badge';
 
 export default async function BlogRightSidebar() {
   const authors = await getMockAuthors();
-  const popularTags = (await getAllTags()).slice(0, 8); // Get top 8 tags for example
+  // const popularTags = (await getAllTags()).slice(0, 8); // Temporarily commented out
+  const popularTags: string[] = []; // Use empty array for now
 
   return (
     <aside className="w-80 hidden lg:block space-y-8 sticky top-20 h-[calc(100vh-5rem-env(safe-area-inset-bottom))] overflow-y-auto pb-8">
@@ -48,11 +49,15 @@ export default async function BlogRightSidebar() {
           <CardTitle className="text-lg">Popular tags</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {popularTags.map((tag) => (
-              <TagBadge key={tag} tag={tag} />
-            ))}
-          </div>
+          {popularTags.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {popularTags.map((tag) => (
+                <TagBadge key={tag} tag={tag} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Tags will appear here.</p>
+          )}
           <Link href="/blog/tags" className="text-sm text-primary hover:underline flex items-center pt-4">
             See more <ArrowRight className="ml-1 h-4 w-4" />
           </Link>

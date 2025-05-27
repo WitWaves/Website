@@ -1,23 +1,25 @@
 
 'use client';
 
-import { useEffect, useState, useTransition, useActionState, useRef }
-  from 'react';
+import { useEffect, useState, useTransition, useRef } from 'react';
+import { useActionState } from 'react'; // Corrected import
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image'; // For Next/Image
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
 import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, Image as ImageIcon, Code2 }
-  from 'lucide-react'; // Ensure Minus, ImageIcon, Code2 are imported
+  from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
-// Quill is now loaded via CDN in src/app/layout.tsx
+// Quill is loaded via CDN in src/app/layout.tsx
 
 interface PostFormProps {
   post?: Post;
@@ -62,16 +64,11 @@ export default function PostForm({ post }: PostFormProps) {
   useEffect(() => {
     if (isClient && editorRef.current && typeof window.Quill !== 'undefined') {
       if (quillInstanceRef.current) {
-        // If Quill instance already exists, update its content if post.content changes
-        // and the current editor content is different
         if (post?.content && quillInstanceRef.current.root.innerHTML !== post.content) {
-           // Check if editor is empty; if so, pasteHTML, otherwise setContents
           const editorContents = quillInstanceRef.current.getContents();
           if (editorContents.ops && editorContents.ops.length === 1 && editorContents.ops[0].insert === '\n') {
-            // Editor is empty or only contains a newline
             quillInstanceRef.current.clipboard.dangerouslyPasteHTML(0, post.content);
           } else {
-             // Editor has content, try to set delta
             try {
                 const delta = quillInstanceRef.current.clipboard.convert(post.content);
                 quillInstanceRef.current.setContents(delta, 'silent');
@@ -99,18 +96,16 @@ export default function PostForm({ post }: PostFormProps) {
             [{ 'color': [] }, { 'background': [] }],          
             [{ 'font': [] }],
             [{ 'align': [] }],
-            ['link', 'image', 'video'], // 'image' and 'video' might need custom handlers
+            ['link', 'image', 'video'],
             ['clean']                                         
           ],
         },
-        placeholder: "Write your amazing post content here...",
+        placeholder: "Start writing your stunning piece here...",
       });
       quillInstanceRef.current = quill;
 
       if (post?.content) {
         quill.clipboard.dangerouslyPasteHTML(0, post.content);
-      } else {
-        // quill.setText(''); // Not needed as placeholder handles empty state
       }
       
       quill.on('text-change', (delta, oldDelta, source) => {
@@ -119,24 +114,19 @@ export default function PostForm({ post }: PostFormProps) {
         }
       });
 
-      // Handle initial content for AI suggestions
       if (post?.content) {
         setQuillContent(post.content);
       }
 
-
       return () => {
         if (quillInstanceRef.current) {
           quillInstanceRef.current.off('text-change');
-          // More robust cleanup for Quill might be needed if errors persist
-          // For now, this should prevent event listener leaks.
-          // editorRef.current might be null if component unmounts quickly
           if (editorRef.current) editorRef.current.innerHTML = ''; 
           quillInstanceRef.current = null;
         }
       };
     }
-  }, [isClient, post?.content]); // Re-run if post.content changes
+  }, [isClient, post?.content]);
 
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
@@ -169,11 +159,14 @@ export default function PostForm({ post }: PostFormProps) {
 
   const handleSuggestTags = () => {
     if (!isClient || !quillInstanceRef.current) return; 
-    const textContentForAI = quillInstanceRef.current.getText(); // Get plain text for AI
+    let textContentForAI = quillInstanceRef.current.getText(); 
+    if (titleValue) {
+        textContentForAI = titleValue + "\n\n" + textContentForAI;
+    }
     
     startAITransition(async () => {
       const tags = await getAISuggestedTagsAction(textContentForAI);
-      setSuggestedTags(tags.filter(tag => !currentTags.includes(tag)));
+      setSuggestedTags(tags.filter(tag => !currentTags.includes(tag) && tag.length > 0));
     });
   };
 
@@ -201,7 +194,7 @@ export default function PostForm({ post }: PostFormProps) {
     }
   };
 
-  if (authLoading && !post) { // Only show full loading if not editing existing post
+  if (authLoading && !post) { 
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
   }
 
@@ -225,64 +218,81 @@ export default function PostForm({ post }: PostFormProps) {
   }
 
   return (
-    <form action={formAction} className="w-full max-w-5xl mx-auto">
-      {user && ( // Ensure userId is only added if user is available, especially for new posts
+    <form action={formAction} className="w-full max-w-6xl mx-auto"> {/* Increased max-width */}
+      {user && (
         <input type="hidden" name="userId" value={user.uid} />
       )}
       <input type="hidden" name="content" value={quillContent} />
 
       <div className="flex flex-col lg:flex-row gap-8">
+        {/* Left Column: Main Content Area */}
         <div className="flex-grow lg:w-2/3 space-y-6">
-           <div className="space-y-1">
+          {/* Title Input with Red Bar */}
+          <div className="flex items-start space-x-3">
+            <div className="w-1.5 bg-destructive h-10 mt-1 shrink-0 rounded-full"></div> {/* Red bar */}
             <Input
               id="title"
               name="title"
               value={titleValue}
               onChange={(e) => setTitleValue(e.target.value)}
               placeholder="Post Title..."
-              className="text-2xl md:text-3xl font-bold border-0 focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent focus:border-transparent pl-2"
+              className="text-3xl md:text-4xl lg:text-5xl font-bold border-0 focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent focus:border-transparent placeholder:text-muted-foreground/50 flex-1 min-w-0"
               required
             />
-             {state?.errors?.title && <p className="text-sm text-destructive mt-1">{state.errors.title.join(', ')}</p>}
+          </div>
+           {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
+          
+          {/* Featured Image Placeholder */}
+          <div className="aspect-video bg-muted/50 rounded-lg flex items-center justify-center text-muted-foreground border border-dashed border-border">
+             <Image 
+                src="https://placehold.co/600x338.png" 
+                alt="Featured image placeholder" 
+                width={600} 
+                height={338} 
+                className="object-cover rounded-md w-full h-full"
+                data-ai-hint="abstract design"
+              />
           </div>
          
           {/* Quill Editor Section */}
-          <div className="bg-card border border-input rounded-md">
+          <div className="bg-card border-0 rounded-md shadow-none"> {/* Removed border and shadow for cleaner look */}
             {isClient ? (
-              <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md">
+              <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-border [&_.ql-container]:border-border">
                 {/* Quill will attach here */}
               </div>
             ) : (
-              <div className="min-h-[300px] border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
+              <div className="min-h-[300px] border-border rounded-md bg-muted/50 flex items-center justify-center p-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-3 text-muted-foreground">Initializing editor...</p>
               </div>
             )}
           </div>
-          {/* Placeholder for future actions / simple toolbar */}
+          {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
+
+          {/* Mini Toolbar */}
           {isClient && (
-            <div className="mt-2 flex items-center space-x-2 border-t border-input pt-2">
-              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Divider (handled by Quill)">
+            <div className="mt-2 flex items-center space-x-2 border-t border-border pt-3">
+              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Add Divider (placeholder)">
                 <Minus className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Image (handled by Quill)">
-                <ImageIcon className="h-5 w-5" />
+              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Add Image (placeholder)">
+                <ImageUp className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Code Block (handled by Quill)">
+              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Add Code Block (placeholder)">
                 <Code2 className="h-5 w-5" />
               </Button>
             </div>
           )}
-          {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
         </div>
 
-        <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max">
+        {/* Right Column: Sidebar */}
+        <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max pt-2"> {/* Added pt-2 for alignment */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Featured Image</label>
-            <div className="flex items-center justify-center w-full h-48 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors">
+            <label className="text-sm font-medium text-foreground">Upload Thumbnail</label>
+            <div className="flex items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30">
               <div className="text-center">
-                <ImageUp className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">upload thumbnail</p>
+                <ImageIcon className="mx-auto h-10 w-10 text-muted-foreground" />
+                <p className="mt-2 text-xs text-muted-foreground">upload thumbnail</p>
               </div>
             </div>
           </div>
@@ -315,7 +325,7 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !isClient || !quillContent.trim() } className="w-full text-xs py-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) } className="w-full text-xs py-2">
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>

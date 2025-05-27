@@ -22,6 +22,7 @@ const UserProfileSchema = z.object({
   displayName: z.string().min(1, 'Display name cannot be empty.'),
   username: z.string().min(3, 'Username must be at least 3 characters.').regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, underscores, and periods.').optional(),
   bio: z.string().max(200, 'Bio cannot exceed 200 characters.').optional(),
+  photoURL: z.string().url('Invalid Photo URL.').optional().or(z.literal('')), // Added photoURL
   twitter: z.string().url('Invalid Twitter URL.').optional().or(z.literal('')),
   linkedin: z.string().url('Invalid LinkedIn URL.').optional().or(z.literal('')),
   instagram: z.string().url('Invalid Instagram URL.').optional().or(z.literal('')),
@@ -49,6 +50,7 @@ export type FormState = {
     displayName?: string[];
     username?: string[];
     bio?: string[];
+    photoURL?: string[]; // Added photoURL errors
     twitter?: string[];
     linkedin?: string[];
     instagram?: string[];
@@ -95,7 +97,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
   while (!(await isSlugUnique(slug))) {
     slug = `${generateSlug(title)}-${counter}`;
     counter++;
-    if (counter > 10) {
+    if (counter > 10) { // Safety break
         return { message: 'Error: Could not generate a unique slug for the post.', errors: {} };
     }
   }
@@ -106,10 +108,10 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     title,
     content,
     tags: tags || [],
-    userId,
+    userId, // Ensure userId is saved
     likedBy: [],
     likeCount: 0,
-    commentCount: 0, // Initialize comment count
+    commentCount: 0,
     createdAt: serverTimestamp(), 
     updatedAt: serverTimestamp(), 
   };
@@ -135,6 +137,7 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     title: formData.get('title'),
     content: formData.get('content'),
     tags: formData.get('tags'),
+    // userId is not updated here, it's set at creation
   });
 
   if (!validatedFields.success) {
@@ -191,6 +194,7 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
     displayName: formData.get('displayName'),
     username: formData.get('username') || undefined,
     bio: formData.get('bio') || undefined,
+    photoURL: formData.get('photoURL') || undefined, // Get photoURL from formData
     twitter: formData.get('twitter') || undefined,
     linkedin: formData.get('linkedin') || undefined,
     instagram: formData.get('instagram') || undefined,
@@ -205,12 +209,13 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
     };
   }
 
-  const { displayName, username, bio, ...socialLinksInput } = validatedFields.data;
+  const { displayName, username, bio, photoURL, ...socialLinksInput } = validatedFields.data;
   
   const profileUpdateData: Partial<UserProfile> = {
     username: username,
     displayName: displayName, 
     bio: bio,
+    photoURL: photoURL, // Include photoURL
     socialLinks: socialLinksInput as SocialLinks, 
   };
 
@@ -318,7 +323,7 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
     const newCommentRef = await addDoc(commentsColRef, {
       userId,
       userDisplayName,
-      userPhotoURL: userPhotoURL || null, // Store null if undefined
+      userPhotoURL: userPhotoURL || null, 
       text: commentText,
       createdAt: serverTimestamp(),
     });

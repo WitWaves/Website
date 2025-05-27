@@ -1,7 +1,7 @@
 
 'use server';
 
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp, collection, query, where, getDocs, deleteField } from 'firebase/firestore'; // Added deleteField
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp, collection, query, where, getDocs, deleteField } from 'firebase/firestore'; 
 import { db } from './firebase/config';
 
 export interface SocialLinks {
@@ -17,10 +17,10 @@ export interface UserProfile {
   username?: string;
   displayName?: string; 
   bio?: string;
+  photoURL?: string; // Added photoURL
   socialLinks?: SocialLinks;
   createdAt?: string | any; 
   updatedAt?: string | any; 
-  photoURL?: string; 
 }
 
 export interface AuthorProfileForCard {
@@ -52,8 +52,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
         username: data.username,
         displayName: data.displayName,
         bio: data.bio,
+        photoURL: data.photoURL, // Include photoURL
         socialLinks: data.socialLinks || {},
-        photoURL: data.photoURL,
         createdAt: formatProfileTimestamp(data.createdAt),
         updatedAt: formatProfileTimestamp(data.updatedAt),
       } as UserProfile;
@@ -107,10 +107,9 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
     }
   } catch (error) {
     console.error("Error fetching multiple author profiles:", error);
+    // Fallback for UIDs that might not have been processed due to an overall error
     uniqueUids.forEach(uid => {
       if (!profilesMap.has(uid)) {
-        // This case should ideally be handled by the specific error for that UID if one occurred,
-        // but as a fallback:
         console.warn(`Fallback: Author profile for UID ${uid} could not be fetched due to overall error. Defaulting to 'WitWaves User'.`);
         profilesMap.set(uid, { uid, displayName: "WitWaves User", photoURL: undefined });
       }
@@ -123,7 +122,7 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
 
 export async function updateUserProfileData(
   userId: string,
-  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> & { displayName?: string }
+  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> & { displayName?: string; photoURL?: string } // Ensure photoURL is accepted
 ): Promise<void> {
   if (!userId) throw new Error("User ID is required to update profile data.");
   const profileDocRef = doc(db, 'userProfiles', userId);
@@ -132,6 +131,7 @@ export async function updateUserProfileData(
     
     const dataToSave: { [key: string]: any } = { ...data };
 
+    // Clean socialLinks
     if (dataToSave.socialLinks && typeof dataToSave.socialLinks === 'object') {
       const socialLinksCopy = { ...dataToSave.socialLinks }; 
       let hasActualLinks = false;
@@ -146,13 +146,26 @@ export async function updateUserProfileData(
       if (hasActualLinks) {
         dataToSave.socialLinks = socialLinksCopy;
       } else {
-        if (docSnap.exists()) {
+        // If no actual links, remove the socialLinks field entirely
+        if (docSnap.exists() && docSnap.data()?.socialLinks) { // Only delete if it exists
           dataToSave.socialLinks = deleteField(); 
         } else {
-          delete dataToSave.socialLinks;
+          delete dataToSave.socialLinks; // Don't add an empty field on creation
         }
       }
     }
+
+    // Handle photoURL: if it's an empty string, delete the field, otherwise save it.
+    if (dataToSave.photoURL === '') {
+        if (docSnap.exists() && docSnap.data()?.photoURL) {
+             dataToSave.photoURL = deleteField();
+        } else {
+            delete dataToSave.photoURL;
+        }
+    } else if (dataToSave.photoURL === undefined) { // If undefined (e.g. not changed), don't try to save it
+        delete dataToSave.photoURL;
+    }
+    // If photoURL is a valid URL, it will be saved as is.
     
     dataToSave.updatedAt = serverTimestamp();
 
@@ -162,6 +175,12 @@ export async function updateUserProfileData(
     } else {
       dataToSave.uid = userId; 
       dataToSave.createdAt = serverTimestamp();
+      // Remove fields that are undefined before initial set to prevent Firestore errors
+      Object.keys(dataToSave).forEach(key => {
+        if (dataToSave[key] === undefined) {
+          delete dataToSave[key];
+        }
+      });
       await setDoc(profileDocRef, dataToSave);
       console.log(`User profile created for userId: ${userId} with data:`, dataToSave);
     }

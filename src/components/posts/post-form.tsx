@@ -5,13 +5,13 @@ import { useEffect, useState, useTransition, useRef } from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image'; // For Next/Image
+// import Image from 'next/image'; // No longer needed if the placeholder is removed
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
-import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, ImageIcon, Code2 }
+import { AlertCircle, Loader2, Wand2, CheckCircle, Minus, ImageIcon, Code2, ImageUp }
   from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,12 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 // Quill is loaded via CDN in src/app/layout.tsx
+// We need to declare 'Quill' for TypeScript if using window.Quill
+declare global {
+  interface Window {
+    Quill: any; // Use 'any' or a more specific type if available
+  }
+}
 
 interface PostFormProps {
   post?: Post;
@@ -78,7 +84,7 @@ export default function PostForm({ post }: PostFormProps) {
             [{ 'color': [] }, { 'background': [] }],          
             [{ 'font': [] }],
             [{ 'align': [] }],
-            ['link', 'image', 'video'], // 'image' is Quill's built-in image uploader
+            ['link', 'image', 'video'], 
             ['clean']                                         
           ],
         },
@@ -87,50 +93,43 @@ export default function PostForm({ post }: PostFormProps) {
       quillInstanceRef.current = quill;
 
       if (post?.content) {
-        // Check if editor is empty before pasting to avoid potential duplication on re-renders
         const editorContents = quill.getContents();
         if (editorContents.ops && editorContents.ops.length === 1 && editorContents.ops[0].insert === '\n') {
            quill.clipboard.dangerouslyPasteHTML(0, post.content);
         }
       } else {
-        // Ensure editor is empty for new posts
         quill.setContents([{ insert: '\n' }]);
       }
       
-      quill.on('text-change', (delta, oldDelta, source) => {
-        if (source === 'user') {
-          const currentHTML = quill.root.innerHTML;
-          // Prevent setting state if content is effectively just an empty line from Quill
-          if (currentHTML === '<p><br></p>') {
-             setQuillContent('');
-          } else {
-             setQuillContent(currentHTML);
-          }
+      quill.on('text-change', () => { // Removed delta, oldDelta, source as they are not used
+        const currentHTML = quill.root.innerHTML;
+        if (currentHTML === '<p><br></p>') {
+           setQuillContent('');
+        } else {
+           setQuillContent(currentHTML);
         }
       });
 
-       // Set initial content for the hidden input if editing
       if (post?.content) {
         setQuillContent(post.content);
       } else {
-        setQuillContent(''); // For new posts, ensure it starts empty
+        setQuillContent(''); 
       }
     }
-    // Cleanup function for when the component unmounts or quillInstanceRef changes
+    
     return () => {
-      if (quillInstanceRef.current) {
+      if (quillInstanceRef.current && typeof quillInstanceRef.current.off === 'function') { // Check if 'off' method exists
         quillInstanceRef.current.off('text-change');
-        // Consider if you need to destroy the Quill instance:
-        // editorRef.current.innerHTML = ''; // Clear the div
-        // quillInstanceRef.current = null; // Or more formally destroy if Quill API supports
       }
+      // Consider if you need to destroy the Quill instance:
+      // if (editorRef.current) editorRef.current.innerHTML = ''; 
+      // quillInstanceRef.current = null; 
     };
-  // Ensure dependencies are correctly listed, especially for re-initialization if 'post' changes
-  }, [isClient, post?.content]); // Added post?.content to re-initialize if it changes
+  }, [isClient, post?.content]);
 
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
-  const [state, formAction] = useActionState(action, undefined);
+  const [state, formAction, isPending] = useActionState(action, undefined);
 
   useEffect(() => {
     if (state?.success) {
@@ -218,19 +217,17 @@ export default function PostForm({ post }: PostFormProps) {
   }
 
   return (
-    <form action={formAction} className="w-full max-w-6xl mx-auto"> {/* Increased max-width */}
+    <form action={formAction} className="w-full max-w-6xl mx-auto">
       {user && (
         <input type="hidden" name="userId" value={user.uid} />
       )}
-      {/* Hidden input to carry Quill's HTML content */}
       <input type="hidden" name="content" value={quillContent} />
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Column: Main Content Area */}
         <div className="flex-grow lg:w-2/3 space-y-6">
-          {/* Title Input with Red Bar */}
           <div className="flex items-start space-x-3">
-            <div className="w-1.5 bg-destructive h-10 mt-1 shrink-0 rounded-full"></div> {/* Red bar */}
+            <div className="w-1.5 bg-destructive h-10 mt-1 shrink-0 rounded-full"></div>
             <Input
               id="title"
               name="title"
@@ -243,26 +240,14 @@ export default function PostForm({ post }: PostFormProps) {
           </div>
            {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
           
-          {/* Featured Image Placeholder */}
-          <div className="aspect-video bg-muted/50 rounded-lg flex items-center justify-center text-muted-foreground border border-dashed border-border">
-             <Image 
-                src="https://placehold.co/600x338.png" 
-                alt="Featured image placeholder" 
-                width={600} 
-                height={338} 
-                className="object-cover rounded-md w-full h-full"
-                data-ai-hint="abstract design"
-              />
-          </div>
+          {/* Featured Image Placeholder Removed */}
          
-          {/* Quill Editor Section */}
-          <div className="bg-card border-0 rounded-md shadow-none"> {/* Removed border and shadow for cleaner look */}
+          <div className="bg-card border-0 rounded-md shadow-none">
             {isClient ? (
-              <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-border [&_.ql-container]:border-border">
-                {/* Quill will attach here */}
+              <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
               </div>
             ) : (
-              <div className="min-h-[300px] border-border rounded-md bg-muted/50 flex items-center justify-center p-4">
+              <div className="min-h-[300px] border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-3 text-muted-foreground">Initializing editor...</p>
               </div>
@@ -273,7 +258,7 @@ export default function PostForm({ post }: PostFormProps) {
         </div>
 
         {/* Right Column: Sidebar */}
-        <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max pt-2"> {/* Added pt-2 for alignment */}
+        <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max pt-2">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Upload Thumbnail</label>
             <div className="flex items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30">

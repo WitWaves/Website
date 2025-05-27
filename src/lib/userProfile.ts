@@ -1,11 +1,8 @@
 
 'use server';
-/**
- * @fileOverview Provides types and placeholder functions for user profiles.
- * This is a reverted/minimal version after rolling back profile editing functionality.
- * In a full implementation with editable profiles, this file would contain
- * functions to interact with a 'userProfiles' collection in Firestore.
- */
+
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { db } from './firebase/config';
 
 export interface SocialLinks {
   twitter?: string;
@@ -16,46 +13,77 @@ export interface SocialLinks {
 }
 
 export interface UserProfile {
-  uid: string; // Should match Firebase Auth UID
-  username?: string; // User's custom handle, e.g., @username
+  uid: string;
+  username?: string;
+  displayName?: string; // Storing a copy from Firebase Auth
   bio?: string;
   socialLinks?: SocialLinks;
-  // Timestamps like createdAt, updatedAt would be relevant if storing in Firestore
+  createdAt?: string | any; // Allow ISO string for client, serverTimestamp for write
+  updatedAt?: string | any; // Allow ISO string for client, serverTimestamp for write
 }
 
-/**
- * Placeholder function for fetching a user's custom profile.
- * In the rolled-back state, the profile page primarily uses Firebase Auth data
- * and mock data for extended details. This function is a stub.
- * @param userId The UID of the user.
- * @returns A promise that resolves to null or a mock profile.
- */
+// Helper to convert Firestore Timestamp to ISO string
+const formatProfileTimestamp = (timestamp: any): string | undefined => {
+  if (!timestamp) return undefined;
+  if (timestamp instanceof Timestamp) {
+    return timestamp.toDate().toISOString();
+  }
+  if (typeof timestamp === 'string') {
+    return timestamp;
+  }
+  return undefined;
+};
+
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  console.warn(
-    `getUserProfile (reverted state) called for userId: ${userId}. ` +
-    `This function is a placeholder and does not fetch from Firestore.`
-  );
   if (!userId) return null;
-  // Return null as the profile page in the reverted state uses mock data
-  // for details not available directly from Firebase Auth.
-  return null; 
+  try {
+    const profileDocRef = doc(db, 'userProfiles', userId);
+    const docSnap = await getDoc(profileDocRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        uid: userId,
+        username: data.username,
+        displayName: data.displayName,
+        bio: data.bio,
+        socialLinks: data.socialLinks || {},
+        createdAt: formatProfileTimestamp(data.createdAt),
+        updatedAt: formatProfileTimestamp(data.updatedAt),
+      } as UserProfile; // Cast carefully, ensure all fields align
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return null;
+  }
 }
 
-/**
- * Placeholder function for updating a user's custom profile data.
- * In the rolled-back state, profile editing is not functional. This function is a stub.
- * @param userId The UID of the user.
- * @param data The profile data to update.
- */
 export async function updateUserProfileData(
   userId: string,
-  data: Partial<Omit<UserProfile, 'uid'>>
+  // Data coming from action can include displayName for storage in Firestore profile
+  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> & { displayName?: string }
 ): Promise<void> {
-  console.warn(
-    `updateUserProfileData (reverted state) called for userId: ${userId} with data:`,
-    data,
-    `This function is a placeholder and does not save to Firestore.`
-  );
-  // This function would interact with Firestore in a full implementation.
-  return Promise.resolve();
+  if (!userId) throw new Error("User ID is required to update profile data.");
+  const profileDocRef = doc(db, 'userProfiles', userId);
+  try {
+    const docSnap = await getDoc(profileDocRef);
+    const dataToSave = {
+      ...data,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (docSnap.exists()) {
+      await updateDoc(profileDocRef, dataToSave);
+    } else {
+      // If profile doesn't exist, create it. Include createdAt.
+      await setDoc(profileDocRef, {
+        ...dataToSave,
+        uid: userId, // Ensure uid is part of the initial document
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch (error) {
+    console.error("Error updating user profile data in Firestore:", error);
+    throw error;
+  }
 }

@@ -1,101 +1,169 @@
 
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+  // limit, // Not currently used, can be added if needed for pagination
+  // getCountFromServer // Not currently used
+} from 'firebase/firestore';
+import { db } from './firebase/config';
 import { format } from 'date-fns';
 
-// Centralized Post type definition
 export interface Post {
-  id: string; // Corresponds to Firestore document ID (which will be the slug)
+  id: string;
   title: string;
   content: string;
   tags: string[];
-  createdAt: string; // ISO date string
-  updatedAt?: string; // ISO date string
-  userId?: string; // ID of the user who created the post
+  createdAt: string; // ISO date string for client, Firestore Timestamp for server
+  updatedAt?: string; // ISO date string for client, Firestore Timestamp for server
+  userId?: string;
 }
 
-// Mock in-memory data store
-const mockPosts: Post[] = [
-  {
-    id: 'hello-world-mock',
-    title: 'Hello World (Mock Post)',
-    content: 'This is a mock post loaded from in-memory data. If you see this, Firestore is disconnected.',
-    tags: ['mock', 'testing'],
-    createdAt: new Date(2023, 0, 15, 10, 30, 0).toISOString(),
-    updatedAt: new Date(2023, 0, 15, 10, 30, 0).toISOString(),
-    userId: 'mock-user-123',
-  },
-  {
-    id: 'another-mock-post',
-    title: 'Another Mock Entry',
-    content: 'Content for the second mock post to test listing.',
-    tags: ['example', 'mock'],
-    createdAt: new Date(2023, 1, 20, 12, 0, 0).toISOString(),
-    userId: 'mock-user-456',
-  },
-];
+// Helper to convert Firestore Timestamp to ISO string or return existing string
+const formatTimestamp = (timestamp: any): string => {
+  if (!timestamp) return new Date().toISOString(); // Fallback
+  if (timestamp instanceof Timestamp) {
+    return timestamp.toDate().toISOString();
+  }
+  if (typeof timestamp === 'string') {
+    // Could add validation here to ensure it's a valid ISO string
+    return timestamp;
+  }
+  console.warn('Unexpected timestamp format:', timestamp, 'Returning current date as ISO string.');
+  return new Date().toISOString();
+};
+
 
 export async function getPosts(): Promise<Post[]> {
-  console.log("Fetching posts from MOCK in-memory store.");
   try {
-    // Return a copy to prevent direct modification of the mock array
-    return JSON.parse(JSON.stringify(mockPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())));
+    const postsCol = collection(db, 'posts');
+    const q = query(postsCol, orderBy('createdAt', 'desc'));
+    const postSnapshot = await getDocs(q);
+    const postsList = postSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title,
+        content: data.content,
+        tags: data.tags || [],
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+        userId: data.userId,
+      } as Post;
+    });
+    return postsList;
   } catch (error) {
-    console.error("Error fetching posts from MOCK store:", error);
+    console.error("Error fetching posts from Firestore:", error);
     return [];
   }
 }
 
 export async function getPost(id: string): Promise<Post | undefined> {
-  console.log(`Fetching post ${id} from MOCK in-memory store.`);
   try {
     if (!id || typeof id !== 'string') {
-      console.error("Invalid post ID provided to getPost (mock):", id);
+      console.error("Invalid post ID provided to getPost:", id);
       return undefined;
     }
-    const post = mockPosts.find(p => p.id === id);
-    return post ? JSON.parse(JSON.stringify(post)) : undefined;
+    const postDocRef = doc(db, 'posts', id);
+    const postSnap = await getDoc(postDocRef);
+    if (postSnap.exists()) {
+      const data = postSnap.data();
+      return {
+        id: postSnap.id,
+        title: data.title,
+        content: data.content,
+        tags: data.tags || [],
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+        userId: data.userId,
+      } as Post;
+    } else {
+      console.log(`No post found with ID: ${id}`);
+      return undefined;
+    }
   } catch (error) {
-    console.error(`Error fetching post ${id} from MOCK store:`, error);
+    console.error(`Error fetching post ${id} from Firestore:`, error);
     return undefined;
   }
 }
 
+
 export async function getPostsByTag(tag: string): Promise<Post[]> {
-  console.log(`Fetching posts by tag ${tag} from MOCK in-memory store.`);
   try {
     const decodedTag = decodeURIComponent(tag).toLowerCase();
-    return JSON.parse(JSON.stringify(mockPosts.filter(post => post.tags.map(t=>t.toLowerCase()).includes(decodedTag))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())));
+    const postsCol = collection(db, 'posts');
+    const q = query(
+      postsCol,
+      where('tags', 'array-contains', decodedTag),
+      orderBy('createdAt', 'desc')
+    );
+    const postSnapshot = await getDocs(q);
+    return postSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title,
+        content: data.content,
+        tags: data.tags || [],
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+        userId: data.userId,
+      } as Post;
+    });
   } catch (error) {
-    console.error(`Error fetching posts by tag ${tag} from MOCK store:`, error);
+    console.error(`Error fetching posts by tag ${tag} from Firestore:`, error);
     return [];
   }
 }
 
 export async function getPostsByArchive(year: number, month: number): Promise<Post[]> { // month is 0-indexed
-  console.log(`Fetching posts for archive ${year}-${month + 1} from MOCK in-memory store.`);
   try {
-    return JSON.parse(JSON.stringify(mockPosts.filter(post => {
-      const postDate = new Date(post.createdAt);
-      return postDate.getFullYear() === year && postDate.getMonth() === month;
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())));
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 1);
+
+    const postsCol = collection(db, 'posts');
+    const q = query(
+      postsCol,
+      where('createdAt', '>=', Timestamp.fromDate(startDate)),
+      where('createdAt', '<', Timestamp.fromDate(endDate)),
+      orderBy('createdAt', 'desc')
+    );
+    const postSnapshot = await getDocs(q);
+    return postSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title,
+        content: data.content,
+        tags: data.tags || [],
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+        userId: data.userId,
+      } as Post;
+    });
   } catch (error) {
-    console.error(`Error fetching posts for archive ${year}-${month + 1} from MOCK store:`, error);
+    console.error(`Error fetching posts for archive ${year}-${month + 1} from Firestore:`, error);
     return [];
   }
 }
 
 export async function getAllTags(): Promise<string[]> {
-  console.log("Fetching all tags from MOCK in-memory store.");
   try {
+    const posts = await getPosts();
     const tagSet = new Set<string>();
-    mockPosts.forEach(post => {
+    posts.forEach(post => {
       if (post.tags && Array.isArray(post.tags)) {
-        post.tags.forEach(tag => tagSet.add(tag));
+        post.tags.forEach(tag => tagSet.add(tag.toLowerCase()));
       }
     });
     return Array.from(tagSet).sort();
   } catch (error) {
-    console.error("Error fetching all tags from MOCK store:", error);
+    console.error("Error fetching all tags from Firestore derived posts:", error);
     return [];
   }
 }
@@ -108,14 +176,14 @@ export type ArchivePeriod = {
 };
 
 export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
-  console.log("Fetching archive periods from MOCK in-memory store.");
-  try {
+   try {
+    const posts = await getPosts();
     const periodsMap = new Map<string, ArchivePeriod>();
-    mockPosts.forEach(post => {
+    posts.forEach(post => {
       if (post.createdAt) {
         const date = new Date(post.createdAt);
         const year = date.getFullYear();
-        const month = date.getMonth(); // 0-indexed
+        const month = date.getMonth();
         const monthName = format(date, 'MMMM');
         const key = `${year}-${month}`;
 
@@ -134,7 +202,7 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
       return b.month - a.month;
     });
   } catch (error) {
-    console.error("Error fetching archive periods from MOCK store:", error);
+    console.error("Error fetching archive periods from Firestore derived posts:", error);
     return [];
   }
 }
@@ -150,12 +218,13 @@ export function generateSlug(title: string): string {
 }
 
 export async function isSlugUnique(slug: string): Promise<boolean> {
-  console.log(`Checking slug uniqueness for ${slug} in MOCK in-memory store.`);
   try {
     if (!slug) return false;
-    return !mockPosts.some(post => post.id === slug);
+    const postDocRef = doc(db, 'posts', slug);
+    const docSnap = await getDoc(postDocRef);
+    return !docSnap.exists();
   } catch (error) {
-    console.error(`Error checking slug uniqueness for ${slug} in MOCK store:`, error);
+    console.error(`Error checking slug uniqueness for ${slug} in Firestore:`, error);
     return false;
   }
 }

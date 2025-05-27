@@ -2,22 +2,21 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { generateSlug, isSlugUnique } from '@/lib/posts'; // Post type will come from here if needed
-import { suggestTags as suggestTagsFlow } from '@/ai/flows/suggest-tags';
-// import { db } from '@/lib/firebase/config'; 
-// import { doc, setDoc, updateDoc, serverTimestamp, collection } from 'firebase/firestore';
-import type { Post } from '@/lib/posts'; // Import Post type
-import type { UserProfile } from '@/lib/userProfile'; // Import UserProfile type
+import { generateSlug, isSlugUnique } from '@/lib/posts';
+import { db } from '@/lib/firebase/config';
+import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'; // Removed collection as it's not directly used here for posts
+import type { Post } from '@/lib/posts';
+import type { UserProfile } from '@/lib/userProfile';
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
 
 
 const PostFormSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters.'),
   content: z.string().min(10, 'Content must be at least 10 characters.'),
-  tags: z.string().optional().transform(val => 
+  tags: z.string().optional().transform(val =>
     val ? val.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0) : []
   ),
-  userId: z.string().optional(), 
+  userId: z.string().optional(), // userId is now expected for new posts
 });
 
 const UserProfileSchema = z.object({
@@ -38,7 +37,7 @@ export type FormState = {
     content?: string[];
     tags?: string[];
     userId?: string[];
-    form?: string[]; 
+    form?: string[];
     // Profile specific errors
     displayName?: string[];
     username?: string[];
@@ -77,45 +76,42 @@ export async function createPostAction(prevState: FormState, formData: FormData)
         errors: { userId: ['User authentication is required.'] }
     };
   }
-  
+
   let slug = generateSlug(title);
   let counter = 1;
-  // For mock store, isSlugUnique might need adjustment or removal if not feasible to implement perfectly
-  while (!(await isSlugUnique(slug))) { 
+  while (!(await isSlugUnique(slug))) {
     slug = `${generateSlug(title)}-${counter}`;
     counter++;
-    if (counter > 10) { 
+    if (counter > 10) {
         return { message: 'Error: Could not generate a unique slug for the post.', errors: {} };
     }
   }
 
-  const newPostData = { //: Omit<Post, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
-    id: slug, // For in-memory store, we might add id here
+  const newPostRef = doc(db, 'posts', slug);
+  // Ensure the structure matches the Post interface, especially for Firestore Timestamps
+  const newPostData = { // No need for Omit if we directly map to expected Firestore structure
     title,
     content,
     tags: tags || [],
-    userId, 
-    createdAt: new Date().toISOString(), // Using ISO string for mock store
-    updatedAt: new Date().toISOString(),
+    userId,
+    createdAt: serverTimestamp(), // Firestore server timestamp
+    updatedAt: serverTimestamp(), // Firestore server timestamp
   };
 
   try {
-    // With Firestore disconnected, we can't save. Log for now or simulate.
-    console.log("MOCK: Attempting to create post (Firestore disconnected):", newPostData);
-    // In a real mock scenario, you might push to an in-memory array here.
-    // For this test, we'll just assume success.
+    await setDoc(newPostRef, newPostData);
   } catch (error) {
-    console.error("Error creating post (MOCK):", error);
-    return { message: `Error: Failed to save post (MOCK). ${error instanceof Error ? error.message : ''}`, errors: {} };
+    console.error("Error creating post in Firestore:", error);
+    return { message: `Error: Failed to save post. ${error instanceof Error ? error.message : ''}`, errors: {} };
   }
 
   revalidatePath('/blog');
   revalidatePath(`/posts/${slug}`);
   (tags || []).forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
   revalidatePath('/archive/[year]/[month]', 'page');
-  revalidatePath('/blog/profile'); 
-  
-  return { message: `Post "${title}" created successfully! (MOCK)`, success: true, errors: {}, newPostId: slug };
+  revalidatePath('/blog/profile');
+
+  return { message: `Post "${title}" created successfully!`, success: true, errors: {}, newPostId: slug };
 }
 
 export async function updatePostAction(id: string, prevState: FormState, formData: FormData): Promise<FormState> {
@@ -123,7 +119,7 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     title: formData.get('title'),
     content: formData.get('content'),
     tags: formData.get('tags'),
-    userId: formData.get('userId'), // Assuming userId is passed for validation if needed, though not updated
+    // userId is not part of the update form for post content itself
   });
 
   if (!validatedFields.success) {
@@ -133,33 +129,31 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     };
   }
 
-  const { title, content, tags } = validatedFields.data; 
-  // const postDocRef = doc(db, 'posts', id); // Firestore disconnected
+  const { title, content, tags } = validatedFields.data;
+  const postDocRef = doc(db, 'posts', id);
 
-  const updatedPostData = { // : Partial<Post> & { updatedAt: any } = {
+  // Structure for Firestore update
+  const updatedPostData = {
     title,
     content,
     tags: tags || [],
-    updatedAt: new Date().toISOString(), // Using ISO string for mock store
+    updatedAt: serverTimestamp(), // Firestore server timestamp
   };
 
   try {
-    // With Firestore disconnected, we can't update. Log for now or simulate.
-    console.log(`MOCK: Attempting to update post ${id} (Firestore disconnected):`, updatedPostData);
-    // In a real mock scenario, you might update an in-memory array here.
-    // For this test, we'll just assume success.
+    await updateDoc(postDocRef, updatedPostData);
   } catch (error) {
-    console.error("Error updating post (MOCK):", error);
-    return { message: `Error: Failed to update post (MOCK). ${error instanceof Error ? error.message : ''}`, errors: {} };
+    console.error("Error updating post in Firestore:", error);
+    return { message: `Error: Failed to update post. ${error instanceof Error ? error.message : ''}`, errors: {} };
   }
 
   revalidatePath('/blog');
   revalidatePath(`/posts/${id}`);
-  revalidatePath('/tags', 'layout'); 
+  revalidatePath('/tags', 'layout');
   revalidatePath('/archive/[year]/[month]', 'page');
   revalidatePath('/blog/profile');
-  
-  return { message: `Post "${title}" updated successfully! (MOCK)`, success: true, errors: {} };
+
+  return { message: `Post "${title}" updated successfully!`, success: true, errors: {} };
 }
 
 
@@ -168,12 +162,12 @@ export async function getAISuggestedTagsAction(postContent: string): Promise<str
     return [];
   }
   try {
+    // Dynamically import to avoid issues if Genkit isn't fully set up
+    const { suggestTags: suggestTagsFlow } = await import('@/ai/flows/suggest-tags');
     const result = await suggestTagsFlow({ postContent });
     return result.tags.map(tag => tag.toLowerCase());
   } catch (error) {
     console.error('Error suggesting tags with AI:', error);
-    // If Genkit/AI model is also an issue, this might contribute to hangs.
-    // For now, assume Genkit is working or has its own fallbacks.
     return ['ai-suggestion-error'];
   }
 }
@@ -182,7 +176,7 @@ export async function getAISuggestedTagsAction(postContent: string): Promise<str
 export async function updateUserProfileAction(userId: string, prevState: FormState, formData: FormData): Promise<FormState> {
   const validatedFields = UserProfileSchema.safeParse({
     displayName: formData.get('displayName'),
-    username: formData.get('username') || undefined, // Ensure undefined if empty for optional fields
+    username: formData.get('username') || undefined,
     bio: formData.get('bio') || undefined,
     twitter: formData.get('twitter') || undefined,
     linkedin: formData.get('linkedin') || undefined,
@@ -197,23 +191,25 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
       success: false,
     };
   }
-  
+
   const { displayName, username, bio, ...socialLinksInput } = validatedFields.data;
 
   const profileUpdateData: Partial<UserProfile> = {
     // uid is not part of the form, it's passed as first arg
-    username: username, // Already optional from schema
-    bio: bio, // Already optional
+    username: username,
+    // Storing displayName in Firestore profile is optional, primary source is Firebase Auth.
+    // If you want to store a copy:
+    displayName: displayName,
+    bio: bio,
     socialLinks: {
       twitter: socialLinksInput.twitter,
       linkedin: socialLinksInput.linkedin,
       instagram: socialLinksInput.instagram,
       portfolio: socialLinksInput.portfolio,
+      // github: socialLinksInput.github // If you add github to schema
     },
-    // displayName will be handled on client for Firebase Auth, this action handles Firestore part
   };
-  
-  // Remove social links that are empty strings to avoid storing them as such if not desired
+
   Object.keys(profileUpdateData.socialLinks!).forEach(keyStr => {
     const key = keyStr as keyof typeof profileUpdateData.socialLinks;
     if (profileUpdateData.socialLinks![key] === '') {
@@ -223,22 +219,19 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
 
 
   try {
-    // await updateUserProfileDataInDb(userId, profileUpdateData); // Firestore disconnected
-    console.log(`MOCK: Attempting to update user profile ${userId} (Firestore disconnected):`, profileUpdateData);
-    // For this test, assume success.
+    await updateUserProfileDataInDb(userId, profileUpdateData);
   } catch (error) {
-    console.error("Error updating user profile in DB (MOCK):", error);
-    return { message: `Error: Failed to update profile in database (MOCK). ${error instanceof Error ? error.message : ''}`, success: false };
+    console.error("Error updating user profile in DB:", error);
+    return { message: `Error: Failed to update profile in database. ${error instanceof Error ? error.message : ''}`, success: false };
   }
-  
+
   const updatedProfileForState: Partial<UserProfile> = {
       uid: userId,
-      displayName: displayName, // Pass back the display name from form for optimistic update
-      ...profileUpdateData
+      ...profileUpdateData // This already includes displayName if you added it above
   }
 
   revalidatePath('/blog/profile');
-  revalidatePath(`/blog/profile/${userId}`); // If you have dynamic user profile pages by username/id
+  revalidatePath(`/blog/profile/${userId}`);
 
-  return { message: 'Profile updated successfully! (MOCK)', success: true, updatedProfile: updatedProfileForState };
+  return { message: 'Profile updated successfully!', success: true, updatedProfile: updatedProfileForState };
 }

@@ -1,48 +1,59 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useActionState } from 'react'; // Removed useTransition as isEditPending comes from useActionState now
 import Link from 'next/link';
+// import Image from 'next/image'; // Not used directly in this version for cover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, Link as LinkIcon, UserCircle, Loader2, Github } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import { getPosts, type Post } from '@/lib/posts';
 import type { MockAuthor } from '@/lib/authors';
 import { useAuth } from '@/contexts/auth-context';
-// Removed Dialog, useActionState, updateUserProfileAction, FormState, useToast, Textarea, Input, Label
-// as they were part of the editable profile feature.
-// auth (from firebase/config) and updateFirebaseAuthProfile are also not needed here for the reverted state.
+import { updateUserProfileAction, type FormState } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
+import { getUserProfile, type UserProfile, type SocialLinks } from '@/lib/userProfile';
+import { auth } from '@/lib/firebase/config';
+import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 
-// Mock data for parts of the profile not in Firebase Auth or user-specific posts
-// This data is used as a placeholder since profile editing is rolled back.
-const staticProfileParts = {
-  usernameHandle: '@username', // Example placeholder
-  bio: "This is a placeholder bio. Edit profile functionality will be re-enabled in a future update.",
-  stats: {
-    following: 120,
-    followers: '1.5k',
-  },
-  socialLinks: [
-    { icon: X, href: '#', label: 'Twitter/X', present: true },
-    { icon: Linkedin, href: '#', label: 'LinkedIn', present: true },
-    { icon: Instagram, href: '#', label: 'Instagram', present: true },
-    { icon: Github, href: '#', label: 'GitHub', present: true },
-    { icon: Briefcase, href: '#', label: 'Portfolio', present: true },
-  ],
+const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
+    twitter: X,
+    linkedin: Linkedin,
+    instagram: Instagram,
+    portfolio: Briefcase,
+    github: Github,
 };
+
+// Placeholder stats - in a real app, these would come from Firestore or calculations
+const staticProfileStats = {
+    following: 0, // Example placeholder
+    followers: '0', // Example placeholder
+};
+
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
-  // isLoadingProfile state can be removed if we are not fetching custom profile anymore
-  // const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  // isEditModalOpen state removed
+  const [customProfile, setCustomProfile] = useState<UserProfile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Effect to fetch user's posts (this part is largely the same)
+  // Form state for profile editing
+  const [editProfileState, handleProfileFormSubmit, isEditPending] = useActionState(
+    user && user.uid ? updateUserProfileAction.bind(null, user.uid) : async () => ({ message: "User not available for action binding.", success: false }),
+    undefined
+  );
+
+  // Effect to fetch user's posts
   useEffect(() => {
     async function fetchAndFilterPosts() {
       if (!user?.uid) {
@@ -52,7 +63,7 @@ export default function ProfilePage() {
       }
       setIsLoadingPosts(true);
       try {
-        const allPosts = await getPosts(); // Fetches from Firestore
+        const allPosts = await getPosts();
         const filteredPosts = allPosts.filter(post => post.userId === user.uid);
         setUserPosts(filteredPosts);
       } catch (error) {
@@ -65,22 +76,75 @@ export default function ProfilePage() {
 
     if (user && !authLoading) {
       fetchAndFilterPosts();
-    } else if (!authLoading) { // if !user and !authLoading
+    } else if (!authLoading && !user) {
       setIsLoadingPosts(false);
       setUserPosts([]);
     }
   }, [user, authLoading]);
-  
-  // useEffect for editProfileState removed
 
-  const displayName = user?.displayName || "User";
+  // Effect to fetch custom user profile data from Firestore
+  useEffect(() => {
+    async function fetchCustomProfile() {
+      if (user?.uid) {
+        setIsLoadingProfile(true);
+        const profileData = await getUserProfile(user.uid);
+        setCustomProfile(profileData);
+        // If Firebase Auth has a displayName but Firestore profile doesn't, or they differ,
+        // you might want to update Firestore profile with Firebase Auth's displayName as a one-time sync
+        // or decide on a source of truth. For now, we prioritize Firebase Auth for display if customProfile.displayName is missing.
+        setIsLoadingProfile(false);
+      } else if (!authLoading && !user) {
+        setIsLoadingProfile(false);
+        setCustomProfile(null);
+      }
+    }
+    if (user && !authLoading) {
+      fetchCustomProfile();
+    }
+  }, [user, authLoading]);
+
+  // Effect to handle form submission result from server action
+  useEffect(() => {
+    if (editProfileState?.success) {
+      toast({
+        title: 'Profile Updated',
+        description: editProfileState.message,
+      });
+      setIsEditModalOpen(false);
+      if (editProfileState.updatedProfile && user) {
+        // Optimistically update customProfile state
+        setCustomProfile(prev => ({
+            ...(prev || { uid: user.uid }), // Ensure previous state or a base with uid
+            ...editProfileState.updatedProfile
+        } as UserProfile));
+        // Re-fetch to ensure consistency, especially if displayName was updated in Auth
+        getUserProfile(user.uid).then(setCustomProfile);
+      }
+    } else if (editProfileState?.message && !editProfileState.success) {
+      toast({
+        title: 'Update Failed',
+        description: editProfileState.errors ? JSON.stringify(editProfileState.errors) : editProfileState.message,
+        variant: 'destructive',
+      });
+    }
+  }, [editProfileState, toast, user]);
+
+
+  const displayName = customProfile?.displayName || user?.displayName || "User";
   const avatarUrl = user?.photoURL || `https://placehold.co/128x128.png?text=${displayName.substring(0,1).toUpperCase()}`;
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
-  // Custom profile details now come from staticProfileParts
-  const usernameHandle = staticProfileParts.usernameHandle;
-  const bio = staticProfileParts.bio;
-  const profileSocialLinks = staticProfileParts.socialLinks.filter(link => link.present);
 
+  const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
+  const bio = customProfile?.bio || "No bio set. Click 'Edit Profile' to add one.";
+  const profileSocialLinks = customProfile?.socialLinks ?
+    Object.entries(customProfile.socialLinks)
+      .filter(([key, value]) => value && socialIcons[key as keyof SocialLinks])
+      .map(([key, value]) => ({
+        icon: socialIcons[key as keyof SocialLinks],
+        href: value as string,
+        label: key.charAt(0).toUpperCase() + key.slice(1),
+      }))
+    : [];
 
   const authorForCards: MockAuthor = {
     id: user?.uid || 'mock-user-id',
@@ -89,7 +153,7 @@ export default function ProfilePage() {
     avatarUrl: user?.photoURL || `https://placehold.co/40x40.png?text=${displayName.substring(0,1).toUpperCase()}`,
   };
 
-  if (authLoading) { // Removed isLoadingProfile from condition
+  if (authLoading || (user && (isLoadingProfile || isLoadingPosts))) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3">Loading profile...</p></div>;
   }
 
@@ -102,15 +166,39 @@ export default function ProfilePage() {
       </div>
     );
   }
-  
-  // handleProfileFormSubmit removed
+
+  // Wrapper for form submission to handle Firebase Auth update first
+  const clientSideProfileUpdateAndServerAction = async (formData: FormData) => {
+    if (!auth.currentUser) {
+        toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
+        return;
+    }
+    const newDisplayName = formData.get('displayName') as string | null;
+
+    if (newDisplayName && newDisplayName !== auth.currentUser.displayName) {
+        try {
+            await updateFirebaseAuthProfile(auth.currentUser, { displayName: newDisplayName });
+            toast({ title: "Display Name Updated", description: "Your display name in Firebase Authentication has been updated."});
+            // Force a refresh of the user object in useAuth or rely on onAuthStateChanged
+            // This is a common challenge with Firebase Auth client-side updates
+        } catch (error) {
+            console.error("Error updating Firebase Auth display name:", error);
+            toast({ title: "Auth Update Error", description: `Failed to update display name in Firebase. ${ (error as Error).message }`, variant: "destructive" });
+            // Optionally, do not proceed with server action if this critical part fails
+            // return;
+        }
+    }
+    // Proceed to call the server action for Firestore profile data
+    handleProfileFormSubmit(formData);
+  };
+
 
   return (
     <div className="w-full">
-      <div className="container mx-auto max-w-5xl px-4 pt-8">
-        <div className="bg-card p-6 md:p-8 rounded-lg shadow-xl relative -mt-10">
-          <div className="flex flex-col md:flex-row items-center md:items-end md:space-x-6">
-            <Avatar className="h-28 w-28 md:h-32 md:w-32 border-4 border-background shadow-lg -mt-16 md:-mt-20 shrink-0">
+      <div className="bg-card border-b border-border">
+        <div className="container mx-auto max-w-5xl px-4 pt-8 pb-4">
+          <div className="relative flex flex-col md:flex-row items-center md:items-end md:space-x-6 -mt-10">
+            <Avatar className="h-28 w-28 md:h-28 md:w-28 border-4 border-background shadow-lg -mt-16 md:-mt-16 shrink-0">
               <AvatarImage src={avatarUrl} alt={displayName} data-ai-hint="person face" />
               <AvatarFallback>{fallbackAvatar}</AvatarFallback>
             </Avatar>
@@ -121,29 +209,86 @@ export default function ProfilePage() {
                   <p className="text-md text-muted-foreground">{usernameHandle}</p>
                 </div>
                 <div className="mt-3 sm:mt-0 flex space-x-2 justify-center md:justify-start">
-                  {/* Edit Profile Dialog removed, button can be disabled or link to a placeholder */}
-                  <Button variant="outline" size="sm" disabled>
-                    <Settings2 className="h-4 w-4 mr-2" />
-                    Edit Profile
-                  </Button>
+                  <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Settings2 className="h-4 w-4 mr-2" />
+                        Edit Profile
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[525px]">
+                      <DialogHeader>
+                        <DialogTitle>Edit Profile</DialogTitle>
+                      </DialogHeader>
+                      <form action={clientSideProfileUpdateAndServerAction} className="space-y-4 py-4">
+                        <div>
+                          <Label htmlFor="displayNameForm">Display Name</Label>
+                          <Input id="displayNameForm" name="displayName" defaultValue={user?.displayName || customProfile?.displayName || ''} />
+                          {editProfileState?.errors?.displayName && <p className="text-sm text-destructive mt-1">{editProfileState.errors.displayName.join(', ')}</p>}
+                        </div>
+                        <div>
+                          <Label htmlFor="usernameForm">Username <span className="text-xs text-muted-foreground">(@handle)</span></Label>
+                          <Input id="usernameForm" name="username" defaultValue={customProfile?.username || ''} placeholder="your_cool_handle" />
+                           {editProfileState?.errors?.username && <p className="text-sm text-destructive mt-1">{editProfileState.errors.username.join(', ')}</p>}
+                        </div>
+                        <div>
+                          <Label htmlFor="bioForm">Bio</Label>
+                          <Textarea id="bioForm" name="bio" defaultValue={customProfile?.bio || ''} placeholder="Tell us about yourself..." rows={3} />
+                          {editProfileState?.errors?.bio && <p className="text-sm text-destructive mt-1">{editProfileState.errors.bio.join(', ')}</p>}
+                        </div>
+                        <h3 className="text-md font-medium pt-2">Social Links</h3>
+                        <div>
+                          <Label htmlFor="twitterForm">Twitter URL</Label>
+                          <Input id="twitterForm" name="twitter" defaultValue={customProfile?.socialLinks?.twitter || ''} placeholder="https://twitter.com/yourhandle" />
+                          {editProfileState?.errors?.twitter && <p className="text-sm text-destructive mt-1">{editProfileState.errors.twitter.join(', ')}</p>}
+                        </div>
+                        <div>
+                          <Label htmlFor="linkedinForm">LinkedIn URL</Label>
+                          <Input id="linkedinForm" name="linkedin" defaultValue={customProfile?.socialLinks?.linkedin || ''} placeholder="https://linkedin.com/in/yourprofile" />
+                          {editProfileState?.errors?.linkedin && <p className="text-sm text-destructive mt-1">{editProfileState.errors.linkedin.join(', ')}</p>}
+                        </div>
+                        <div>
+                          <Label htmlFor="instagramForm">Instagram URL</Label>
+                          <Input id="instagramForm" name="instagram" defaultValue={customProfile?.socialLinks?.instagram || ''} placeholder="https://instagram.com/yourprofile" />
+                          {editProfileState?.errors?.instagram && <p className="text-sm text-destructive mt-1">{editProfileState.errors.instagram.join(', ')}</p>}
+                        </div>
+                        <div>
+                          <Label htmlFor="portfolioForm">Portfolio/Website URL</Label>
+                          <Input id="portfolioForm" name="portfolio" defaultValue={customProfile?.socialLinks?.portfolio || ''} placeholder="https://yourportfolio.com" />
+                           {editProfileState?.errors?.portfolio && <p className="text-sm text-destructive mt-1">{editProfileState.errors.portfolio.join(', ')}</p>}
+                        </div>
+                        {editProfileState?.message && !editProfileState.success && (!editProfileState.errors || Object.keys(editProfileState.errors).length === 0) && (
+                           <p className="text-sm text-destructive mt-1">{editProfileState.message}</p>
+                        )}
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isEditPending}>
+                                {isEditPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
+                            </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
                   <Button variant="ghost" size="icon">
                     <Share2 className="h-4 w-4" />
                     <span className="sr-only">Share Profile</span>
                   </Button>
                 </div>
               </div>
-              <div className="mt-4 flex justify-center md:justify-start space-x-6 text-sm text-muted-foreground">
-                <div><span className="font-semibold text-foreground">{staticProfileParts.stats.following}</span> Following</div>
-                <div><span className="font-semibold text-foreground">{staticProfileParts.stats.followers}</span> Followers</div>
+              <div className="mt-3 flex justify-center md:justify-start space-x-6 text-sm text-muted-foreground">
+                <div><span className="font-semibold text-foreground">{staticProfileStats.following}</span> Following</div>
+                <div><span className="font-semibold text-foreground">{staticProfileStats.followers}</span> Followers</div>
                 <div><span className="font-semibold text-foreground">{isLoadingPosts ? <Loader2 className="h-4 w-4 animate-spin inline"/> : userPosts.length}</span> Posts</div>
               </div>
-              <p className="mt-4 text-sm text-foreground leading-relaxed max-w-xl">
+              <p className="mt-3 text-sm text-foreground/80 leading-relaxed max-w-xl text-center md:text-left">
                 {bio}
               </p>
               {profileSocialLinks.length > 0 && (
-                <div className="mt-4 flex justify-center md:justify-start space-x-3">
+                <div className="mt-3 flex justify-center md:justify-start space-x-3">
                     {profileSocialLinks.map(link => (
-                    <Link href={link.href!} key={link.label} target="_blank" rel="noopener noreferrer"
+                    <Link href={link.href} key={link.label} target="_blank" rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-primary transition-colors"
                         aria-label={link.label}
                     >
@@ -157,9 +302,9 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <Separator className="my-8 container max-w-5xl" />
+      <Separator className="my-6 container max-w-5xl" />
 
-      <div className="container mx-auto max-w-5xl px-4">
+      <div className="container mx-auto max-w-5xl px-4 pb-8">
         <Tabs defaultValue="posts" className="w-full">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-6 bg-muted/50 p-1 rounded-lg">
             <TabsTrigger value="posts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Posts</TabsTrigger>
@@ -176,7 +321,6 @@ export default function ProfilePage() {
                   variant={index === 0 ? "default" : "ghost"}
                   size="sm"
                   className={index === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}
-                  // onClick={() => alert(`${tab} clicked! (Filter not implemented yet)`)} // Kept as placeholder
                 >
                   {tab}
                 </Button>
@@ -220,7 +364,6 @@ export default function ProfilePage() {
   );
 }
 
-// Simple Card component for placeholder content in tabs
 function Card({ children, className }: { children: React.ReactNode, className?: string }) {
   return (
     <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>

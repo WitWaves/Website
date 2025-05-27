@@ -1,19 +1,18 @@
 
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState } from '@/app/actions';
-import type { Post } from '@/lib/posts'; // Changed from postsStore
+import type { Post } from '@/lib/posts';
 import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, Image as ImageIcon, Code2 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/auth-context'; // Import useAuth
+import { useAuth } from '@/contexts/auth-context';
 
 interface PostFormProps {
   post?: Post;
@@ -38,7 +37,7 @@ function PublishButton({isUpdate}: {isUpdate: boolean}) {
 export default function PostForm({ post }: PostFormProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth(); // Get user from auth context
+  const { user, loading: authLoading } = useAuth();
   const [isAISuggesting, startAITransition] = useTransition();
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
@@ -57,18 +56,17 @@ export default function PostForm({ post }: PostFormProps) {
         description: post ? `Post "${titleValue}" updated.` : `Post created.`,
         action: <CheckCircle className="text-green-500" />,
       });
-      if (!post && state.newPostId) { // Ensure newPostId exists
+      if (!post && state.newPostId) {
         router.push(`/posts/${state.newPostId}`);
       } else if (post) {
         router.push(`/posts/${post.id}`);
       } else {
-        // Fallback if newPostId is somehow missing, though it shouldn't be on success
-        router.push('/blog'); 
+        router.push('/blog');
       }
     } else if (state?.message && !state.success) {
       toast({
         title: 'Error',
-        description: state.message,
+        description: state.errors ? JSON.stringify(state.errors) : state.message,
         variant: 'destructive',
         action: <AlertCircle className="text-red-500" />,
       });
@@ -81,7 +79,7 @@ export default function PostForm({ post }: PostFormProps) {
       setSuggestedTags(tags.filter(tag => !currentTags.includes(tag)));
     });
   };
-  
+
   const addTag = (tagToAdd: string) => {
     const newTag = tagToAdd.trim().toLowerCase();
     if (newTag && !currentTags.includes(newTag)) {
@@ -94,7 +92,7 @@ export default function PostForm({ post }: PostFormProps) {
   const removeTag = (tagToRemove: string) => {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
-  
+
   const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTagInput(e.target.value);
   };
@@ -110,16 +108,26 @@ export default function PostForm({ post }: PostFormProps) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
   }
 
-  if (!user && !post) { // If creating new post, user must be logged in.
+  // For creating new post, user must be logged in.
+  if (!user && !post) {
     return (
       <div className="text-center py-10">
-        <p className="text-lg text-muted-foreground">Please <a href="/login" className="text-primary hover:underline">log in</a> to create a post.</p>
+        <p className="text-lg text-muted-foreground">Please <Link href="/login" className="text-primary hover:underline">log in</Link> to create a post.</p>
       </div>
     );
   }
-  // For editing, we might allow viewing the form but disable submission if not the owner.
-  // For now, if it's an edit form and `post.userId` doesn't match `user.uid`, it's problematic.
-  // This logic should be refined based on actual editing permissions.
+  // For editing, ensure user is the owner (additional check should be in action for security)
+  if (post && post.userId && user && post.userId !== user.uid) {
+      return (
+          <div className="text-center py-10">
+              <p className="text-lg text-destructive">You are not authorized to edit this post.</p>
+              <Button asChild variant="link" className="mt-4">
+                  <Link href="/blog">Back to Blog</Link>
+              </Button>
+          </div>
+      );
+  }
+
 
   return (
     <form action={formAction} className="w-full max-w-5xl mx-auto">
@@ -127,10 +135,7 @@ export default function PostForm({ post }: PostFormProps) {
       {!post && user && (
         <input type="hidden" name="userId" value={user.uid} />
       )}
-      {/* For updates, userId might be needed for validation in action, but shouldn't be changed by user */}
-       {post && post.userId && ( // Pass existing userId for update for validation, not to change it
-        <input type="hidden" name="userId" value={post.userId} />
-      )}
+      {/* For updates, post.userId is used on the server for validation, not from form */}
 
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -211,7 +216,7 @@ export default function PostForm({ post }: PostFormProps) {
               className="text-sm"
             />
             <input type="hidden" name="tags" value={currentTags.join(',')} />
-            
+
             {currentTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {currentTags.map(tag => (
@@ -241,13 +246,13 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {isAISuggesting && <p className="text-xs text-muted-foreground text-center mt-1">AI is thinking...</p>}
           </div>
-          
-          {state?.message && !state.success && (
-            <p className="text-sm text-destructive flex items-center gap-1">
-              <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
-            </p>
-          )}
-           {state?.errors?.userId && <p className="text-sm text-destructive mt-1">{state.errors.userId.join(', ')}</p>}
+
+          {state?.errors?.userId && <p className="text-sm text-destructive mt-1">{state.errors.userId.join(', ')}</p>}
+           {state?.message && !state.success && (!state.errors || Object.keys(state.errors).length === 0) && (
+             <p className="text-sm text-destructive flex items-center gap-1">
+               <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
+             </p>
+           )}
           <PublishButton isUpdate={!!post} />
         </div>
       </div>

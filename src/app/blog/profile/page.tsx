@@ -13,19 +13,20 @@ import { Separator } from '@/components/ui/separator';
 import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, Link as LinkIcon, UserCircle, Loader2, Github } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import { getPosts, type Post } from '@/lib/posts';
-import type { MockAuthor } from '@/lib/authors'; // For card, can be adapted
+import type { MockAuthor } from '@/lib/authors';
 import { useAuth } from '@/contexts/auth-context';
 import { getUserProfile, type UserProfile as CustomUserProfileType, type SocialLinks } from '@/lib/userProfile';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useActionState } from 'react';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth'; // For client-side auth profile update
+import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
+import { auth } from '@/lib/firebase/config'; // Import auth from firebase config
 
 // Mock data for parts of the profile not in Firebase Auth or Firestore by default
-const staticProfileParts = { // These are just fallbacks or for display elements not yet in DB
+const staticProfileParts = {
   stats: {
-    following: 45, // These would come from a follow system
+    following: 45,
     followers: '4k',
   },
 };
@@ -63,7 +64,7 @@ export default function ProfilePage() {
         setIsLoadingProfile(false);
       }
     }
-    if (!authLoading) { // Only fetch if auth is not loading
+    if (!authLoading) {
         fetchCustomProfile();
     }
   }, [user, authLoading]);
@@ -78,7 +79,7 @@ export default function ProfilePage() {
       }
       setIsLoadingPosts(true);
       try {
-        const allPosts = await getPosts();
+        const allPosts = await getPosts(); // Fetches from Firestore
         const filteredPosts = allPosts.filter(post => post.userId === user.uid);
         setUserPosts(filteredPosts);
       } catch (error) {
@@ -105,7 +106,6 @@ export default function ProfilePage() {
         description: editProfileState.message,
       });
       setIsEditModalOpen(false); // Close dialog on success
-      // Optionally re-fetch profile data if not handled by revalidation
       if (user?.uid) getUserProfile(user.uid).then(setCustomProfile);
     } else if (editProfileState?.message && !editProfileState.success) {
       toast({
@@ -122,16 +122,16 @@ export default function ProfilePage() {
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email || 'No handle');
   const bio = customProfile?.bio || "This user hasn't set a bio yet.";
-  const profileSocialLinks = customProfile?.socialLinks || {};
+  const profileSocialLinks = customProfile?.socialLinks || initialSocialLinks;
 
   const authorForCards: MockAuthor = {
     id: user?.uid || 'mock-user-id',
     name: displayName,
-    role: 'Author', // This could come from custom profile too
+    role: 'Author',
     avatarUrl: user?.photoURL || `https://placehold.co/40x40.png?text=${displayName.substring(0,1).toUpperCase()}`,
   };
 
-  if (authLoading || (user && isLoadingProfile)) { // Show loading if auth is loading OR if user exists and custom profile is loading
+  if (authLoading || (user && isLoadingProfile)) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3">Loading profile...</p></div>;
   }
 
@@ -157,20 +157,22 @@ export default function ProfilePage() {
   const handleProfileFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    formData.append('userId', user.uid); // Ensure userId is part of form data for the action
+    if (!user?.uid) {
+        toast({ title: 'Error', description: 'User not authenticated.', variant: 'destructive'});
+        return;
+    }
+    formData.append('userId', user.uid);
 
     const newDisplayName = formData.get('displayName') as string;
 
     // Client-side update of Firebase Auth displayName if changed
-    if (newDisplayName && newDisplayName !== user.displayName && firebaseAuthService.currentUser) {
+    if (newDisplayName && newDisplayName !== user.displayName && auth.currentUser) {
       try {
-        await updateFirebaseAuthProfile(firebaseAuthService.currentUser, { displayName: newDisplayName });
-        // Optionally update local user state if your auth context doesn't auto-refresh displayName
+        await updateFirebaseAuthProfile(auth.currentUser, { displayName: newDisplayName });
         toast({ title: 'Display Name Updated in Auth', description: 'Firebase Auth profile also updated.' });
       } catch (authError) {
         console.error("Error updating Firebase Auth profile:", authError);
         toast({ title: 'Auth Update Error', description: `Could not update display name in Firebase Auth: ${ (authError as Error).message }`, variant: 'destructive'});
-        // Decide if you want to stop the Firestore update if this fails
       }
     }
     editProfileAction(formData);
@@ -208,8 +210,7 @@ export default function ProfilePage() {
                         </DialogDescription>
                       </DialogHeader>
                       <form onSubmit={handleProfileFormSubmit} className="space-y-4 py-4">
-                         {/* Hidden userId input */}
-                        <input type="hidden" name="userId" value={user.uid} />
+                         {/* Hidden userId input already added in useActionState call if needed, or ensure it's part of formData */}
                         
                         <div>
                           <Label htmlFor="displayName">Display Name</Label>
@@ -231,27 +232,27 @@ export default function ProfilePage() {
                             <legend className="text-sm font-medium px-1">Social Links</legend>
                             <div>
                                 <Label htmlFor="socialLinks_twitter">Twitter/X URL</Label>
-                                <Input id="socialLinks_twitter" name="socialLinks_twitter" type="url" placeholder="https://twitter.com/yourhandle" defaultValue={customProfile?.socialLinks?.twitter || ''} />
+                                <Input id="socialLinks_twitter" name="socialLinks_twitter" type="url" placeholder="https://twitter.com/yourhandle" defaultValue={profileSocialLinks.twitter || ''} />
                                 {editProfileState?.errors?.socialLinks_twitter && <p className="text-sm text-destructive mt-1">{editProfileState.errors.socialLinks_twitter.join(', ')}</p>}
                             </div>
                             <div>
                                 <Label htmlFor="socialLinks_linkedin">LinkedIn URL</Label>
-                                <Input id="socialLinks_linkedin" name="socialLinks_linkedin" type="url" placeholder="https://linkedin.com/in/yourprofile" defaultValue={customProfile?.socialLinks?.linkedin || ''} />
+                                <Input id="socialLinks_linkedin" name="socialLinks_linkedin" type="url" placeholder="https://linkedin.com/in/yourprofile" defaultValue={profileSocialLinks.linkedin || ''} />
                                 {editProfileState?.errors?.socialLinks_linkedin && <p className="text-sm text-destructive mt-1">{editProfileState.errors.socialLinks_linkedin.join(', ')}</p>}
                             </div>
                              <div>
                                 <Label htmlFor="socialLinks_instagram">Instagram URL</Label>
-                                <Input id="socialLinks_instagram" name="socialLinks_instagram" type="url" placeholder="https://instagram.com/yourprofile" defaultValue={customProfile?.socialLinks?.instagram || ''} />
+                                <Input id="socialLinks_instagram" name="socialLinks_instagram" type="url" placeholder="https://instagram.com/yourprofile" defaultValue={profileSocialLinks.instagram || ''} />
                                 {editProfileState?.errors?.socialLinks_instagram && <p className="text-sm text-destructive mt-1">{editProfileState.errors.socialLinks_instagram.join(', ')}</p>}
                             </div>
                             <div>
                                 <Label htmlFor="socialLinks_github">GitHub URL</Label>
-                                <Input id="socialLinks_github" name="socialLinks_github" type="url" placeholder="https://github.com/yourusername" defaultValue={customProfile?.socialLinks?.github || ''} />
+                                <Input id="socialLinks_github" name="socialLinks_github" type="url" placeholder="https://github.com/yourusername" defaultValue={profileSocialLinks.github || ''} />
                                 {editProfileState?.errors?.socialLinks_github && <p className="text-sm text-destructive mt-1">{editProfileState.errors.socialLinks_github.join(', ')}</p>}
                             </div>
                             <div>
                                 <Label htmlFor="socialLinks_portfolio">Portfolio/Website URL</Label>
-                                <Input id="socialLinks_portfolio" name="socialLinks_portfolio" type="url" placeholder="https://yourportfolio.com" defaultValue={customProfile?.socialLinks?.portfolio || ''} />
+                                <Input id="socialLinks_portfolio" name="socialLinks_portfolio" type="url" placeholder="https://yourportfolio.com" defaultValue={profileSocialLinks.portfolio || ''} />
                                 {editProfileState?.errors?.socialLinks_portfolio && <p className="text-sm text-destructive mt-1">{editProfileState.errors.socialLinks_portfolio.join(', ')}</p>}
                             </div>
                         </fieldset>

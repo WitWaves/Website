@@ -15,15 +15,19 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 
 // Dynamically import ReactQuill to ensure it's only loaded on the client-side
-const ReactQuill = dynamic(() => import('react-quill'), { 
-  ssr: false,
-  loading: () => (
-    <div className="min-h-[200px] border border-input rounded-md bg-muted/50 flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      <p className="ml-2">Loading editor...</p>
-    </div>
-  )
-});
+// Attempting a more robust import pattern for ReactQuill
+const ReactQuill = dynamic(
+  () => import('react-quill').then(mod => mod.default || mod), // Handle if it's a default export or the module itself
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[200px] border border-input rounded-md bg-muted/50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Loading editor...</p>
+      </div>
+    )
+  }
+);
 import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface PostFormProps {
@@ -55,16 +59,14 @@ export default function PostForm({ post }: PostFormProps) {
   const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
   const [tagInput, setTagInput] = useState('');
   
-  // State for Quill editor content
   const [quillContent, setQuillContent] = useState(post?.content || '');
   const [titleValue, setTitleValue] = useState(post?.title || '');
 
-  // State to ensure ReactQuill only renders on the client after mount
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
   const [state, formAction] = useActionState(action, undefined);
@@ -95,8 +97,7 @@ export default function PostForm({ post }: PostFormProps) {
   }, [state, router, toast, post, titleValue]);
 
   const handleSuggestTags = () => {
-    if (!isClient) return; // Ensure editor is ready
-    // For AI suggestions, get text content from Quill's HTML
+    if (!isClient) return; 
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = quillContent;
     const textContentForAI = tempDiv.textContent || tempDiv.innerText || "";
@@ -136,7 +137,7 @@ export default function PostForm({ post }: PostFormProps) {
       [{ 'header': [1, 2, 3, false] }],
       ['bold', 'italic', 'underline', 'strike', 'blockquote'],
       [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
-      ['link', 'image'], // 'image' handler might need custom setup for uploads
+      ['link', 'image'], 
       ['clean']
     ],
   };
@@ -153,15 +154,14 @@ export default function PostForm({ post }: PostFormProps) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
   }
 
-  if (!user && !post) { // If creating a new post and not logged in
+  if (!user && !post) { 
     return (
       <div className="text-center py-10">
-        <p className="text-lg text-muted-foreground">Please <a href="/login" className="text-primary hover:underline">log in</a> to create a post.</p>
+        <p className="text-lg text-muted-foreground">Please <Link href="/login" className="text-primary hover:underline">log in</Link> to create a post.</p>
       </div>
     );
   }
   
-  // If editing a post, and the post has a userId, and the current user is not the post's author
   if (post && post.userId && user && post.userId !== user.uid) {
       return (
           <div className="text-center py-10">
@@ -175,31 +175,26 @@ export default function PostForm({ post }: PostFormProps) {
 
   return (
     <form action={formAction} className="w-full max-w-5xl mx-auto">
-      {/* Hidden input to pass userId for new posts */}
       {!post && user && (
         <input type="hidden" name="userId" value={user.uid} />
       )}
-      {/* Hidden input to pass Quill's HTML content */}
       <input type="hidden" name="content" value={quillContent} />
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow lg:w-2/3 space-y-6">
-           {/* Title Input - now a standard Input field */}
            <div className="relative flex items-start">
-            <div className="absolute left-0 top-2 bottom-2 w-1 bg-destructive rounded-full -ml-4 md:-ml-6"></div>
             <Input
               id="title"
               name="title"
               value={titleValue}
               onChange={(e) => setTitleValue(e.target.value)}
               placeholder="Post Title..."
-              className="text-3xl md:text-4xl font-bold border-none focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent"
+              className="text-2xl md:text-3xl font-bold border-b border-input focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent focus:border-primary"
               required
             />
           </div>
           {state?.errors?.title && <p className="text-sm text-destructive mt-1">{state.errors.title.join(', ')}</p>}
 
-          {/* ReactQuill editor replacing Textarea */}
           <div className="bg-card border border-input rounded-md">
             {isClient ? (
               <ReactQuill 
@@ -212,7 +207,6 @@ export default function PostForm({ post }: PostFormProps) {
                 className="min-h-[200px] [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md" 
               />
             ) : (
-              // Placeholder for editor while it's not client-side ready
               <div className="min-h-[200px] border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-3 text-muted-foreground">Initializing editor...</p>
@@ -221,7 +215,6 @@ export default function PostForm({ post }: PostFormProps) {
           </div>
           {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
 
-          {/* Placeholder toolbar */}
           <div className="flex items-center space-x-2 p-2 border border-border rounded-md bg-muted/50 sticky bottom-4 z-10">
             <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Divider (handled by Quill)">
               <Minus className="h-5 w-5" />
@@ -293,9 +286,7 @@ export default function PostForm({ post }: PostFormProps) {
              {isAISuggesting && <p className="text-xs text-muted-foreground text-center mt-1">AI is thinking...</p>}
           </div>
 
-          {/* Display User ID error if present (e.g., user not logged in when creating a new post) */}
           {state?.errors?.userId && <p className="text-sm text-destructive mt-1">{state.errors.userId.join(', ')}</p>}
-           {/* Display general form error if not related to a specific field */}
            {state?.message && !state.success && (!state.errors || Object.keys(state.errors).length === 0) && (
              <p className="text-sm text-destructive flex items-center gap-1">
                <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}

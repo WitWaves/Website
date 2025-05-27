@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import Link from 'next/link';
 
-// Quill is now loaded via CDN, no direct import needed here for the library itself
+// Quill is loaded via CDN in src/app/layout.tsx
 
 interface PostFormProps {
   post?: Post;
@@ -50,7 +50,7 @@ export default function PostForm({ post }: PostFormProps) {
 
   const [isClient, setIsClient] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
-  const quillInstanceRef = useRef<any>(null); // To store Quill instance
+  const quillInstanceRef = useRef<any>(null); 
 
   useEffect(() => {
     setIsClient(true);
@@ -58,7 +58,13 @@ export default function PostForm({ post }: PostFormProps) {
 
   useEffect(() => {
     if (isClient && editorRef.current && typeof window.Quill !== 'undefined') {
-      if (quillInstanceRef.current) return; // Initialize only once
+      if (quillInstanceRef.current) {
+        // If Quill instance already exists, update its content if post.content changes
+        if (post?.content && quillInstanceRef.current.root.innerHTML !== post.content) {
+          quillInstanceRef.current.clipboard.dangerouslyPasteHTML(0, post.content);
+        }
+        return;
+      }
 
       const quill = new window.Quill(editorRef.current, {
         theme: 'snow',
@@ -78,26 +84,25 @@ export default function PostForm({ post }: PostFormProps) {
       if (post?.content) {
         quill.clipboard.dangerouslyPasteHTML(0, post.content);
       } else {
-        quill.setText(''); // Clear initial content if not editing
+        quill.setText(''); 
       }
       
-      quill.on('text-change', () => {
-        setQuillContent(quill.root.innerHTML);
+      quill.on('text-change', (_delta, _oldDelta, source) => {
+        if (source === 'user') {
+          setQuillContent(quill.root.innerHTML);
+        }
       });
 
-      // Cleanup
       return () => {
         if (quillInstanceRef.current) {
-          // Quill's own cleanup if available, or nullify ref
-          // Quill doesn't have a formal destroy method in v2, so unsetting event listeners and refs is common.
-          // For robust cleanup, one might need to remove listeners and clear the DOM manually if issues arise.
-          quill.off('text-change', () => {}); // Deregister listener
+          quillInstanceRef.current.off('text-change', () => {});
+          // Quill doesn't have a formal destroy method. Clearing innerHTML is a common practice.
+          if (editorRef.current) editorRef.current.innerHTML = ''; 
           quillInstanceRef.current = null;
-          if (editorRef.current) editorRef.current.innerHTML = ''; // Clear the div
         }
       };
     }
-  }, [isClient, post?.content]);
+  }, [isClient, post?.content]); // Re-run if post.content changes, to update editor
 
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
@@ -130,7 +135,7 @@ export default function PostForm({ post }: PostFormProps) {
 
   const handleSuggestTags = () => {
     if (!isClient || !quillInstanceRef.current) return; 
-    const textContentForAI = quillInstanceRef.current.getText(); // Get plain text from Quill
+    const textContentForAI = quillInstanceRef.current.getText(); 
     
     startAITransition(async () => {
       const tags = await getAISuggestedTagsAction(textContentForAI);
@@ -179,7 +184,7 @@ export default function PostForm({ post }: PostFormProps) {
           <div className="text-center py-10">
               <p className="text-lg text-destructive">You are not authorized to edit this post.</p>
               <Button asChild variant="link" className="mt-4">
-                  <a href="/blog">Back to Blog</a>
+                  <Link href="/blog">Back to Blog</Link>
               </Button>
           </div>
       );
@@ -194,21 +199,20 @@ export default function PostForm({ post }: PostFormProps) {
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow lg:w-2/3 space-y-6">
-          <div className="space-y-1">
-            <label htmlFor="title" className="sr-only">Post Title</label>
+          <div className="space-y-1 relative">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-destructive rounded-l-md -ml-4 mt-1 mb-1"></div> {/* Red bar */}
             <Input
               id="title"
               name="title"
               value={titleValue}
               onChange={(e) => setTitleValue(e.target.value)}
               placeholder="Post Title..."
-              className="text-2xl md:text-3xl font-bold border-b border-input focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent focus:border-primary"
+              className="text-2xl md:text-3xl font-bold border-0 focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent focus:border-transparent pl-2"
               required
             />
              {state?.errors?.title && <p className="text-sm text-destructive mt-1">{state.errors.title.join(', ')}</p>}
           </div>
          
-
           <div className="bg-card border border-input rounded-md">
             {isClient ? (
               <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md">
@@ -223,17 +227,7 @@ export default function PostForm({ post }: PostFormProps) {
           </div>
           {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
 
-          <div className="flex items-center space-x-2 p-2 border border-border rounded-md bg-muted/50 sticky bottom-4 z-10">
-            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Divider (handled by Quill)">
-              <Minus className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Image (handled by Quill)">
-              <ImageIcon className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Code block (handled by Quill)">
-              <Code2 className="h-5 w-5" />
-            </Button>
-          </div>
+          {/* Removed placeholder toolbar div that was here */}
         </div>
 
         <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max">
@@ -275,7 +269,7 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || (!isClient || !quillInstanceRef.current) || !quillContent.trim() } className="w-full text-xs py-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !isClient || !quillContent.trim() } className="w-full text-xs py-2">
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>
@@ -306,3 +300,4 @@ export default function PostForm({ post }: PostFormProps) {
     </form>
   );
 }
+

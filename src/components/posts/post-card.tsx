@@ -1,5 +1,5 @@
 
-'use client'; // Make client component for like interaction
+'use client'; 
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { useAuth } from '@/contexts/auth-context';
 import { toggleLikePostAction, type FormState as LikeFormState } from '@/app/actions';
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useState, useTransition } from 'react'; // Added useTransition
 import { useToast } from '@/hooks/use-toast';
 
 type PostCardProps = {
@@ -21,6 +21,7 @@ type PostCardProps = {
 export default function PostCard({ post }: PostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [isPendingTransition, startTransition] = useTransition(); // Added for startTransition
   const summary = post.content.substring(0, 180) + (post.content.length > 180 ? '...' : '');
 
   // State for like button interaction
@@ -41,7 +42,7 @@ export default function PostCard({ post }: PostCardProps) {
     if (likeState?.success && likeState.updatedLikeStatus?.postId === post.id) {
       setOptimisticLiked(likeState.updatedLikeStatus.liked);
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
-    } else if (likeState?.message && !likeState.success) {
+    } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === post.id) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
       // Revert optimistic update on error
       setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
@@ -61,7 +62,9 @@ export default function PostCard({ post }: PostCardProps) {
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
     
-    handleLikeAction(formData);
+    startTransition(() => {
+      handleLikeAction(formData);
+    });
   };
 
 
@@ -100,9 +103,9 @@ export default function PostCard({ post }: PostCardProps) {
                         size="sm" 
                         className={`px-2 ${optimisticLiked ? 'text-destructive hover:text-destructive/80' : 'hover:text-destructive'}`}
                         title="Like"
-                        disabled={isLikePending || !user}
+                        disabled={isLikePending || isPendingTransition || !user}
                     >
-                        {isLikePending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Heart className={`mr-1 h-4 w-4 ${optimisticLiked ? 'fill-current' : ''}`} />}
+                        {(isLikePending || isPendingTransition) ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Heart className={`mr-1 h-4 w-4 ${optimisticLiked ? 'fill-current' : ''}`} />}
                         <span className="hidden sm:inline">Like</span> ({optimisticLikeCount})
                     </Button>
                 </form>

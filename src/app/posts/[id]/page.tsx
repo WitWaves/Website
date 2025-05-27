@@ -1,31 +1,30 @@
 
-'use client'; // Make this a client component to use hooks for interactions
+'use client'; 
 
 import { getPost, type Post } from '@/lib/posts';
-import { notFound, useParams } from 'next/navigation'; // useParams for client components
+import { notFound, useParams } from 'next/navigation'; 
 import TagBadge from '@/components/posts/tag-badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Bookmark, Share2, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { useEffect, useState, useActionState } from 'react';
+import { useEffect, useState, useActionState, useTransition } from 'react'; // Added useTransition
 import { useAuth } from '@/contexts/auth-context';
 import { toggleLikePostAction, type FormState as LikeFormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 
 
-// This page now fetches data on the client side due to interactive elements like 'Like'
 export default function PostPage() {
   const params = useParams();
   const postId = params.id as string;
   const { user } = useAuth();
   const { toast } = useToast();
+  const [isPendingTransition, startTransition] = useTransition(); // Added for startTransition
 
-  const [post, setPost] = useState<Post | null | undefined>(undefined); // undefined for loading, null for not found
+  const [post, setPost] = useState<Post | null | undefined>(undefined); 
   const [isLoading, setIsLoading] = useState(true);
 
-  // State for like button interaction
   const [optimisticLiked, setOptimisticLiked] = useState(false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(0);
 
@@ -48,17 +47,15 @@ export default function PostPage() {
       }
     }
     fetchPost();
-  }, [postId, user?.uid]); // Re-fetch if postId changes or user changes (for like status)
+  }, [postId, user?.uid]);
 
 
   useEffect(() => {
     if (likeState?.success && likeState.updatedLikeStatus?.postId === postId) {
       setOptimisticLiked(likeState.updatedLikeStatus.liked);
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
-       // toast({ title: likeState.message }); // Optional success toast
-    } else if (likeState?.message && !likeState.success) {
+    } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === postId) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
-      // Revert optimistic update on error
       if (post) {
         setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
         setOptimisticLikeCount(post.likeCount || 0);
@@ -78,11 +75,12 @@ export default function PostPage() {
     const formData = new FormData(event.currentTarget);
     formData.set('userId', user.uid);
 
-    // Optimistic update
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
     
-    handleLikeAction(formData);
+    startTransition(() => {
+      handleLikeAction(formData);
+    });
   };
 
 
@@ -90,11 +88,11 @@ export default function PostPage() {
     return <div className="flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading post...</p></div>;
   }
 
-  if (post === null) { // Explicitly check for null (not found) after loading
+  if (post === null) { 
     notFound();
   }
   
-  if (!post) { // Should be caught by isLoading or notFound, but as a fallback
+  if (!post) { 
       return <div className="text-center py-10">Post could not be loaded.</div>;
   }
 
@@ -108,7 +106,7 @@ export default function PostPage() {
             Back to all posts
           </Link>
         </Button>
-        {post.userId === user?.uid && ( // Show edit button only to the post owner
+        {post.userId === user?.uid && ( 
             <Button asChild variant="default">
                 <Link href={`/posts/${post.id}/edit`}>
                 <Edit3 className="mr-2 h-4 w-4" />
@@ -145,9 +143,9 @@ export default function PostPage() {
                 size="sm" 
                 className={`flex items-center gap-1.5 text-sm ${optimisticLiked ? 'text-destructive border-destructive hover:bg-destructive/10' : 'hover:text-destructive'}`} 
                 title="Like"
-                disabled={isLikePending || !user}
+                disabled={isLikePending || isPendingTransition || !user}
             >
-                {isLikePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />} 
+                {(isLikePending || isPendingTransition) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />} 
                 Like <span className="text-xs text-muted-foreground">({optimisticLikeCount})</span>
             </Button>
         </form>
@@ -181,9 +179,3 @@ export default function PostPage() {
     </article>
   );
 }
-
-// Removed generateMetadata as this is now a client component.
-// Metadata for dynamic routes with client-side fetching would typically
-// be handled differently, e.g. by fetching in a server component parent
-// or using `generateMetadata` with params if the core data needed for meta tags
-// can still be fetched on the server. For now, focusing on functionality.

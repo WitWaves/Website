@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Heart, Bookmark, MessageCircle, MoreHorizontal, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
-import { useState, useEffect, useActionState } from 'react';
+import { useState, useEffect, useActionState, useTransition } from 'react'; // Added useTransition
 import { useAuth } from '@/contexts/auth-context';
 import { toggleLikePostAction, type FormState as LikeFormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +22,7 @@ type BlogPostCardProps = {
 export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [isPendingTransition, startTransition] = useTransition(); // Added for startTransition
 
   const generateSummary = (content: string, length: number = 100) => {
     if (!content) return '';
@@ -30,7 +31,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     return strippedContent.substring(0, length) + '...';
   };
   
-  const titleSummary = generateSummary(post.content, 60); // Shorter summary for above title
+  const postSummary = generateSummary(post.content, 60);
 
   // State for like button interaction
   const [optimisticLiked, setOptimisticLiked] = useState(post.likedBy?.includes(user?.uid || '') || false);
@@ -52,7 +53,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
       // Optional: Show a toast, but can be noisy for likes
       // toast({ title: likeState.message });
-    } else if (likeState?.message && !likeState.success) {
+    } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === post.id) { // Ensure error matches post
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
       // Revert optimistic update on error
       setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
@@ -73,7 +74,9 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
     
-    handleLikeAction(formData);
+    startTransition(() => {
+      handleLikeAction(formData);
+    });
   };
 
 
@@ -82,13 +85,9 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const [commentsCount, setCommentsCount] = useState<string | null>(null);
 
   useEffect(() => {
-    // Only randomize if not using real data
-    if (post.likeCount === undefined) { // A bit of a hack to check if it's mock or real
-      // these are not used anymore as we use optimisticLikeCount
-    }
     setBookmarks(`${(Math.random() * 18 + 0.1).toFixed(1)}k`);
     setCommentsCount(`${Math.floor(Math.random() * 100)}`); 
-  }, [post.likeCount]);
+  }, []); // Run once on mount
 
   const authorDisplayName = author?.displayName || 'WitWaves User';
   const authorAvatarUrl = author?.photoURL;
@@ -109,14 +108,14 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
       </Link>
       <div className="flex-1 flex flex-col justify-between">
         <div>
-          {titleSummary && (
-            <p className="text-xs text-muted-foreground mb-1 leading-relaxed">{titleSummary}</p>
-          )}
           <Link href={`/posts/${post.id}`}>
             <h2 className="text-xl font-semibold text-foreground hover:text-primary transition-colors mb-1 leading-tight">
               {post.title}
             </h2>
           </Link>
+          {postSummary && (
+            <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{postSummary}</p>
+          )}
            <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-1 mb-3">
             <form onSubmit={handleLikeSubmit} className="contents">
                 <input type="hidden" name="postId" value={post.id} />
@@ -127,9 +126,9 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                     size="sm"
                     className={`flex items-center p-0 h-auto hover:bg-transparent ${optimisticLiked ? 'text-destructive hover:text-destructive/80' : 'text-muted-foreground hover:text-destructive'}`}
                     title="Like"
-                    disabled={isLikePending || !user}
+                    disabled={isLikePending || isPendingTransition || !user}
                 >
-                    {isLikePending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Heart className={`h-4 w-4 mr-1 ${optimisticLiked ? 'fill-current' : ''}`} />} 
+                    {(isLikePending || isPendingTransition) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Heart className={`h-4 w-4 mr-1 ${optimisticLiked ? 'fill-current' : ''}`} />} 
                     {optimisticLikeCount}
                 </Button>
             </form>

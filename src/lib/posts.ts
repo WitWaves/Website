@@ -1,7 +1,8 @@
+
 import { posts as postsData, type Post as PostType } from './postsStore';
 import { format } from 'date-fns';
 
-export type Post = PostType;
+export type Post = PostType; // Includes userId from postsStore
 
 export async function getPosts(): Promise<Post[]> {
   // Sort by newest first

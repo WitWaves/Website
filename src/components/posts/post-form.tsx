@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, useTransition, useRef } from 'react';
-import { useActionState } from 'react'; // Corrected import
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image'; // For Next/Image
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
-import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, Image as ImageIcon, Code2 }
+import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, ImageIcon, Code2 }
   from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -62,25 +62,7 @@ export default function PostForm({ post }: PostFormProps) {
   }, []);
 
   useEffect(() => {
-    if (isClient && editorRef.current && typeof window.Quill !== 'undefined') {
-      if (quillInstanceRef.current) {
-        if (post?.content && quillInstanceRef.current.root.innerHTML !== post.content) {
-          const editorContents = quillInstanceRef.current.getContents();
-          if (editorContents.ops && editorContents.ops.length === 1 && editorContents.ops[0].insert === '\n') {
-            quillInstanceRef.current.clipboard.dangerouslyPasteHTML(0, post.content);
-          } else {
-            try {
-                const delta = quillInstanceRef.current.clipboard.convert(post.content);
-                quillInstanceRef.current.setContents(delta, 'silent');
-            } catch (e) {
-                console.warn("Could not convert HTML to Delta, falling back to pasteHTML:", e);
-                quillInstanceRef.current.clipboard.dangerouslyPasteHTML(0, post.content);
-            }
-          }
-        }
-        return;
-      }
-
+    if (isClient && editorRef.current && typeof window.Quill !== 'undefined' && !quillInstanceRef.current) {
       const quill = new window.Quill(editorRef.current, {
         theme: 'snow',
         modules: {
@@ -96,7 +78,7 @@ export default function PostForm({ post }: PostFormProps) {
             [{ 'color': [] }, { 'background': [] }],          
             [{ 'font': [] }],
             [{ 'align': [] }],
-            ['link', 'image', 'video'],
+            ['link', 'image', 'video'], // 'image' is Quill's built-in image uploader
             ['clean']                                         
           ],
         },
@@ -105,28 +87,46 @@ export default function PostForm({ post }: PostFormProps) {
       quillInstanceRef.current = quill;
 
       if (post?.content) {
-        quill.clipboard.dangerouslyPasteHTML(0, post.content);
+        // Check if editor is empty before pasting to avoid potential duplication on re-renders
+        const editorContents = quill.getContents();
+        if (editorContents.ops && editorContents.ops.length === 1 && editorContents.ops[0].insert === '\n') {
+           quill.clipboard.dangerouslyPasteHTML(0, post.content);
+        }
+      } else {
+        // Ensure editor is empty for new posts
+        quill.setContents([{ insert: '\n' }]);
       }
       
       quill.on('text-change', (delta, oldDelta, source) => {
         if (source === 'user') {
-          setQuillContent(quill.root.innerHTML);
+          const currentHTML = quill.root.innerHTML;
+          // Prevent setting state if content is effectively just an empty line from Quill
+          if (currentHTML === '<p><br></p>') {
+             setQuillContent('');
+          } else {
+             setQuillContent(currentHTML);
+          }
         }
       });
 
+       // Set initial content for the hidden input if editing
       if (post?.content) {
         setQuillContent(post.content);
+      } else {
+        setQuillContent(''); // For new posts, ensure it starts empty
       }
-
-      return () => {
-        if (quillInstanceRef.current) {
-          quillInstanceRef.current.off('text-change');
-          if (editorRef.current) editorRef.current.innerHTML = ''; 
-          quillInstanceRef.current = null;
-        }
-      };
     }
-  }, [isClient, post?.content]);
+    // Cleanup function for when the component unmounts or quillInstanceRef changes
+    return () => {
+      if (quillInstanceRef.current) {
+        quillInstanceRef.current.off('text-change');
+        // Consider if you need to destroy the Quill instance:
+        // editorRef.current.innerHTML = ''; // Clear the div
+        // quillInstanceRef.current = null; // Or more formally destroy if Quill API supports
+      }
+    };
+  // Ensure dependencies are correctly listed, especially for re-initialization if 'post' changes
+  }, [isClient, post?.content]); // Added post?.content to re-initialize if it changes
 
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
@@ -222,6 +222,7 @@ export default function PostForm({ post }: PostFormProps) {
       {user && (
         <input type="hidden" name="userId" value={user.uid} />
       )}
+      {/* Hidden input to carry Quill's HTML content */}
       <input type="hidden" name="content" value={quillContent} />
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -269,20 +270,6 @@ export default function PostForm({ post }: PostFormProps) {
           </div>
           {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
 
-          {/* Mini Toolbar */}
-          {isClient && (
-            <div className="mt-2 flex items-center space-x-2 border-t border-border pt-3">
-              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Add Divider (placeholder)">
-                <Minus className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Add Image (placeholder)">
-                <ImageUp className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground" title="Add Code Block (placeholder)">
-                <Code2 className="h-5 w-5" />
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Right Column: Sidebar */}
@@ -325,7 +312,14 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-            <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) } className="w-full text-xs py-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={handleSuggestTags} 
+              disabled={isAISuggesting || !isClient || !quillInstanceRef.current || (!quillContent.trim() && !titleValue.trim())} 
+              className="w-full text-xs py-2"
+            >
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>

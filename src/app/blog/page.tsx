@@ -5,14 +5,22 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { PlusCircle } from 'lucide-react';
 import Link from 'next/link';
-import { getMockAuthors, type MockAuthor } from '@/lib/authors';
+import { getAuthorProfilesForCards, type AuthorProfileForCard } from '@/lib/userProfile'; // Updated import
 
 // Mock filter tabs
 const filterTabs = ["All", "For you", "Top reads", "Following", "Music", "Gaming"];
 
 export default async function BlogPage() {
   const posts = await getPosts();
-  const mockAuthors = await getMockAuthors();
+  
+  const authorIds = Array.from(new Set(posts.map(post => post.userId).filter(Boolean as any as (id: string | undefined) => id is string)));
+  const authorProfilesMap = await getAuthorProfilesForCards(authorIds);
+
+  const defaultAuthor: AuthorProfileForCard = { 
+    uid: 'default-user', 
+    displayName: 'WitWaves User', 
+    // photoURL: 'https://placehold.co/40x40.png?text=WW' // Optional default avatar
+  };
 
   return (
     <div className="w-full">
@@ -40,14 +48,19 @@ export default async function BlogPage() {
       <Separator className="my-6" />
 
       {posts.length === 0 ? (
-        <p className="text-center text-muted-foreground text-lg py-12">
-          No posts found. Start by creating one!
-        </p>
+        <div className="text-center text-muted-foreground text-lg py-12">
+          <p>No posts found. Start by creating one!</p>
+           <Button asChild className="mt-4">
+            <Link href="/posts/new">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Your First Post
+            </Link>
+          </Button>
+        </div>
       ) : (
         <div className="space-y-8">
-          {posts.map((post, index) => {
-            // Cycle through mock authors for variety
-            const author = mockAuthors.length > 0 ? mockAuthors[index % mockAuthors.length] : { id: '0', name: 'WitWaves User', role: 'Author', avatarUrl: 'https://placehold.co/40x40.png?text=WW' };
+          {posts.map((post) => {
+            const author = post.userId ? (authorProfilesMap.get(post.userId) || defaultAuthor) : defaultAuthor;
             return (
               <BlogPostCard key={post.id} post={post} author={author} />
             );

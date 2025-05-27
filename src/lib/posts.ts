@@ -8,8 +8,7 @@ import {
   where,
   orderBy,
   Timestamp,
-  // limit, // Not currently used, can be added if needed for pagination
-  // getCountFromServer // Not currently used
+  limit
 } from 'firebase/firestore';
 import { db } from './firebase/config';
 import { format } from 'date-fns';
@@ -22,6 +21,7 @@ export interface Post {
   createdAt: string; // ISO date string for client, Firestore Timestamp for server
   updatedAt?: string; // ISO date string for client, Firestore Timestamp for server
   userId?: string;
+  imageUrl?: string; // Optional field for post image
 }
 
 // Helper to convert Firestore Timestamp to ISO string or return existing string
@@ -31,7 +31,6 @@ const formatTimestamp = (timestamp: any): string => {
     return timestamp.toDate().toISOString();
   }
   if (typeof timestamp === 'string') {
-    // Could add validation here to ensure it's a valid ISO string
     return timestamp;
   }
   console.warn('Unexpected timestamp format:', timestamp, 'Returning current date as ISO string.');
@@ -39,21 +38,26 @@ const formatTimestamp = (timestamp: any): string => {
 };
 
 
-export async function getPosts(): Promise<Post[]> {
+export async function getPosts(count?: number): Promise<Post[]> {
   try {
     const postsCol = collection(db, 'posts');
-    const q = query(postsCol, orderBy('createdAt', 'desc'));
+    let q = query(postsCol, orderBy('createdAt', 'desc'));
+    if (count && count > 0) {
+        q = query(postsCol, orderBy('createdAt', 'desc'), limit(count));
+    }
+    
     const postSnapshot = await getDocs(q);
-    const postsList = postSnapshot.docs.map(doc => {
-      const data = doc.data();
+    const postsList = postSnapshot.docs.map(docSnap => {
+      const data = docSnap.data();
       return {
-        id: doc.id,
+        id: docSnap.id,
         title: data.title,
         content: data.content,
         tags: data.tags || [],
         createdAt: formatTimestamp(data.createdAt),
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
+        imageUrl: data.imageUrl,
       } as Post;
     });
     return postsList;
@@ -81,6 +85,7 @@ export async function getPost(id: string): Promise<Post | undefined> {
         createdAt: formatTimestamp(data.createdAt),
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
+        imageUrl: data.imageUrl,
       } as Post;
     } else {
       console.log(`No post found with ID: ${id}`);
@@ -103,16 +108,17 @@ export async function getPostsByTag(tag: string): Promise<Post[]> {
       orderBy('createdAt', 'desc')
     );
     const postSnapshot = await getDocs(q);
-    return postSnapshot.docs.map(doc => {
-      const data = doc.data();
+    return postSnapshot.docs.map(docSnap => {
+      const data = docSnap.data();
       return {
-        id: doc.id,
+        id: docSnap.id,
         title: data.title,
         content: data.content,
         tags: data.tags || [],
         createdAt: formatTimestamp(data.createdAt),
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
+        imageUrl: data.imageUrl,
       } as Post;
     });
   } catch (error) {
@@ -134,19 +140,21 @@ export async function getPostsByArchive(year: number, month: number): Promise<Po
       orderBy('createdAt', 'desc')
     );
     const postSnapshot = await getDocs(q);
-    return postSnapshot.docs.map(doc => {
-      const data = doc.data();
+    return postSnapshot.docs.map(docSnap => {
+      const data = docSnap.data();
       return {
-        id: doc.id,
+        id: docSnap.id,
         title: data.title,
         content: data.content,
         tags: data.tags || [],
         createdAt: formatTimestamp(data.createdAt),
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
+        imageUrl: data.imageUrl,
       } as Post;
     });
-  } catch (error) {
+  } catch (error)
+    {
     console.error(`Error fetching posts for archive ${year}-${month + 1} from Firestore:`, error);
     return [];
   }
@@ -154,7 +162,7 @@ export async function getPostsByArchive(year: number, month: number): Promise<Po
 
 export async function getAllTags(): Promise<string[]> {
   try {
-    const posts = await getPosts();
+    const posts = await getPosts(); // Fetches all posts
     const tagSet = new Set<string>();
     posts.forEach(post => {
       if (post.tags && Array.isArray(post.tags)) {
@@ -177,13 +185,13 @@ export type ArchivePeriod = {
 
 export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
    try {
-    const posts = await getPosts();
+    const posts = await getPosts(); // Fetches all posts
     const periodsMap = new Map<string, ArchivePeriod>();
     posts.forEach(post => {
       if (post.createdAt) {
         const date = new Date(post.createdAt);
         const year = date.getFullYear();
-        const month = date.getMonth();
+        const month = date.getMonth(); // 0-indexed
         const monthName = format(date, 'MMMM');
         const key = `${year}-${month}`;
 
@@ -197,9 +205,9 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
     });
     return Array.from(periodsMap.values()).sort((a, b) => {
       if (a.year !== b.year) {
-        return b.year - a.year;
+        return b.year - a.year; // Sort by year descending
       }
-      return b.month - a.month;
+      return b.month - a.month; // Then by month descending
     });
   } catch (error) {
     console.error("Error fetching archive periods from Firestore derived posts:", error);
@@ -207,24 +215,26 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
   }
 }
 
+
 export function generateSlug(title: string): string {
   return title
     .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^\w-]+/g, '')
-    .replace(/--+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
+    .replace(/\s+/g, '-') // Replace spaces with -
+    .replace(/[^\w-]+/g, '') // Remove all non-word chars
+    .replace(/--+/g, '-') // Replace multiple - with single -
+    .replace(/^-+/, '') // Trim - from start of text
+    .replace(/-+$/, ''); // Trim - from end of text
 }
 
 export async function isSlugUnique(slug: string): Promise<boolean> {
   try {
-    if (!slug) return false;
+    if (!slug) return false; // Or throw an error, depending on desired behavior
     const postDocRef = doc(db, 'posts', slug);
     const docSnap = await getDoc(postDocRef);
     return !docSnap.exists();
   } catch (error) {
     console.error(`Error checking slug uniqueness for ${slug} in Firestore:`, error);
-    return false;
+    // Depending on policy, either default to not unique (safer) or throw
+    return false; 
   }
 }

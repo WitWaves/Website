@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useActionState } from 'react'; // Removed useTransition as isEditPending comes from useActionState now
+import { useEffect, useState, useActionState, useTransition } from 'react'; // Added useTransition
 import Link from 'next/link';
 // import Image from 'next/image'; // Not used directly in this version for cover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { getUserProfile, type UserProfile, type SocialLinks } from '@/lib/userProfile';
-import { auth } from '@/lib/firebase/config';
+import { auth } from '@/lib/firebase/config'; // Import auth for current user access
 import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 
 const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
@@ -46,6 +46,7 @@ export default function ProfilePage() {
   const [customProfile, setCustomProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [, startTransition] = useTransition(); // For wrapping action call
 
   // Form state for profile editing
   const [editProfileState, handleProfileFormSubmit, isEditPending] = useActionState(
@@ -89,9 +90,6 @@ export default function ProfilePage() {
         setIsLoadingProfile(true);
         const profileData = await getUserProfile(user.uid);
         setCustomProfile(profileData);
-        // If Firebase Auth has a displayName but Firestore profile doesn't, or they differ,
-        // you might want to update Firestore profile with Firebase Auth's displayName as a one-time sync
-        // or decide on a source of truth. For now, we prioritize Firebase Auth for display if customProfile.displayName is missing.
         setIsLoadingProfile(false);
       } else if (!authLoading && !user) {
         setIsLoadingProfile(false);
@@ -114,11 +112,13 @@ export default function ProfilePage() {
       if (editProfileState.updatedProfile && user) {
         // Optimistically update customProfile state
         setCustomProfile(prev => ({
-            ...(prev || { uid: user.uid }), // Ensure previous state or a base with uid
+            ...(prev || { uid: user.uid }), 
             ...editProfileState.updatedProfile
         } as UserProfile));
         // Re-fetch to ensure consistency, especially if displayName was updated in Auth
-        getUserProfile(user.uid).then(setCustomProfile);
+        if (user?.uid) {
+            getUserProfile(user.uid).then(setCustomProfile);
+        }
       }
     } else if (editProfileState?.message && !editProfileState.success) {
       toast({
@@ -175,12 +175,11 @@ export default function ProfilePage() {
     }
     const newDisplayName = formData.get('displayName') as string | null;
 
-    if (newDisplayName && newDisplayName !== auth.currentUser.displayName) {
+    if (newDisplayName && newDisplayName !== user.displayName && auth.currentUser) { // Check auth.currentUser
         try {
             await updateFirebaseAuthProfile(auth.currentUser, { displayName: newDisplayName });
             toast({ title: "Display Name Updated", description: "Your display name in Firebase Authentication has been updated."});
-            // Force a refresh of the user object in useAuth or rely on onAuthStateChanged
-            // This is a common challenge with Firebase Auth client-side updates
+            // Consider manually updating the user object in useAuth or relying on onAuthStateChanged
         } catch (error) {
             console.error("Error updating Firebase Auth display name:", error);
             toast({ title: "Auth Update Error", description: `Failed to update display name in Firebase. ${ (error as Error).message }`, variant: "destructive" });
@@ -189,7 +188,9 @@ export default function ProfilePage() {
         }
     }
     // Proceed to call the server action for Firestore profile data
-    handleProfileFormSubmit(formData);
+    startTransition(() => {
+      handleProfileFormSubmit(formData);
+    });
   };
 
 
@@ -371,3 +372,5 @@ function Card({ children, className }: { children: React.ReactNode, className?: 
     </div>
   );
 }
+
+    

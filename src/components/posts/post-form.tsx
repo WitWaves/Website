@@ -5,25 +5,26 @@ import { useEffect, useState, useTransition, useRef } from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
-// import Image from 'next/image'; // No longer needed if the placeholder is removed
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
-import { AlertCircle, Loader2, Wand2, CheckCircle, Minus, ImageIcon, Code2, ImageUp }
-  from 'lucide-react';
+import { getAllTags } from '@/lib/posts'; // Import getAllTags
+import { AlertCircle, Loader2, Wand2, CheckCircle, Minus, ImageIcon, Code2, ImageUp, PlusCircle, Check, ChevronsUpDown, XIcon } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+
 
 // Quill is loaded via CDN in src/app/layout.tsx
-// We need to declare 'Quill' for TypeScript if using window.Quill
 declare global {
   interface Window {
-    Quill: any; // Use 'any' or a more specific type if available
+    Quill: any; 
   }
 }
 
@@ -34,7 +35,7 @@ interface PostFormProps {
 function PublishButton({isUpdate}: {isUpdate: boolean}) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 py-3 text-base">
+    <Button type="submit" disabled={pending} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 py-3 text-base mt-auto">
       {pending ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -52,9 +53,6 @@ export default function PostForm({ post }: PostFormProps) {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const [isAISuggesting, startAITransition] = useTransition();
-  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
-  const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
-  const [tagInput, setTagInput] = useState('');
   
   const [quillContent, setQuillContent] = useState(post?.content || '');
   const [titleValue, setTitleValue] = useState(post?.title || '');
@@ -63,8 +61,22 @@ export default function PostForm({ post }: PostFormProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const quillInstanceRef = useRef<any>(null); 
 
+  // State for tags
+  const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
+  const [tagInputValue, setTagInputValue] = useState('');
+  const [allSystemTags, setAllSystemTags] = useState<string[]>([]);
+  const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
+  const [aiSuggestedTags, setAISuggestedTags] = useState<string[]>([]);
+
+
   useEffect(() => {
     setIsClient(true);
+    // Fetch all existing tags
+    async function fetchAllTags() {
+      const tags = await getAllTags();
+      setAllSystemTags(tags.sort());
+    }
+    fetchAllTags();
   }, []);
 
   useEffect(() => {
@@ -94,15 +106,17 @@ export default function PostForm({ post }: PostFormProps) {
 
       if (post?.content) {
         const editorContents = quill.getContents();
+        // Check if editor is empty before pasting to avoid duplicating content on re-renders
         if (editorContents.ops && editorContents.ops.length === 1 && editorContents.ops[0].insert === '\n') {
            quill.clipboard.dangerouslyPasteHTML(0, post.content);
         }
       } else {
-        quill.setContents([{ insert: '\n' }]);
+        quill.setContents([{ insert: '\n' }]); // Start with a blank line if no content
       }
       
-      quill.on('text-change', () => { // Removed delta, oldDelta, source as they are not used
+      quill.on('text-change', (delta: any, oldDelta: any, source: string) => {
         const currentHTML = quill.root.innerHTML;
+        // Avoid setting empty content to '<p><br></p>' which is Quill's empty state
         if (currentHTML === '<p><br></p>') {
            setQuillContent('');
         } else {
@@ -110,26 +124,29 @@ export default function PostForm({ post }: PostFormProps) {
         }
       });
 
+      // Initialize quillContent state if post.content exists
       if (post?.content) {
         setQuillContent(post.content);
       } else {
-        setQuillContent(''); 
+        setQuillContent(''); // Ensure it's an empty string if no post content
       }
     }
     
+    // Cleanup function for Quill instance
     return () => {
-      if (quillInstanceRef.current && typeof quillInstanceRef.current.off === 'function') { // Check if 'off' method exists
+      if (quillInstanceRef.current && typeof quillInstanceRef.current.off === 'function') {
         quillInstanceRef.current.off('text-change');
       }
-      // Consider if you need to destroy the Quill instance:
-      // if (editorRef.current) editorRef.current.innerHTML = ''; 
-      // quillInstanceRef.current = null; 
+      // Potentially destroy the Quill instance if the component unmounts, though Quill can be robust.
+      // if (quillInstanceRef.current) {
+      //   quillInstanceRef.current = null; // Or more formal cleanup if Quill API provides it
+      // }
     };
   }, [isClient, post?.content]);
 
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
-  const [state, formAction, isPending] = useActionState(action, undefined);
+  const [state, formAction] = useActionState(action, undefined);
 
   useEffect(() => {
     if (state?.success) {
@@ -164,34 +181,36 @@ export default function PostForm({ post }: PostFormProps) {
     }
     
     startAITransition(async () => {
-      const tags = await getAISuggestedTagsAction(textContentForAI);
-      setSuggestedTags(tags.filter(tag => !currentTags.includes(tag) && tag.length > 0));
+      const tagsFromAI = await getAISuggestedTagsAction(textContentForAI);
+      const newAISuggestions = tagsFromAI.filter(tag => !currentTags.includes(tag) && tag.length > 0 && tag !== 'ai-suggestion-error');
+      setAISuggestedTags(newAISuggestions); // Store AI suggestions separately to display them
+      if (newAISuggestions.length === 0 && tagsFromAI.includes('ai-suggestion-error')) {
+        toast({ title: 'AI Suggestion Error', description: 'Could not get suggestions from AI.', variant: 'destructive' });
+      } else if (newAISuggestions.length === 0 && tagsFromAI.length > 0) {
+         toast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
+      }
     });
   };
 
   const addTag = (tagToAdd: string) => {
     const newTag = tagToAdd.trim().toLowerCase();
     if (newTag && !currentTags.includes(newTag)) {
-      setCurrentTags([...currentTags, newTag]);
+      setCurrentTags(prevTags => [...prevTags, newTag]);
     }
-    setTagInput('');
-    setSuggestedTags(prev => prev.filter(t => t !== newTag));
+    setTagInputValue(''); // Clear input after adding
+    setAISuggestedTags(prev => prev.filter(t => t !== newTag)); // Remove from AI suggestions if added
+    // setIsTagPopoverOpen(false); // Optionally close popover
   };
 
   const removeTag = (tagToRemove: string) => {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
 
-  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTagInput(e.target.value);
-  };
-
-  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === ',' || e.key === 'Enter') {
-      e.preventDefault();
-      addTag(tagInput);
-    }
-  };
+  const filteredSystemTags = allSystemTags.filter(
+    (sysTag) =>
+      !currentTags.includes(sysTag.toLowerCase()) &&
+      sysTag.toLowerCase().includes(tagInputValue.toLowerCase())
+  );
 
   if (authLoading && !post) { 
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
@@ -222,6 +241,8 @@ export default function PostForm({ post }: PostFormProps) {
         <input type="hidden" name="userId" value={user.uid} />
       )}
       <input type="hidden" name="content" value={quillContent} />
+      <input type="hidden" name="tags" value={currentTags.join(',')} />
+
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Column: Main Content Area */}
@@ -240,14 +261,12 @@ export default function PostForm({ post }: PostFormProps) {
           </div>
            {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
           
-          {/* Featured Image Placeholder Removed */}
-         
           <div className="bg-card border-0 rounded-md shadow-none">
             {isClient ? (
               <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
               </div>
             ) : (
-              <div className="min-h-[300px] border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
+              <div className="min-h-[300px] border border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-3 text-muted-foreground">Initializing editor...</p>
               </div>
@@ -258,7 +277,7 @@ export default function PostForm({ post }: PostFormProps) {
         </div>
 
         {/* Right Column: Sidebar */}
-        <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max pt-2">
+        <div className="lg:w-1/3 space-y-6 lg:sticky lg:top-24 h-max pt-2 flex flex-col">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Upload Thumbnail</label>
             <div className="flex items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30">
@@ -271,26 +290,83 @@ export default function PostForm({ post }: PostFormProps) {
 
           <div className="space-y-3">
             <div>
-                <label htmlFor="tags-input" className="block text-sm font-medium text-foreground mb-0.5">
+                <label htmlFor="tags-input-label" className="block text-lg font-semibold text-foreground mb-0.5">
                     Tags<span className="text-destructive">*</span>
                 </label>
                 <p className="text-xs text-muted-foreground mb-1.5">Select relevant tags to get more accurate recommendations.</p>
             </div>
-            <Input
-              id="tags-input"
-              value={tagInput}
-              onChange={handleTagInputChange}
-              onKeyDown={handleTagInputKeyDown}
-              placeholder="e.g., technology, art"
-              className="text-sm"
-            />
-            <input type="hidden" name="tags" value={currentTags.join(',')} />
+
+            <Popover open={isTagPopoverOpen} onOpenChange={setIsTagPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={isTagPopoverOpen}
+                  className="w-full justify-between text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsTagPopoverOpen(!isTagPopoverOpen)}
+                >
+                  {currentTags.length > 0 ? `${currentTags.length} tag(s) selected` : "Select or create tags..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput 
+                    placeholder="Search or type new tag..."
+                    value={tagInputValue}
+                    onValueChange={setTagInputValue}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {tagInputValue.trim().length > 0 ? (
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start text-sm"
+                          onClick={() => {
+                            addTag(tagInputValue);
+                            setIsTagPopoverOpen(false);
+                          }}
+                        >
+                          <PlusCircle className="mr-2 h-4 w-4" /> Create "{tagInputValue}"
+                        </Button>
+                      ) : (
+                        "No tags found. Type to create."
+                      )}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {filteredSystemTags.map((sysTag) => (
+                        <CommandItem
+                          key={sysTag}
+                          value={sysTag}
+                          onSelect={(currentValue) => {
+                            addTag(currentValue);
+                            setIsTagPopoverOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              currentTags.includes(sysTag.toLowerCase()) ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {sysTag}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
             {currentTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
+              <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-border">
                 {currentTags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="cursor-pointer hover:bg-destructive/80 hover:text-destructive-foreground text-xs" onClick={() => removeTag(tag)}>
-                    {tag} &times;
+                  <Badge key={tag} variant="secondary" className="text-xs group">
+                    {tag}
+                    <button type="button" onClick={() => removeTag(tag)} className="ml-1.5 opacity-50 group-hover:opacity-100 focus:outline-none">
+                      <XIcon className="h-3 w-3" />
+                      <span className="sr-only">Remove {tag}</span>
+                    </button>
                   </Badge>
                 ))}
               </div>
@@ -302,18 +378,18 @@ export default function PostForm({ post }: PostFormProps) {
               variant="outline" 
               size="sm" 
               onClick={handleSuggestTags} 
-              disabled={isAISuggesting || !isClient || !quillInstanceRef.current || (!quillContent.trim() && !titleValue.trim())} 
+              disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim())} 
               className="w-full text-xs py-2"
             >
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>
-            {suggestedTags.length > 0 && (
-              <div className="mt-2 p-2 border rounded-md bg-secondary/30 max-h-32 overflow-y-auto">
+            {aiSuggestedTags.length > 0 && (
+              <div className="mt-2 p-2 border rounded-md bg-muted/30 max-h-32 overflow-y-auto">
                 <p className="text-xs font-medium mb-1.5 text-muted-foreground">AI Suggestions (click to add):</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {suggestedTags.map(tag => (
-                     <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-xs" onClick={() => addTag(tag)}>
+                  {aiSuggestedTags.map(tag => (
+                     <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-xs" onClick={() => { addTag(tag); }}>
                       {tag}
                     </Badge>
                   ))}
@@ -329,9 +405,12 @@ export default function PostForm({ post }: PostFormProps) {
                <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
              </p>
            )}
-          <PublishButton isUpdate={!!post} />
+          <div className="mt-auto"> {/* This pushes the button to the bottom of the flex column */}
+            <PublishButton isUpdate={!!post} />
+          </div>
         </div>
       </div>
     </form>
   );
 }
+

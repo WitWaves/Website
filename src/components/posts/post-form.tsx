@@ -10,21 +10,21 @@ import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
-import { getAllTags } from '@/lib/posts'; // Import getAllTags
-import { AlertCircle, Loader2, Wand2, CheckCircle, Minus, ImageIcon, Code2, ImageUp, PlusCircle, Check, ChevronsUpDown, XIcon } from 'lucide-react';
+import { getAllTags } from '@/lib/posts';
+import { AlertCircle, Loader2, Wand2, CheckCircle, ImageIcon, Code2, PlusCircle, XIcon, ChevronsUpDown, Check } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-
+// Temporarily comment out Popover and Command imports for diagnosis
+// import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+// import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 
 // Quill is loaded via CDN in src/app/layout.tsx
 declare global {
   interface Window {
-    Quill: any; 
+    Quill: any;
   }
 }
 
@@ -53,31 +53,40 @@ export default function PostForm({ post }: PostFormProps) {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const [isAISuggesting, startAITransition] = useTransition();
-  
+
   const [quillContent, setQuillContent] = useState(post?.content || '');
   const [titleValue, setTitleValue] = useState(post?.title || '');
 
   const [isClient, setIsClient] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
-  const quillInstanceRef = useRef<any>(null); 
+  const quillInstanceRef = useRef<any>(null);
 
   // State for tags
   const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
-  const [tagInputValue, setTagInputValue] = useState('');
-  const [allSystemTags, setAllSystemTags] = useState<string[]>([]);
-  const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
+  const [tagInputValue, setTagInputValue] = useState(''); // For the simple input
+  const [allSystemTags, setAllSystemTags] = useState<string[]>([]); // Still useful for AI suggestions
+  // const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false); // Commented out for diagnosis
   const [aiSuggestedTags, setAISuggestedTags] = useState<string[]>([]);
 
 
   useEffect(() => {
     setIsClient(true);
-    // Fetch all existing tags
-    async function fetchAllTags() {
-      const tags = await getAllTags();
-      setAllSystemTags(tags.sort());
+    async function fetchAllSystemTagsData() {
+      try {
+        const tags = await getAllTags();
+        setAllSystemTags(tags.sort());
+      } catch (error) {
+        console.error("PostForm: Error fetching all system tags:", error);
+        setAllSystemTags([]); // Fallback to empty array on error
+        toast({
+          title: "Error",
+          description: "Could not load existing tags for suggestions.",
+          variant: "destructive"
+        });
+      }
     }
-    fetchAllTags();
-  }, []);
+    fetchAllSystemTagsData();
+  }, [toast]);
 
   useEffect(() => {
     if (isClient && editorRef.current && typeof window.Quill !== 'undefined' && !quillInstanceRef.current) {
@@ -86,18 +95,17 @@ export default function PostForm({ post }: PostFormProps) {
         modules: {
           toolbar: [
             [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'], 
+            ['bold', 'italic', 'underline', 'strike'],
             ['blockquote', 'code-block'],
             [{'list': 'ordered'}, {'list': 'bullet'}],
-            [{ 'script': 'sub'}, { 'script': 'super' }],      
-            [{ 'indent': '-1'}, { 'indent': '+1' }],          
-            [{ 'direction': 'rtl' }],                         
-            [{ 'size': ['small', false, 'large', 'huge'] }], 
-            [{ 'color': [] }, { 'background': [] }],          
+            [{ 'script': 'sub'}, { 'script': 'super' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            [{ 'direction': 'rtl' }],
+            [{ 'color': [] }, { 'background': [] }],
             [{ 'font': [] }],
             [{ 'align': [] }],
-            ['link', 'image', 'video'], 
-            ['clean']                                         
+            ['link', 'image', 'video'],
+            ['clean']
           ],
         },
         placeholder: "Start writing your stunning piece here...",
@@ -105,18 +113,19 @@ export default function PostForm({ post }: PostFormProps) {
       quillInstanceRef.current = quill;
 
       if (post?.content) {
-        const editorContents = quill.getContents();
-        // Check if editor is empty before pasting to avoid duplicating content on re-renders
-        if (editorContents.ops && editorContents.ops.length === 1 && editorContents.ops[0].insert === '\n') {
-           quill.clipboard.dangerouslyPasteHTML(0, post.content);
+        try {
+            const delta = quill.clipboard.convert(post.content); // Attempt to convert HTML to Delta
+            quill.setContents(delta, 'silent');
+        } catch (e) {
+            console.warn("Could not convert existing HTML to Delta, pasting as HTML:", e);
+            quill.clipboard.dangerouslyPasteHTML(0, post.content);
         }
       } else {
-        quill.setContents([{ insert: '\n' }]); // Start with a blank line if no content
+        quill.setContents([{ insert: '\n' }]);
       }
-      
-      quill.on('text-change', (delta: any, oldDelta: any, source: string) => {
+
+      quill.on('text-change', () => {
         const currentHTML = quill.root.innerHTML;
-        // Avoid setting empty content to '<p><br></p>' which is Quill's empty state
         if (currentHTML === '<p><br></p>') {
            setQuillContent('');
         } else {
@@ -124,23 +133,17 @@ export default function PostForm({ post }: PostFormProps) {
         }
       });
 
-      // Initialize quillContent state if post.content exists
       if (post?.content) {
         setQuillContent(post.content);
       } else {
-        setQuillContent(''); // Ensure it's an empty string if no post content
+        setQuillContent('');
       }
     }
-    
-    // Cleanup function for Quill instance
+
     return () => {
       if (quillInstanceRef.current && typeof quillInstanceRef.current.off === 'function') {
         quillInstanceRef.current.off('text-change');
       }
-      // Potentially destroy the Quill instance if the component unmounts, though Quill can be robust.
-      // if (quillInstanceRef.current) {
-      //   quillInstanceRef.current = null; // Or more formal cleanup if Quill API provides it
-      // }
     };
   }, [isClient, post?.content]);
 
@@ -154,7 +157,6 @@ export default function PostForm({ post }: PostFormProps) {
         title: state.message,
         variant: 'default',
         description: post ? `Post "${titleValue}" updated.` : `Post created.`,
-        action: <CheckCircle className="text-green-500" />,
       });
       if (!post && state.newPostId) {
         router.push(`/posts/${state.newPostId}`);
@@ -168,62 +170,68 @@ export default function PostForm({ post }: PostFormProps) {
         title: 'Error',
         description: state.errors ? JSON.stringify(state.errors) : state.message,
         variant: 'destructive',
-        action: <AlertCircle className="text-red-500" />,
       });
     }
   }, [state, router, toast, post, titleValue]);
 
   const handleSuggestTags = () => {
-    if (!isClient || !quillInstanceRef.current) return; 
-    let textContentForAI = quillInstanceRef.current.getText(); 
+    if (!isClient || !quillInstanceRef.current) return;
+    let textContentForAI = quillInstanceRef.current.getText(0, 2000); // Get text for AI
     if (titleValue) {
         textContentForAI = titleValue + "\n\n" + textContentForAI;
     }
-    
+
     startAITransition(async () => {
-      const tagsFromAI = await getAISuggestedTagsAction(textContentForAI);
-      const newAISuggestions = tagsFromAI.filter(tag => !currentTags.includes(tag) && tag.length > 0 && tag !== 'ai-suggestion-error');
-      setAISuggestedTags(newAISuggestions); // Store AI suggestions separately to display them
-      if (newAISuggestions.length === 0 && tagsFromAI.includes('ai-suggestion-error')) {
-        toast({ title: 'AI Suggestion Error', description: 'Could not get suggestions from AI.', variant: 'destructive' });
-      } else if (newAISuggestions.length === 0 && tagsFromAI.length > 0) {
-         toast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
+      try {
+        const tagsFromAI = await getAISuggestedTagsAction(textContentForAI);
+        const newAISuggestions = tagsFromAI.filter(tag => !currentTags.includes(tag) && tag.length > 0 && tag !== 'ai-suggestion-error');
+        setAISuggestedTags(newAISuggestions);
+        if (newAISuggestions.length === 0 && tagsFromAI.includes('ai-suggestion-error')) {
+          toast({ title: 'AI Suggestion Error', description: 'Could not get suggestions from AI.', variant: 'destructive' });
+        } else if (newAISuggestions.length === 0 && tagsFromAI.length > 0) {
+           toast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
+        }
+      } catch (error) {
+        console.error("Error calling getAISuggestedTagsAction:", error);
+        toast({ title: 'AI Error', description: 'Failed to fetch AI tag suggestions.', variant: 'destructive' });
+        setAISuggestedTags([]);
       }
     });
   };
 
-  const addTag = (tagToAdd: string) => {
-    const newTag = tagToAdd.trim().toLowerCase();
+  const addTagFromInput = () => {
+    const newTag = tagInputValue.trim().toLowerCase();
     if (newTag && !currentTags.includes(newTag)) {
       setCurrentTags(prevTags => [...prevTags, newTag]);
     }
     setTagInputValue(''); // Clear input after adding
-    setAISuggestedTags(prev => prev.filter(t => t !== newTag)); // Remove from AI suggestions if added
-    // setIsTagPopoverOpen(false); // Optionally close popover
+  };
+
+  const addSuggestedTag = (tagToAdd: string) => {
+    const newTag = tagToAdd.trim().toLowerCase();
+    if (newTag && !currentTags.includes(newTag)) {
+      setCurrentTags(prevTags => [...prevTags, newTag]);
+    }
+    setAISuggestedTags(prev => prev.filter(t => t !== newTag));
   };
 
   const removeTag = (tagToRemove: string) => {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
 
-  const filteredSystemTags = allSystemTags.filter(
-    (sysTag) =>
-      !currentTags.includes(sysTag.toLowerCase()) &&
-      sysTag.toLowerCase().includes(tagInputValue.toLowerCase())
-  );
 
-  if (authLoading && !post) { 
+  if (authLoading && !post) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
   }
 
-  if (!user && !post) { 
+  if (!user && !post) {
     return (
       <div className="text-center py-10">
         <p className="text-lg text-muted-foreground">Please <Link href="/login" className="text-primary hover:underline">log in</Link> to create a post.</p>
       </div>
     );
   }
-  
+
   if (post && post.userId && user && post.userId !== user.uid) {
       return (
           <div className="text-center py-10">
@@ -260,7 +268,7 @@ export default function PostForm({ post }: PostFormProps) {
             />
           </div>
            {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
-          
+
           <div className="bg-card border-0 rounded-md shadow-none">
             {isClient ? (
               <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
@@ -293,70 +301,27 @@ export default function PostForm({ post }: PostFormProps) {
                 <label htmlFor="tags-input-label" className="block text-lg font-semibold text-foreground mb-0.5">
                     Tags<span className="text-destructive">*</span>
                 </label>
-                <p className="text-xs text-muted-foreground mb-1.5">Select relevant tags to get more accurate recommendations.</p>
+                <p className="text-xs text-muted-foreground mb-1.5">Add relevant tags to your post.</p>
             </div>
 
-            <Popover open={isTagPopoverOpen} onOpenChange={setIsTagPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={isTagPopoverOpen}
-                  className="w-full justify-between text-sm text-muted-foreground hover:text-foreground"
-                  onClick={() => setIsTagPopoverOpen(!isTagPopoverOpen)}
-                >
-                  {currentTags.length > 0 ? `${currentTags.length} tag(s) selected` : "Select or create tags..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                <Command>
-                  <CommandInput 
-                    placeholder="Search or type new tag..."
-                    value={tagInputValue}
-                    onValueChange={setTagInputValue}
-                  />
-                  <CommandList>
-                    <CommandEmpty>
-                      {tagInputValue.trim().length > 0 ? (
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start text-sm"
-                          onClick={() => {
-                            addTag(tagInputValue);
-                            setIsTagPopoverOpen(false);
-                          }}
-                        >
-                          <PlusCircle className="mr-2 h-4 w-4" /> Create "{tagInputValue}"
-                        </Button>
-                      ) : (
-                        "No tags found. Type to create."
-                      )}
-                    </CommandEmpty>
-                    <CommandGroup>
-                      {filteredSystemTags.map((sysTag) => (
-                        <CommandItem
-                          key={sysTag}
-                          value={sysTag}
-                          onSelect={(currentValue) => {
-                            addTag(currentValue);
-                            setIsTagPopoverOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              currentTags.includes(sysTag.toLowerCase()) ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {sysTag}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            {/* Temporarily simplified tag input for diagnosis */}
+            <div className="flex gap-2">
+              <Input
+                id="tags-input"
+                placeholder="Enter a tag"
+                value={tagInputValue}
+                onChange={(e) => setTagInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addTagFromInput();
+                  }
+                }}
+                className="text-sm"
+              />
+              <Button type="button" onClick={addTagFromInput} variant="outline" size="sm">Add</Button>
+            </div>
+
 
             {currentTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-border">
@@ -373,12 +338,12 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
-              onClick={handleSuggestTags} 
-              disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim())} 
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSuggestTags}
+              disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) || !quillInstanceRef.current}
               className="w-full text-xs py-2"
             >
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
@@ -389,7 +354,7 @@ export default function PostForm({ post }: PostFormProps) {
                 <p className="text-xs font-medium mb-1.5 text-muted-foreground">AI Suggestions (click to add):</p>
                 <div className="flex flex-wrap gap-1.5">
                   {aiSuggestedTags.map(tag => (
-                     <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-xs" onClick={() => { addTag(tag); }}>
+                     <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-xs" onClick={() => { addSuggestedTag(tag); }}>
                       {tag}
                     </Badge>
                   ))}
@@ -405,7 +370,7 @@ export default function PostForm({ post }: PostFormProps) {
                <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
              </p>
            )}
-          <div className="mt-auto"> {/* This pushes the button to the bottom of the flex column */}
+          <div className="mt-auto">
             <PublishButton isUpdate={!!post} />
           </div>
         </div>
@@ -413,4 +378,3 @@ export default function PostForm({ post }: PostFormProps) {
     </form>
   );
 }
-

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getPost, generateSlug, isSlugUnique, type Post } from '@/lib/posts';
 import { db } from '@/lib/firebase/config';
-import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection } from 'firebase/firestore'; 
+import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc } from 'firebase/firestore'; 
 import type { UserProfile, SocialLinks } from '@/lib/userProfile';
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
 
@@ -22,7 +22,7 @@ const UserProfileSchema = z.object({
   displayName: z.string().min(1, 'Display name cannot be empty.'),
   username: z.string().min(3, 'Username must be at least 3 characters.').regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, underscores, and periods.').optional(),
   bio: z.string().max(200, 'Bio cannot exceed 200 characters.').optional(),
-  photoURL: z.string().url('Invalid Photo URL.').optional().or(z.literal('')), // Added photoURL
+  photoURL: z.string().url('Invalid Photo URL.').optional().or(z.literal('')),
   twitter: z.string().url('Invalid Twitter URL.').optional().or(z.literal('')),
   linkedin: z.string().url('Invalid LinkedIn URL.').optional().or(z.literal('')),
   instagram: z.string().url('Invalid Instagram URL.').optional().or(z.literal('')),
@@ -50,12 +50,12 @@ export type FormState = {
     displayName?: string[];
     username?: string[];
     bio?: string[];
-    photoURL?: string[]; // Added photoURL errors
+    photoURL?: string[];
     twitter?: string[];
     linkedin?: string[];
     instagram?: string[];
     portfolio?: string[];
-    // Like action specific
+    // Like/Save action specific
     postId?: string[];
     // Comment action specific
     commentText?: string[];
@@ -64,6 +64,7 @@ export type FormState = {
   newPostId?: string;
   updatedProfile?: Partial<UserProfile>;
   updatedLikeStatus?: { postId: string; liked: boolean; newCount: number };
+  updatedSaveStatus?: { postId: string; saved: boolean };
   newCommentId?: string;
 } | undefined;
 
@@ -97,7 +98,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
   while (!(await isSlugUnique(slug))) {
     slug = `${generateSlug(title)}-${counter}`;
     counter++;
-    if (counter > 10) { // Safety break
+    if (counter > 10) { 
         return { message: 'Error: Could not generate a unique slug for the post.', errors: {} };
     }
   }
@@ -108,7 +109,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     title,
     content,
     tags: tags || [],
-    userId, // Ensure userId is saved
+    userId, 
     likedBy: [],
     likeCount: 0,
     commentCount: 0,
@@ -137,7 +138,6 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     title: formData.get('title'),
     content: formData.get('content'),
     tags: formData.get('tags'),
-    // userId is not updated here, it's set at creation
   });
 
   if (!validatedFields.success) {
@@ -194,7 +194,7 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
     displayName: formData.get('displayName'),
     username: formData.get('username') || undefined,
     bio: formData.get('bio') || undefined,
-    photoURL: formData.get('photoURL') || undefined, // Get photoURL from formData
+    photoURL: formData.get('photoURL') || undefined, 
     twitter: formData.get('twitter') || undefined,
     linkedin: formData.get('linkedin') || undefined,
     instagram: formData.get('instagram') || undefined,
@@ -215,7 +215,7 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
     username: username,
     displayName: displayName, 
     bio: bio,
-    photoURL: photoURL, // Include photoURL
+    photoURL: photoURL, 
     socialLinks: socialLinksInput as SocialLinks, 
   };
 
@@ -319,7 +319,6 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
     const postDocRef = doc(db, 'posts', postId);
     const commentsColRef = collection(db, 'posts', postId, 'comments');
 
-    // Add the comment to the subcollection
     const newCommentRef = await addDoc(commentsColRef, {
       userId,
       userDisplayName,
@@ -328,7 +327,6 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
       createdAt: serverTimestamp(),
     });
 
-    // Increment commentCount on the post document
     await updateDoc(postDocRef, {
       commentCount: increment(1),
     });
@@ -344,5 +342,52 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
     console.error('Error adding comment:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { message: `Error: Failed to add comment. ${errorMessage}`, success: false };
+  }
+}
+
+export async function toggleSavePostAction(prevState: FormState, formData: FormData): Promise<FormState> {
+  const postId = formData.get('postId') as string;
+  const userId = formData.get('userId') as string;
+
+  if (!postId || !userId) {
+    return {
+      message: 'Error: Post ID and User ID are required to save a post.',
+      errors: { form: ['Post ID and User ID are required.'] },
+      success: false,
+    };
+  }
+
+  const userProfileDocRef = doc(db, 'userProfiles', userId);
+  const savedPostDocRef = doc(userProfileDocRef, 'savedPosts', postId);
+
+  try {
+    const savedPostSnap = await getDoc(savedPostDocRef);
+    let saved = false;
+
+    if (savedPostSnap.exists()) {
+      // Post is saved, so unsave it
+      await deleteDoc(savedPostDocRef);
+      saved = false;
+    } else {
+      // Post is not saved, so save it
+      await setDoc(savedPostDocRef, {
+        savedAt: serverTimestamp(),
+      });
+      saved = true;
+    }
+
+    revalidatePath(`/posts/${postId}`); // Revalidate the specific post page
+    revalidatePath('/blog/profile'); // Revalidate the profile page (for activity tab)
+    // Optionally revalidate /blog if saved status affects card display there
+
+    return {
+      message: saved ? 'Post saved!' : 'Post unsaved!',
+      success: true,
+      updatedSaveStatus: { postId, saved },
+    };
+  } catch (error) {
+    console.error('Error toggling save post:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { message: `Error: Failed to update save status. ${errorMessage}`, success: false };
   }
 }

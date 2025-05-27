@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useActionState, useTransition, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // Import next/image
+import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,17 +12,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud } from 'lucide-react';
+import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon } from 'lucide-react'; // Added icons
 import BlogPostCard from '@/components/posts/blog-post-card';
+import PostCard from '@/components/posts/post-card'; // For saved posts
 import { getPosts, type Post } from '@/lib/posts';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { getUserProfile, type UserProfile, type SocialLinks } from '@/lib/userProfile';
-import { auth, storage } from '@/lib/firebase/config'; // Import storage
+import { getUserProfile, getSavedPostsDetailsForUser, type UserProfile, type SocialLinks } from '@/lib/userProfile'; // Added getSavedPostsDetailsForUser
+import { auth, storage } from '@/lib/firebase/config'; 
 import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'; // Firebase Storage functions
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'; 
 
 const socialIcons: Record<keyof SocialLinks, typeof LinkIcon> = {
     twitter: X,
@@ -53,12 +54,16 @@ export default function ProfilePage() {
   );
   const [isEditPendingTransition, startEditTransition] = useTransition();
 
-  // State for image upload
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // State for Activity Tab
+  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
+  const [isLoadingSavedPosts, setIsLoadingSavedPosts] = useState(false);
+  const [activeActivityTab, setActiveActivityTab] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -76,11 +81,12 @@ export default function ProfilePage() {
       setIsLoadingPosts(true);
       console.log('ProfilePage: Fetching posts for user:', user.uid);
       try {
-        const allPosts = await getPosts();
+        const allPosts = await getPosts(); // Fetches ALL posts from Firestore
         console.log('ProfilePage: All posts fetched from DB:', allPosts);
 
         const filteredPosts = allPosts.filter(post => {
             const matches = post.userId === user.uid;
+            // console.log(`Post ID: ${post.id}, Post UserID: ${post.userId}, Current UserID: ${user.uid}, Matches: ${matches}`);
             return matches;
         });
         console.log('ProfilePage: Filtered posts for current user:', filteredPosts);
@@ -137,7 +143,7 @@ export default function ProfilePage() {
         description: editProfileState.message,
       });
       setIsEditModalOpen(false);
-      setSelectedFile(null); // Reset file input
+      setSelectedFile(null); 
       setPreviewUrl(null);
       if (user?.uid) {
         console.log('ProfilePage: Re-fetching custom profile after successful edit for user:', user.uid);
@@ -166,6 +172,24 @@ export default function ProfilePage() {
       });
     }
   }, [editProfileState, toast, user]);
+
+  // Fetch saved posts when activity tab is opened
+  useEffect(() => {
+    if (activeActivityTab === 'activity' && user?.uid) { // Assuming 'activity' tab is the one to show saved posts for now
+      setIsLoadingSavedPosts(true);
+      getSavedPostsDetailsForUser(user.uid)
+        .then(data => {
+          setSavedPosts(data);
+          setIsLoadingSavedPosts(false);
+        })
+        .catch(err => {
+          console.error("Error fetching saved posts:", err);
+          toast({ title: "Error", description: "Could not load saved posts.", variant: "destructive" });
+          setIsLoadingSavedPosts(false);
+        });
+    }
+  }, [activeActivityTab, user?.uid, toast]);
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -210,15 +234,13 @@ export default function ProfilePage() {
           );
         });
       } catch (error) {
-        // Error already handled by toast in uploadTask's error callback
         setIsUploading(false);
-        return; // Stop if upload fails
+        return; 
       }
     }
     setIsUploading(false);
     setUploadProgress(0);
 
-    // Update Firebase Auth profile (displayName and photoURL)
     const authProfileUpdates: { displayName?: string | null; photoURL?: string | null } = {};
     if (newDisplayName && newDisplayName !== auth.currentUser.displayName) {
       authProfileUpdates.displayName = newDisplayName;
@@ -237,14 +259,11 @@ export default function ProfilePage() {
       }
     }
     
-    // Add newPhotoURL to formData if it changed
     if (newPhotoURL && newPhotoURL !== (customProfile?.photoURL || user?.photoURL)) {
         formData.set('photoURL', newPhotoURL);
     } else if (!newPhotoURL && (customProfile?.photoURL || user?.photoURL)) {
-        // If photo was removed (though UI for this isn't explicit yet, prepare for it)
-        formData.set('photoURL', ''); // Send empty string to indicate removal
+        formData.set('photoURL', ''); 
     }
-
 
     startEditTransition(() => {
         handleProfileFormSubmit(formData);
@@ -290,9 +309,9 @@ export default function ProfilePage() {
     <div className="w-full">
       <div className="bg-card border-b border-border">
         <div className="container mx-auto max-w-5xl px-4 pt-8 pb-4">
-          <div className="relative flex flex-col md:flex-row items-center md:items-end md:space-x-6 -mt-10">
-            <Avatar className="h-28 w-28 md:h-28 md:w-28 border-4 border-background shadow-lg -mt-16 md:-mt-16 shrink-0">
-              <AvatarImage src={currentAvatarUrl} alt={displayName} data-ai-hint="person fashion" />
+           <div className="relative flex flex-col md:flex-row items-center md:items-end md:space-x-6"> {/* Removed -mt-10 for avatar positioning */}
+            <Avatar className="h-28 w-28 md:h-28 md:w-28 border-4 border-background shadow-lg shrink-0 -mt-16 md:-mt-10"> {/* Adjusted margins */}
+              <AvatarImage src={currentAvatarUrl} alt={displayName} data-ai-hint="person fashion"/>
               <AvatarFallback>{fallbackAvatar}</AvatarFallback>
             </Avatar>
             <div className="flex-1 mt-4 md:mt-0 text-center md:text-left">
@@ -304,7 +323,7 @@ export default function ProfilePage() {
                 <div className="mt-3 sm:mt-0 flex space-x-2 justify-center md:justify-start">
                   <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
                      setIsEditModalOpen(isOpen);
-                     if (!isOpen) { // Reset file input if dialog is closed
+                     if (!isOpen) { 
                         setSelectedFile(null);
                         setPreviewUrl(null);
                         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -325,7 +344,7 @@ export default function ProfilePage() {
                           <Label>Profile Picture</Label>
                           <div className="flex items-center space-x-4">
                             <Avatar className="h-20 w-20">
-                              <AvatarImage src={previewUrl || customProfile?.photoURL || user?.photoURL || `https://placehold.co/80x80.png?text=${displayName.substring(0,1).toUpperCase()}`} alt="Profile preview" data-ai-hint="person avatar" />
+                              <AvatarImage src={previewUrl || customProfile?.photoURL || user?.photoURL || `https://placehold.co/80x80.png?text=${displayName.substring(0,1).toUpperCase()}`} alt="Profile preview" data-ai-hint="person avatar"/>
                               <AvatarFallback>{displayName.substring(0,2).toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <Input 
@@ -434,7 +453,7 @@ export default function ProfilePage() {
       <Separator className="my-6 container max-w-5xl" />
 
       <div className="container mx-auto max-w-5xl px-4 pb-8">
-        <Tabs defaultValue="posts" className="w-full">
+        <Tabs defaultValue="posts" className="w-full" onValueChange={setActiveActivityTab}>
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-6 bg-muted/50 p-1 rounded-lg">
             <TabsTrigger value="posts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Posts</TabsTrigger>
             <TabsTrigger value="activity" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Activity</TabsTrigger>
@@ -471,8 +490,31 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="activity">
-            <Card className="p-6 min-h-[200px] flex items-center justify-center">
-              <p className="text-muted-foreground">User activity (Saved items, Liked posts, Comments) will be displayed here.</p>
+            <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                    <BookmarkIcon className="mr-2 h-5 w-5 text-blue-500" /> Saved Posts
+                </h3>
+                {isLoadingSavedPosts ? (
+                     <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading saved posts...</p></div>
+                ) : savedPosts.length === 0 ? (
+                    <p className="text-muted-foreground">You haven&apos;t saved any posts yet.</p>
+                ) : (
+                    <div className="space-y-6">
+                        {savedPosts.map(post => (
+                            <PostCard key={post.id} post={post} /> // Using PostCard for a slightly different layout than BlogPostCard
+                        ))}
+                    </div>
+                )}
+                <Separator className="my-6"/>
+                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                    <Heart className="mr-2 h-5 w-5 text-destructive" /> Liked Posts
+                </h3>
+                <p className="text-muted-foreground">Your liked posts will appear here.</p>
+                 <Separator className="my-6"/>
+                 <h3 className="text-lg font-semibold mb-4 flex items-center">
+                    <MessageSquareIcon className="mr-2 h-5 w-5 text-green-500" /> Your Comments
+                </h3>
+                <p className="text-muted-foreground">Your comments will appear here.</p>
             </Card>
           </TabsContent>
 
@@ -484,7 +526,7 @@ export default function ProfilePage() {
 
           <TabsContent value="papers">
             <Card className="p-6 min-h-[200px] flex items-center justify-center">
-              <p className="text-muted-foreground">User's academic papers will be displayed here.</p>
+              <p className="text-muted-foreground">User&apos;s academic papers will be displayed here.</p>
             </Card>
           </TabsContent>
         </Tabs>
@@ -493,7 +535,6 @@ export default function ProfilePage() {
   );
 }
 
-// Simple Card component for placeholder content
 function Card({ children, className }: { children: React.ReactNode, className?: string }) {
   return (
     <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>

@@ -2,7 +2,8 @@
 'use client'; 
 
 import { getPost, type Post } from '@/lib/posts';
-import { getCommentsForPost, type Comment } from '@/lib/comments'; // Import comment types and functions
+import { getCommentsForPost, type Comment } from '@/lib/comments';
+import { isPostSavedByUser } from '@/lib/userProfile'; // Import isPostSavedByUser
 import { notFound, useParams } from 'next/navigation'; 
 import TagBadge from '@/components/posts/tag-badge';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Bookmark, Share2,
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useActionState, useTransition, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, addCommentAction, type FormState as LikeFormState, type FormState as CommentFormState } from '@/app/actions';
+import { toggleLikePostAction, addCommentAction, toggleSavePostAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -24,8 +25,8 @@ export default function PostPage() {
   const { toast } = useToast();
   const [isLikePendingTransition, startLikeTransition] = useTransition();
   const [isCommentPendingTransition, startCommentTransition] = useTransition();
+  const [isSavePendingTransition, startSaveTransition] = useTransition(); // For save action
   const commentFormRef = useRef<HTMLFormElement>(null);
-
 
   const [post, setPost] = useState<Post | null | undefined>(undefined); 
   const [comments, setComments] = useState<Comment[]>([]);
@@ -35,19 +36,25 @@ export default function PostPage() {
   const [optimisticLiked, setOptimisticLiked] = useState(false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(0);
   const [optimisticCommentCount, setOptimisticCommentCount] = useState(0);
+  const [optimisticSaved, setOptimisticSaved] = useState(false); // For save status
 
-  const [likeState, handleLikeAction, isLikeActionPending] = useActionState<LikeFormState, FormData>(
+  const [likeState, handleLikeAction, isLikeActionPending] = useActionState<FormState, FormData>(
     toggleLikePostAction,
     undefined
   );
 
-  const [commentState, handleCommentAction, isCommentActionPending] = useActionState<CommentFormState, FormData>(
+  const [commentState, handleCommentAction, isCommentActionPending] = useActionState<FormState, FormData>(
     addCommentAction,
+    undefined
+  );
+
+  const [saveState, handleSaveAction, isSaveActionPending] = useActionState<FormState, FormData>(
+    toggleSavePostAction,
     undefined
   );
   
   useEffect(() => {
-    async function fetchPostAndComments() {
+    async function fetchPostData() {
       if (postId) {
         setIsLoading(true);
         setIsLoadingComments(true);
@@ -59,19 +66,24 @@ export default function PostPage() {
                 setOptimisticLikeCount(fetchedPost.likeCount || 0);
                 setOptimisticCommentCount(fetchedPost.commentCount || 0);
 
+                if (user?.uid) {
+                    const saved = await isPostSavedByUser(user.uid, postId);
+                    setOptimisticSaved(saved);
+                }
+
                 const fetchedComments = await getCommentsForPost(postId);
                 setComments(fetchedComments);
             }
         } catch (error) {
             console.error("Error fetching post or comments: ", error);
-            setPost(null); // To trigger notFound if post itself fails
+            setPost(null); 
         } finally {
             setIsLoading(false);
             setIsLoadingComments(false);
         }
       }
     }
-    fetchPostAndComments();
+    fetchPostData();
   }, [postId, user?.uid]);
 
 
@@ -81,7 +93,7 @@ export default function PostPage() {
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
     } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === postId) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
-      if (post) { // Revert optimistic update
+      if (post) { 
         setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
         setOptimisticLikeCount(post.likeCount || 0);
       }
@@ -89,13 +101,22 @@ export default function PostPage() {
   }, [likeState, postId, toast, user?.uid, post]);
 
   useEffect(() => {
+    if (saveState?.success && saveState.updatedSaveStatus?.postId === postId) {
+        setOptimisticSaved(saveState.updatedSaveStatus.saved);
+        toast({ title: saveState.updatedSaveStatus.saved ? 'Post Saved' : 'Post Unsaved', description: saveState.message});
+    } else if (saveState?.message && !saveState.success && saveState?.updatedSaveStatus?.postId === postId) {
+        toast({ title: 'Error saving post', description: saveState.message, variant: 'destructive' });
+        // Optionally revert optimistic update
+        // For simplicity, we might not revert here, or refetch saved status
+    }
+  }, [saveState, postId, toast]);
+
+  useEffect(() => {
     if (commentState?.success) {
       toast({ title: 'Success', description: commentState.message });
-      // Refetch comments to show the new one
       getCommentsForPost(postId).then(setComments);
-      // Increment optimistic comment count
       setOptimisticCommentCount(prev => prev + 1);
-      commentFormRef.current?.reset(); // Reset the comment form
+      commentFormRef.current?.reset(); 
     } else if (commentState?.message && !commentState.success) {
       toast({ title: 'Error adding comment', description: commentState.errors?.commentText?.join(', ') || commentState.message, variant: 'destructive' });
     }
@@ -109,16 +130,22 @@ export default function PostPage() {
       return;
     }
     if (!post) return;
-
     const formData = new FormData(event.currentTarget);
-    // userId is already part of formData via hidden input
-    
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
-    
-    startLikeTransition(() => {
-      handleLikeAction(formData);
-    });
+    startLikeTransition(() => handleLikeAction(formData));
+  };
+
+  const handleSaveSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) {
+        toast({ title: 'Authentication Required', description: 'Please log in to save posts.', variant: 'destructive'});
+        return;
+    }
+    if (!post) return;
+    const formData = new FormData(event.currentTarget);
+    setOptimisticSaved(!optimisticSaved); // Optimistic update
+    startSaveTransition(() => handleSaveAction(formData));
   };
   
   const handleCommentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -128,10 +155,7 @@ export default function PostPage() {
       return;
     }
     const formData = new FormData(event.currentTarget);
-    // postId, userId, userDisplayName, userPhotoURL are set via hidden inputs
-    startCommentTransition(() => {
-        handleCommentAction(formData);
-    });
+    startCommentTransition(() => handleCommentAction(formData));
   };
 
 
@@ -202,9 +226,21 @@ export default function PostPage() {
         <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Comment" onClick={() => commentFormRef.current?.querySelector('textarea')?.focus()}>
           <MessageCircle className="h-4 w-4 text-primary" /> Comment <span className="text-xs text-muted-foreground">({optimisticCommentCount})</span>
         </Button>
-        <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Save">
-          <Bookmark className="h-4 w-4 text-blue-500" /> Save
-        </Button>
+        <form onSubmit={handleSaveSubmit} className="contents">
+            <input type="hidden" name="postId" value={post.id} />
+            {user && <input type="hidden" name="userId" value={user.uid} />}
+            <Button 
+                type="submit"
+                variant="outline" 
+                size="sm" 
+                className={`flex items-center gap-1.5 text-sm ${optimisticSaved ? 'text-blue-500 border-blue-500 hover:bg-blue-500/10' : 'hover:text-blue-500'}`}
+                title={optimisticSaved ? "Unsave" : "Save"}
+                disabled={isSaveActionPending || isSavePendingTransition || !user}
+            >
+                {(isSaveActionPending || isSavePendingTransition) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className={`h-4 w-4 ${optimisticSaved ? 'fill-current text-blue-500' : 'text-blue-500'}`} />} 
+                {optimisticSaved ? "Saved" : "Save"}
+            </Button>
+        </form>
         <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Share">
           <Share2 className="h-4 w-4 text-green-500" /> Share
         </Button>
@@ -218,7 +254,6 @@ export default function PostPage() {
       
       <Separator className="my-10" />
 
-      {/* Comments Section */}
       <section className="space-y-8">
         <h2 className="text-2xl font-semibold">Comments ({optimisticCommentCount})</h2>
         {user ? (
@@ -260,7 +295,7 @@ export default function PostPage() {
             {comments.map((comment) => (
               <div key={comment.id} className="flex items-start space-x-3 p-4 border rounded-lg bg-card">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={comment.userPhotoURL || `https://placehold.co/40x40.png?text=${comment.userDisplayName.substring(0,1)}`} alt={comment.userDisplayName} data-ai-hint="person avatar" />
+                  <AvatarImage src={comment.userPhotoURL || `https://placehold.co/40x40.png?text=${comment.userDisplayName.substring(0,1)}`} alt={comment.userDisplayName} data-ai-hint="person avatar"/>
                   <AvatarFallback>{comment.userDisplayName.substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">

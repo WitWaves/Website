@@ -3,6 +3,8 @@
 
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp, collection, query, where, getDocs, deleteField } from 'firebase/firestore'; 
 import { db } from './firebase/config';
+import type { Post } from './posts'; // Import Post type
+import { getPost } from './posts';   // Import getPost to fetch post details
 
 export interface SocialLinks {
   twitter?: string;
@@ -17,7 +19,7 @@ export interface UserProfile {
   username?: string;
   displayName?: string; 
   bio?: string;
-  photoURL?: string; // Added photoURL
+  photoURL?: string; 
   socialLinks?: SocialLinks;
   createdAt?: string | any; 
   updatedAt?: string | any; 
@@ -52,7 +54,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
         username: data.username,
         displayName: data.displayName,
         bio: data.bio,
-        photoURL: data.photoURL, // Include photoURL
+        photoURL: data.photoURL, 
         socialLinks: data.socialLinks || {},
         createdAt: formatProfileTimestamp(data.createdAt),
         updatedAt: formatProfileTimestamp(data.updatedAt),
@@ -89,7 +91,7 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (!data.displayName) {
-          console.warn(`Author profile for UID ${uid} exists but displayName is missing. Defaulting to 'WitWaves User'.`);
+          console.warn(`Author profile for UID ${uid} exists but displayName is missing. Defaulting to 'WitWaves User'. Log from getAuthorProfilesForCards.`);
         }
         profilesMap.set(uid, {
           uid: uid,
@@ -97,7 +99,7 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
           photoURL: data.photoURL, 
         });
       } else {
-        console.warn(`Author profile not found in Firestore for UID ${uid}. Defaulting to 'WitWaves User'.`);
+        console.warn(`Author profile not found in Firestore for UID ${uid}. Defaulting to 'WitWaves User'. Log from getAuthorProfilesForCards.`);
         profilesMap.set(uid, {
           uid: uid,
           displayName: "WitWaves User",
@@ -107,10 +109,9 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
     }
   } catch (error) {
     console.error("Error fetching multiple author profiles:", error);
-    // Fallback for UIDs that might not have been processed due to an overall error
     uniqueUids.forEach(uid => {
       if (!profilesMap.has(uid)) {
-        console.warn(`Fallback: Author profile for UID ${uid} could not be fetched due to overall error. Defaulting to 'WitWaves User'.`);
+        console.warn(`Fallback: Author profile for UID ${uid} could not be fetched due to overall error. Defaulting to 'WitWaves User'. Log from getAuthorProfilesForCards.`);
         profilesMap.set(uid, { uid, displayName: "WitWaves User", photoURL: undefined });
       }
     });
@@ -122,7 +123,7 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
 
 export async function updateUserProfileData(
   userId: string,
-  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> & { displayName?: string; photoURL?: string } // Ensure photoURL is accepted
+  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> & { displayName?: string; photoURL?: string } 
 ): Promise<void> {
   if (!userId) throw new Error("User ID is required to update profile data.");
   const profileDocRef = doc(db, 'userProfiles', userId);
@@ -131,7 +132,6 @@ export async function updateUserProfileData(
     
     const dataToSave: { [key: string]: any } = { ...data };
 
-    // Clean socialLinks
     if (dataToSave.socialLinks && typeof dataToSave.socialLinks === 'object') {
       const socialLinksCopy = { ...dataToSave.socialLinks }; 
       let hasActualLinks = false;
@@ -146,36 +146,32 @@ export async function updateUserProfileData(
       if (hasActualLinks) {
         dataToSave.socialLinks = socialLinksCopy;
       } else {
-        // If no actual links, remove the socialLinks field entirely
-        if (docSnap.exists() && docSnap.data()?.socialLinks) { // Only delete if it exists
+        if (docSnap.exists() && docSnap.data()?.socialLinks) { 
           dataToSave.socialLinks = deleteField(); 
         } else {
-          delete dataToSave.socialLinks; // Don't add an empty field on creation
+          delete dataToSave.socialLinks; 
         }
       }
     }
 
-    // Handle photoURL: if it's an empty string, delete the field, otherwise save it.
     if (dataToSave.photoURL === '') {
         if (docSnap.exists() && docSnap.data()?.photoURL) {
              dataToSave.photoURL = deleteField();
         } else {
             delete dataToSave.photoURL;
         }
-    } else if (dataToSave.photoURL === undefined) { // If undefined (e.g. not changed), don't try to save it
+    } else if (dataToSave.photoURL === undefined) { 
         delete dataToSave.photoURL;
     }
-    // If photoURL is a valid URL, it will be saved as is.
     
     dataToSave.updatedAt = serverTimestamp();
 
     if (docSnap.exists()) {
       await updateDoc(profileDocRef, dataToSave);
-      console.log(`User profile updated for userId: ${userId}`);
+      console.log(`User profile updated for userId: ${userId} with data:`, dataToSave);
     } else {
       dataToSave.uid = userId; 
       dataToSave.createdAt = serverTimestamp();
-      // Remove fields that are undefined before initial set to prevent Firestore errors
       Object.keys(dataToSave).forEach(key => {
         if (dataToSave[key] === undefined) {
           delete dataToSave[key];
@@ -187,5 +183,38 @@ export async function updateUserProfileData(
   } catch (error) {
     console.error(`Error updating user profile data for userId ${userId} in Firestore:`, error);
     throw error; 
+  }
+}
+
+export async function isPostSavedByUser(userId: string, postId: string): Promise<boolean> {
+  if (!userId || !postId) return false;
+  try {
+    const savedPostDocRef = doc(db, 'userProfiles', userId, 'savedPosts', postId);
+    const docSnap = await getDoc(savedPostDocRef);
+    return docSnap.exists();
+  } catch (error) {
+    console.error(`Error checking if post ${postId} is saved by user ${userId}:`, error);
+    return false;
+  }
+}
+
+export async function getSavedPostsDetailsForUser(userId: string): Promise<Post[]> {
+  if (!userId) return [];
+  try {
+    const savedPostsColRef = collection(db, 'userProfiles', userId, 'savedPosts');
+    const q = query(savedPostsColRef, orderBy('savedAt', 'desc'));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return [];
+    }
+
+    const postPromises = snapshot.docs.map(docSnap => getPost(docSnap.id)); // docSnap.id is the postId
+    const posts = (await Promise.all(postPromises)).filter(post => post !== undefined) as Post[];
+    
+    return posts;
+  } catch (error) {
+    console.error(`Error fetching saved posts for user ${userId}:`, error);
+    return [];
   }
 }

@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useState, useEffect, useActionState, useTransition } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, type FormState as LikeFormState } from '@/app/actions';
+import { toggleLikePostAction, toggleSavePostAction, type FormState } from '@/app/actions'; // Added toggleSavePostAction
 import { useToast } from '@/hooks/use-toast';
 
 type BlogPostCardProps = {
@@ -22,7 +22,8 @@ type BlogPostCardProps = {
 export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isPendingTransition, startTransition] = useTransition();
+  const [isLikePendingTransition, startLikeTransition] = useTransition();
+  const [isSavePendingTransition, startSaveTransition] = useTransition();
 
   const generateSummary = (content: string, length: number = 100) => {
     if (!content) return '';
@@ -31,15 +32,20 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     return strippedContent.substring(0, length) + '...';
   };
   
-  const postSummary = generateSummary(post.content, 150); // Increased summary length
+  const postSummary = generateSummary(post.content, 150);
 
   const [optimisticLiked, setOptimisticLiked] = useState(post.likedBy?.includes(user?.uid || '') || false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(post.likeCount || 0);
   const [optimisticCommentCount, setOptimisticCommentCount] = useState(post.commentCount || 0);
+  const [optimisticSaved, setOptimisticSaved] = useState(false); // Cannot easily check initial saved state here without extra props/fetches per card
 
-
-  const [likeState, handleLikeAction, isLikePending] = useActionState<LikeFormState, FormData>(
+  const [likeState, handleLikeAction, isLikePending] = useActionState<FormState, FormData>(
     toggleLikePostAction,
+    undefined
+  );
+
+  const [saveState, handleSaveAction, isSavePending] = useActionState<FormState, FormData>(
+    toggleSavePostAction,
     undefined
   );
 
@@ -47,6 +53,8 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
     setOptimisticLikeCount(post.likeCount || 0);
     setOptimisticCommentCount(post.commentCount || 0);
+    // Note: optimisticSaved initial state is tricky on cards without individual checks.
+    // It will update based on user interaction.
   }, [post.likedBy, post.likeCount, post.commentCount, user?.uid]);
 
   useEffect(() => {
@@ -60,6 +68,16 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     }
   }, [likeState, post.id, toast, user?.uid, post.likedBy, post.likeCount]);
 
+  useEffect(() => {
+    if (saveState?.success && saveState.updatedSaveStatus?.postId === post.id) {
+        setOptimisticSaved(saveState.updatedSaveStatus.saved); // Update based on action result
+        // No toast here to avoid too many toasts on a list page
+    } else if (saveState?.message && !saveState.success && saveState?.updatedSaveStatus?.postId === post.id) {
+        toast({ title: 'Error saving post', description: saveState.message, variant: 'destructive' });
+    }
+  }, [saveState, post.id, toast]);
+
+
   const handleLikeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user) {
@@ -67,26 +85,25 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
       return;
     }
     const formData = new FormData(event.currentTarget);
-    // userId is now set via hidden input
-    
     setOptimisticLiked(!optimisticLiked);
     setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
-    
-    startTransition(() => {
-      handleLikeAction(formData);
-    });
+    startLikeTransition(() => handleLikeAction(formData));
   };
 
-  const [bookmarks, setBookmarks] = useState<string | null>(null);
-
-  useEffect(() => {
-    setBookmarks(`${(Math.random() * 18 + 0.1).toFixed(1)}k`);
-  }, []); 
+  const handleSaveSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) {
+        toast({ title: 'Authentication Required', description: 'Please log in to save posts.', variant: 'destructive'});
+        return;
+    }
+    const formData = new FormData(event.currentTarget);
+    setOptimisticSaved(!optimisticSaved); // Optimistic update
+    startSaveTransition(() => handleSaveAction(formData));
+  };
 
   const authorDisplayName = author?.displayName || 'WitWaves User';
   const authorAvatarUrl = author?.photoURL;
   const authorFallback = authorDisplayName.substring(0, 1).toUpperCase();
-
 
   return (
     <article className="flex flex-col md:flex-row gap-6 p-4 border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow bg-card">
@@ -120,9 +137,9 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                     size="sm"
                     className={`flex items-center p-0 h-auto hover:bg-transparent ${optimisticLiked ? 'text-destructive hover:text-destructive/80' : 'text-muted-foreground hover:text-destructive'}`}
                     title="Like"
-                    disabled={isLikePending || isPendingTransition || !user}
+                    disabled={isLikePending || isLikePendingTransition || !user}
                 >
-                    {(isLikePending || isPendingTransition) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Heart className={`h-4 w-4 mr-1 ${optimisticLiked ? 'fill-current' : ''}`} />} 
+                    {(isLikePending || isLikePendingTransition) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Heart className={`h-4 w-4 mr-1 ${optimisticLiked ? 'fill-current' : ''}`} />} 
                     {optimisticLikeCount}
                 </Button>
             </form>
@@ -130,11 +147,25 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
             <Link href={`/posts/${post.id}#comments`} className="flex items-center hover:text-primary disabled:opacity-70 p-0 h-auto" title="Comment">
               <MessageCircle className="h-4 w-4 mr-1" /> {optimisticCommentCount}
             </Link>
-            <button className="flex items-center hover:text-blue-500 disabled:opacity-70 p-0 h-auto" title="Save" disabled={bookmarks === null}>
-              <Bookmark className="h-4 w-4 mr-1" /> {bookmarks !== null ? bookmarks : '...'}
-            </button>
+            
+            <form onSubmit={handleSaveSubmit} className="contents">
+                <input type="hidden" name="postId" value={post.id} />
+                {user && <input type="hidden" name="userId" value={user.uid} />}
+                <Button
+                    type="submit"
+                    variant="ghost"
+                    size="sm"
+                    className={`flex items-center p-0 h-auto hover:bg-transparent ${optimisticSaved ? 'text-blue-500 hover:text-blue-500/80' : 'text-muted-foreground hover:text-blue-500'}`}
+                    title={optimisticSaved ? "Unsave" : "Save"}
+                    disabled={isSavePending || isSavePendingTransition || !user}
+                >
+                    {(isSavePending || isSavePendingTransition) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Bookmark className={`h-4 w-4 mr-1 ${optimisticSaved ? 'fill-current' : ''}`} />} 
+                    <span className="sr-only">{optimisticSaved ? "Unsave" : "Save"}</span> {/* Keep text for screen readers */}
+                </Button>
+            </form>
+
             <button className="flex items-center hover:text-green-500 p-0 h-auto" title="Share">
-              <Share2 className="h-4 w-4 mr-1" /> Share
+              <Share2 className="h-4 w-4 mr-1" /> <span className="sr-only">Share</span>
             </button>
           </div>
         </div>

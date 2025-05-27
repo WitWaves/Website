@@ -10,7 +10,9 @@ import {
   signInWithEmailAndPassword, 
   signOut,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup, // Keep for potential future use or reference, but we'll use redirect
+  signInWithRedirect, // Added
+  getRedirectResult // Added
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
@@ -41,16 +43,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // You could fetch additional user data from Firestore here if needed
         setUser(firebaseUser as User);
+        // Redirect to home if user is found and they are on login/signup
+        // This check might be better handled on login/signup pages themselves
+        // if (router.pathname === '/login' || router.pathname === '/signup') {
+        //   router.push('/');
+        // }
       } else {
         setUser(null);
       }
       setLoading(false);
     });
+    
+    // Check for redirect result
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result && result.user) {
+          setUser(result.user as User);
+          // No explicit router.push('/') here, onAuthStateChanged should handle it
+          // or if already handled by onAuthStateChanged, this is fine.
+        }
+        setLoading(false); // Ensure loading is set to false after processing
+      })
+      .catch((error) => {
+        // Handle Errors here.
+        console.error("Error getting redirect result:", error);
+        // An error code of 'auth/account-exists-with-different-credential'
+        // can be handled by linking the user's accounts here.
+        setLoading(false); // Ensure loading is set to false after processing
+      });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]); // Added router to dependency array if used inside for pathname checks
 
   const signUpWithEmail = async (email: string, pass: string) => {
     setLoading(true);
@@ -86,16 +110,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      setUser(result.user as User);
-      router.push('/'); // Redirect after sign in
-      return result;
+      // Using signInWithRedirect instead of signInWithPopup
+      await signInWithRedirect(auth, provider);
+      // For signInWithRedirect, the result is handled by getRedirectResult
+      // and onAuthStateChanged. No immediate user object is returned here.
+      // The setLoading(false) will be effectively handled after redirect.
     } catch (error) {
-      console.error("Error signing in with Google:", error);
+      console.error("Error initiating Google sign in with redirect:", error);
+      setLoading(false); // Set loading false if initiation fails
       throw error;
-    } finally {
-      setLoading(false);
     }
+    // setLoading(false) is tricky here due to redirect.
+    // It's better handled by the effect that processes getRedirectResult.
   };
 
   const logout = async () => {

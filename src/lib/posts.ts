@@ -5,15 +5,12 @@ import {
   getDocs,
   doc,
   getDoc,
-  // setDoc, // setDoc is used in actions.ts, not directly here for reads
-  // updateDoc, // updateDoc is used in actions.ts
   query,
   where,
   orderBy,
   Timestamp,
-  // serverTimestamp, // serverTimestamp is used in actions.ts
 } from 'firebase/firestore';
-import type { DocumentSnapshot } from 'firebase/firestore'; // For explicit typing
+import type { DocumentSnapshot } from 'firebase/firestore';
 import { format } from 'date-fns';
 
 // Centralized Post type definition
@@ -31,8 +28,6 @@ export interface Post {
 const postFromDoc = (docSnap: DocumentSnapshot): Post => {
   const data = docSnap.data();
   if (!data) {
-    // This case should ideally not be hit if docSnap.exists() was checked before calling,
-    // or if it's from a query result which guarantees data.
     throw new Error(`Document ${docSnap.id} has no data!`);
   }
   return {
@@ -40,8 +35,8 @@ const postFromDoc = (docSnap: DocumentSnapshot): Post => {
     title: data.title,
     content: data.content,
     tags: data.tags || [],
-    createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-    updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString(),
+    createdAt: (data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date()).toISOString(),
+    updatedAt: (data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : undefined)?.toISOString(),
     userId: data.userId,
   };
 };
@@ -54,12 +49,16 @@ export async function getPosts(): Promise<Post[]> {
     return querySnapshot.docs.map(postFromDoc);
   } catch (error) {
     console.error("Error fetching posts:", error);
-    return [];
+    return []; // Return empty array on error
   }
 }
 
 export async function getPost(id: string): Promise<Post | undefined> {
   try {
+    if (!id || typeof id !== 'string') {
+      console.error("Invalid post ID provided to getPost:", id);
+      return undefined;
+    }
     const postDocRef = doc(db, 'posts', id);
     const docSnap = await getDoc(postDocRef);
     if (docSnap.exists()) {
@@ -68,7 +67,7 @@ export async function getPost(id: string): Promise<Post | undefined> {
     return undefined;
   } catch (error) {
     console.error(`Error fetching post ${id}:`, error);
-    return undefined;
+    return undefined; // Return undefined on error
   }
 }
 
@@ -80,7 +79,7 @@ export async function getPostsByTag(tag: string): Promise<Post[]> {
     return querySnapshot.docs.map(postFromDoc);
   } catch (error) {
     console.error(`Error fetching posts by tag ${tag}:`, error);
-    return [];
+    return []; // Return empty array on error
   }
 }
 
@@ -100,13 +99,13 @@ export async function getPostsByArchive(year: number, month: number): Promise<Po
     return querySnapshot.docs.map(postFromDoc);
   } catch (error) {
     console.error(`Error fetching posts for archive ${year}-${month + 1}:`, error);
-    return [];
+    return []; // Return empty array on error
   }
 }
 
 export async function getAllTags(): Promise<string[]> {
   try {
-    const posts = await getPosts(); // Re-uses getPosts to derive tags
+    const posts = await getPosts();
     const tagSet = new Set<string>();
     posts.forEach(post => {
       if (post.tags && Array.isArray(post.tags)) {
@@ -116,7 +115,7 @@ export async function getAllTags(): Promise<string[]> {
     return Array.from(tagSet).sort();
   } catch (error) {
     console.error("Error fetching all tags:", error);
-    return [];
+    return []; // Return empty array on error
   }
 }
 
@@ -129,7 +128,7 @@ export type ArchivePeriod = {
 
 export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
   try {
-    const posts = await getPosts(); // Re-uses getPosts
+    const posts = await getPosts();
     const periodsMap = new Map<string, ArchivePeriod>();
 
     posts.forEach(post => {
@@ -141,7 +140,7 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
         const key = `${year}-${month}`;
 
         if (periodsMap.has(key)) {
-          const existing = periodsMap.get(key)!; // Non-null assertion
+          const existing = periodsMap.get(key)!;
           periodsMap.set(key, { ...existing, count: existing.count + 1 });
         } else {
           periodsMap.set(key, { year, month, monthName, count: 1 });
@@ -157,7 +156,7 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
     });
   } catch (error) {
     console.error("Error fetching archive periods:", error);
-    return [];
+    return []; // Return empty array on error
   }
 }
 
@@ -177,6 +176,7 @@ export function generateSlug(title: string): string {
 // This is NOT a Server Action itself.
 export async function isSlugUnique(slug: string): Promise<boolean> {
   try {
+    if (!slug) return false; // Cannot check an empty slug
     const postDocRef = doc(db, 'posts', slug);
     const docSnap = await getDoc(postDocRef);
     return !docSnap.exists();

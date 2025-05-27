@@ -1,7 +1,7 @@
 
 'use server';
 
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp, collection, query, where, getDocs, deleteField } from 'firebase/firestore'; // Added deleteField
 import { db } from './firebase/config';
 
 export interface SocialLinks {
@@ -15,21 +15,20 @@ export interface SocialLinks {
 export interface UserProfile {
   uid: string;
   username?: string;
-  displayName?: string; // Storing a copy from Firebase Auth
+  displayName?: string; 
   bio?: string;
   socialLinks?: SocialLinks;
-  createdAt?: string | any; // Allow ISO string for client, serverTimestamp for write
-  updatedAt?: string | any; // Allow ISO string for client, serverTimestamp for write
+  createdAt?: string | any; 
+  updatedAt?: string | any; 
+  photoURL?: string; // Added to match potential usage in getAuthorProfilesForCards
 }
 
-// Type for minimal author data needed for cards
 export interface AuthorProfileForCard {
   uid: string;
   displayName: string;
   photoURL?: string;
 }
 
-// Helper to convert Firestore Timestamp to ISO string
 const formatProfileTimestamp = (timestamp: any): string | undefined => {
   if (!timestamp) return undefined;
   if (timestamp instanceof Timestamp) {
@@ -54,6 +53,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
         displayName: data.displayName,
         bio: data.bio,
         socialLinks: data.socialLinks || {},
+        photoURL: data.photoURL,
         createdAt: formatProfileTimestamp(data.createdAt),
         updatedAt: formatProfileTimestamp(data.updatedAt),
       } as UserProfile;
@@ -71,17 +71,16 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
     return profilesMap;
   }
 
-  const uniqueUids = Array.from(new Set(uids.filter(uid => !!uid))); // Ensure unique and valid UIDs
+  const uniqueUids = Array.from(new Set(uids.filter(uid => !!uid))); 
 
   if (uniqueUids.length === 0) {
     return profilesMap;
   }
-
+  
+  // Cap the number of UIDs to fetch in a single batch to avoid Firestore 'in' query limits (max 30 for 'in' queries)
+  // For getDoc by ID, we can do more, but batching is good practice for larger numbers.
+  // For this example, we'll fetch them individually with Promise.all, which is fine for moderate numbers.
   try {
-    // Firestore 'in' query can handle up to 30 items in the array.
-    // For larger arrays, you'd need to batch the queries.
-    // This simplified version assumes a manageable number of unique authors per page.
-    // If document IDs are UIDs:
     const profilePromises = uniqueUids.map(uid => 
       getDoc(doc(db, 'userProfiles', uid)).then(docSnap => ({ uid, docSnap }))
     );
@@ -93,11 +92,10 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
         const data = docSnap.data();
         profilesMap.set(uid, {
           uid: uid,
-          displayName: data.displayName || "WitWaves User", // Fallback displayName
-          photoURL: data.photoURL, // Assuming photoURL might be stored in profile
+          displayName: data.displayName || "WitWaves User", 
+          photoURL: data.photoURL, 
         });
       } else {
-         // Fallback if a profile document doesn't exist
         profilesMap.set(uid, {
           uid: uid,
           displayName: "WitWaves User",
@@ -107,7 +105,6 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
     }
   } catch (error) {
     console.error("Error fetching multiple author profiles:", error);
-    // Populate with defaults for all UIDs if batch fetch fails, so cards don't break
     uniqueUids.forEach(uid => {
       if (!profilesMap.has(uid)) {
         profilesMap.set(uid, { uid, displayName: "WitWaves User", photoURL: undefined });
@@ -127,16 +124,36 @@ export async function updateUserProfileData(
   const profileDocRef = doc(db, 'userProfiles', userId);
   try {
     const docSnap = await getDoc(profileDocRef);
-    const dataToSave: any = { ...data }; // Use 'any' for dataToSave to allow flexible field updates
+    
+    // Create a mutable copy of the data to save.
+    const dataToSave: { [key: string]: any } = { ...data };
 
-    // Clean up socialLinks: remove empty strings, convert to undefined
-    if (dataToSave.socialLinks) {
-        Object.keys(dataToSave.socialLinks).forEach(keyStr => {
-            const key = keyStr as keyof SocialLinks;
-            if (dataToSave.socialLinks[key] === '') {
-                dataToSave.socialLinks[key] = undefined; // Or delete dataToSave.socialLinks[key];
-            }
-        });
+    // Clean up socialLinks: remove any keys that have empty string values.
+    // Firestore does not allow 'undefined' as a field value.
+    // Empty strings ('') are allowed, but we'll treat them as "field to be removed/not set".
+    if (dataToSave.socialLinks && typeof dataToSave.socialLinks === 'object') {
+      const socialLinksCopy = { ...dataToSave.socialLinks }; // Work on a copy
+      let hasActualLinks = false;
+      for (const key of Object.keys(socialLinksCopy) as Array<keyof SocialLinks>) {
+        // Check for empty string or explicitly undefined (though undefined should be less common now)
+        if (socialLinksCopy[key] === '' || socialLinksCopy[key] === undefined || socialLinksCopy[key] === null) {
+          delete socialLinksCopy[key]; 
+        } else {
+          hasActualLinks = true;
+        }
+      }
+      
+      if (hasActualLinks) {
+        dataToSave.socialLinks = socialLinksCopy;
+      } else {
+        // If no valid links remain, remove the socialLinks field from the document.
+        // For an existing document, use deleteField(). For a new one, just don't add it.
+        if (docSnap.exists()) {
+          dataToSave.socialLinks = deleteField(); 
+        } else {
+          delete dataToSave.socialLinks;
+        }
+      }
     }
     
     dataToSave.updatedAt = serverTimestamp();
@@ -144,12 +161,13 @@ export async function updateUserProfileData(
     if (docSnap.exists()) {
       await updateDoc(profileDocRef, dataToSave);
     } else {
-      dataToSave.uid = userId; // Ensure uid is part of the initial document
+      dataToSave.uid = userId; 
       dataToSave.createdAt = serverTimestamp();
+      // If dataToSave.socialLinks was deleted, it won't be set on a new doc, which is correct.
       await setDoc(profileDocRef, dataToSave);
     }
   } catch (error) {
     console.error("Error updating user profile data in Firestore:", error);
-    throw error;
+    throw error; 
   }
 }

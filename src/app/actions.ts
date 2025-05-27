@@ -4,9 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { generateSlug, isSlugUnique } from '@/lib/posts';
 import { db } from '@/lib/firebase/config';
-import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'; // Removed collection as it's not directly used here for posts
+import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'; 
 import type { Post } from '@/lib/posts';
-import type { UserProfile } from '@/lib/userProfile';
+import type { UserProfile, SocialLinks } from '@/lib/userProfile'; // Import SocialLinks
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
 
 
@@ -16,7 +16,7 @@ const PostFormSchema = z.object({
   tags: z.string().optional().transform(val =>
     val ? val.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0) : []
   ),
-  userId: z.string().optional(), // userId is now expected for new posts
+  userId: z.string().optional(), 
 });
 
 const UserProfileSchema = z.object({
@@ -88,14 +88,14 @@ export async function createPostAction(prevState: FormState, formData: FormData)
   }
 
   const newPostRef = doc(db, 'posts', slug);
-  // Ensure the structure matches the Post interface, especially for Firestore Timestamps
-  const newPostData = { // No need for Omit if we directly map to expected Firestore structure
+  
+  const newPostData = { 
     title,
     content,
     tags: tags || [],
     userId,
-    createdAt: serverTimestamp(), // Firestore server timestamp
-    updatedAt: serverTimestamp(), // Firestore server timestamp
+    createdAt: serverTimestamp(), 
+    updatedAt: serverTimestamp(), 
   };
 
   try {
@@ -119,7 +119,6 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     title: formData.get('title'),
     content: formData.get('content'),
     tags: formData.get('tags'),
-    // userId is not part of the update form for post content itself
   });
 
   if (!validatedFields.success) {
@@ -132,12 +131,11 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
   const { title, content, tags } = validatedFields.data;
   const postDocRef = doc(db, 'posts', id);
 
-  // Structure for Firestore update
   const updatedPostData = {
     title,
     content,
     tags: tags || [],
-    updatedAt: serverTimestamp(), // Firestore server timestamp
+    updatedAt: serverTimestamp(), 
   };
 
   try {
@@ -162,7 +160,6 @@ export async function getAISuggestedTagsAction(postContent: string): Promise<str
     return [];
   }
   try {
-    // Dynamically import to avoid issues if Genkit isn't fully set up
     const { suggestTags: suggestTagsFlow } = await import('@/ai/flows/suggest-tags');
     const result = await suggestTagsFlow({ postContent });
     return result.tags.map(tag => tag.toLowerCase());
@@ -194,44 +191,36 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
 
   const { displayName, username, bio, ...socialLinksInput } = validatedFields.data;
 
+  // Construct the profile data to be saved. 
+  // Empty strings from socialLinksInput will be handled by updateUserProfileDataInDb.
   const profileUpdateData: Partial<UserProfile> = {
-    // uid is not part of the form, it's passed as first arg
     username: username,
-    // Storing displayName in Firestore profile is optional, primary source is Firebase Auth.
-    // If you want to store a copy:
-    displayName: displayName,
+    displayName: displayName, // This displayName is for the Firestore profile document
     bio: bio,
-    socialLinks: {
-      twitter: socialLinksInput.twitter,
-      linkedin: socialLinksInput.linkedin,
-      instagram: socialLinksInput.instagram,
-      portfolio: socialLinksInput.portfolio,
-      // github: socialLinksInput.github // If you add github to schema
-    },
+    socialLinks: socialLinksInput as SocialLinks, // Pass as is; '' values are fine here
   };
 
-  Object.keys(profileUpdateData.socialLinks!).forEach(keyStr => {
-    const key = keyStr as keyof typeof profileUpdateData.socialLinks;
-    if (profileUpdateData.socialLinks![key] === '') {
-      profileUpdateData.socialLinks![key] = undefined;
-    }
-  });
-
+  // The loop that converted '' to undefined has been removed.
+  // updateUserProfileDataInDb will now handle cleaning of socialLinks.
 
   try {
     await updateUserProfileDataInDb(userId, profileUpdateData);
   } catch (error) {
     console.error("Error updating user profile in DB:", error);
-    return { message: `Error: Failed to update profile in database. ${error instanceof Error ? error.message : ''}`, success: false };
+    // Provide more specific error message if possible
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { message: `Error: Failed to update profile in database. ${errorMessage}`, success: false };
   }
 
+  // Prepare data for optimistic UI update or state.
+  // Ensure this only includes fields that were actually part of the update.
   const updatedProfileForState: Partial<UserProfile> = {
       uid: userId,
-      ...profileUpdateData // This already includes displayName if you added it above
-  }
+      ...profileUpdateData 
+  };
 
   revalidatePath('/blog/profile');
-  revalidatePath(`/blog/profile/${userId}`);
+  revalidatePath(`/blog/profile/${userId}`); // If you have dynamic profile pages by ID
 
   return { message: 'Profile updated successfully!', success: true, updatedProfile: updatedProfileForState };
 }

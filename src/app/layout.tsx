@@ -46,7 +46,7 @@ export default function RootLayout({
         {/* Quill Library JS from CDN */}
         <Script
           src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
-          strategy="lazyOnload" // Load after page content is interactive
+          strategy="afterInteractive" // Changed from lazyOnload
         />
       </body>
     </html>

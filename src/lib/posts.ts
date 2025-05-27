@@ -22,6 +22,8 @@ export interface Post {
   updatedAt?: string; // ISO date string for client, Firestore Timestamp for server
   userId?: string;
   imageUrl?: string; // Optional field for post image
+  likedBy?: string[]; // Array of user IDs who liked the post
+  likeCount?: number; // Total number of likes
 }
 
 // Helper to convert Firestore Timestamp to ISO string or return existing string
@@ -58,6 +60,8 @@ export async function getPosts(count?: number): Promise<Post[]> {
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
         imageUrl: data.imageUrl,
+        likedBy: data.likedBy || [],
+        likeCount: data.likeCount || 0,
       } as Post;
     });
     return postsList;
@@ -86,6 +90,8 @@ export async function getPost(id: string): Promise<Post | undefined> {
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
         imageUrl: data.imageUrl,
+        likedBy: data.likedBy || [],
+        likeCount: data.likeCount || 0,
       } as Post;
     } else {
       console.log(`No post found with ID: ${id}`);
@@ -119,6 +125,8 @@ export async function getPostsByTag(tag: string): Promise<Post[]> {
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
         imageUrl: data.imageUrl,
+        likedBy: data.likedBy || [],
+        likeCount: data.likeCount || 0,
       } as Post;
     });
   } catch (error) {
@@ -151,6 +159,8 @@ export async function getPostsByArchive(year: number, month: number): Promise<Po
         updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
         userId: data.userId,
         imageUrl: data.imageUrl,
+        likedBy: data.likedBy || [],
+        likeCount: data.likeCount || 0,
       } as Post;
     });
   } catch (error)

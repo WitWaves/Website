@@ -1,9 +1,11 @@
+
 import PostForm from '@/components/posts/post-form';
 import { getPost } from '@/lib/posts';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { use } from 'react'; // Import use
 
 type EditPostPageProps = {
   params: {
@@ -24,7 +26,8 @@ export async function generateMetadata({ params }: EditPostPageProps) {
 
 
 export default async function EditPostPage({ params }: EditPostPageProps) {
-  const post = await getPost(params.id);
+  const resolvedParams = use(params); // Use React.use to unwrap params
+  const post = await getPost(resolvedParams.id);
 
   if (!post) {
     notFound();

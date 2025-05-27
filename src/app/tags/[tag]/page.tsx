@@ -1,8 +1,10 @@
+
 import { getPostsByTag, type Post } from '@/lib/posts';
 import PostCard from '@/components/posts/post-card';
 import { ArrowLeft, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { use } from 'react'; // Import use
 
 type TagPageProps = {
   params: {
@@ -19,7 +21,8 @@ export async function generateMetadata({ params }: TagPageProps) {
 }
 
 export default async function TagPage({ params }: TagPageProps) {
-  const tagName = decodeURIComponent(params.tag);
+  const resolvedParams = use(params); // Use React.use to unwrap params
+  const tagName = decodeURIComponent(resolvedParams.tag);
   const posts = await getPostsByTag(tagName);
 
   return (

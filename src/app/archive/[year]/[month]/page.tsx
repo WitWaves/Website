@@ -1,3 +1,4 @@
+
 import { getPostsByArchive, type Post } from '@/lib/posts';
 import PostCard from '@/components/posts/post-card';
 import { notFound } from 'next/navigation';
@@ -5,6 +6,7 @@ import { format, isValid } from 'date-fns';
 import { ArrowLeft, CalendarRange } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { use } from 'react'; // Import use
 
 type ArchivePageProps = {
   params: {
@@ -33,8 +35,10 @@ export async function generateMetadata({ params }: ArchivePageProps) {
 
 
 export default async function ArchivePage({ params }: ArchivePageProps) {
-  const year = parseInt(params.year, 10);
-  const month = parseInt(params.month, 10); // URL month is 1-12
+  const resolvedParams = use(params); // Use React.use to unwrap params
+
+  const year = parseInt(resolvedParams.year, 10);
+  const month = parseInt(resolvedParams.month, 10); // URL month is 1-12
 
   if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
     notFound();

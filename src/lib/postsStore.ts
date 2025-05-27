@@ -1,60 +1,32 @@
 
-export type Post = {
+// This file is no longer used for storing post data as of Firestore integration.
+// It can be deleted or kept for reference if it contains other non-post related mock data.
+// For now, I will empty it to signify its deprecation for posts.
+
+export type Post_DEPRECATED = {
   id: string; // slug
   title: string;
   content: string;
   tags: string[];
   createdAt: string; // ISO date string
   updatedAt?: string; // ISO date string
-  userId?: string; // Added to associate post with a user
+  userId?: string; 
 };
 
-// Assign some posts to a specific mock userId for demonstration on the profile page
-const mockProfileUserId = 'user-fayeerzk-id'; // Example ID, can be anything for mock
+// const mockProfileUserId = 'user-fayeerzk-id';
 
-const initialPostsData: Post[] = [
-  {
-    id: 'hello-world',
-    title: 'Hello World: My First Post',
-    content: 'This is the content of my very first blog post. Welcome to WitWaves! We are excited to share thoughts and ideas with you. Stay tuned for more interesting articles covering a wide range of topics. Feel free to explore and engage with our community.',
-    tags: ['welcome', 'first-post', 'introduction'],
-    createdAt: new Date(2023, 0, 15, 10, 30, 0).toISOString(),
-    userId: mockProfileUserId, // Assign to mock user
-  },
-  {
-    id: 'nextjs-rocks',
-    title: 'Why Next.JS is Awesome for Blogs',
-    content: 'Exploring the features of Next.JS that make it a great choice for building modern blogs. Server components, the app router, image optimization, and static site generation are just a few reasons why developers love Next.JS. It provides a fantastic developer experience and excellent performance out of the box.',
-    tags: ['nextjs', 'webdev', 'javascript', 'react'],
-    createdAt: new Date(2023, 1, 20, 14, 0, 0).toISOString(),
-    userId: 'another-user-id',
-  },
-  {
-    id: 'ai-in-writing',
-    title: 'The Role of AI in Modern Writing',
-    content: 'AI tools are changing how we write. From grammar checks to content generation, let\'s dive into the impact of AI on writing. We will explore various tools, ethical considerations, and the future of AI-assisted content creation. It is a rapidly evolving field with immense potential.',
-    tags: ['ai', 'writing', 'technology', 'future'],
-    createdAt: new Date(2024, 4, 10, 9, 0, 0).toISOString(),
-    userId: mockProfileUserId, // Assign to mock user
-  },
-  {
-    id: 'exploring-may-further',
-    title: 'Exploring May Further',
-    content: 'More thoughts and ideas shared in May 2024. This month has been full of interesting developments in technology and creative arts. We will delve into some specific topics that have caught our attention and share our perspectives.',
-    tags: ['musings', 'technology', 'creativity'],
-    createdAt: new Date(2024, 4, 25, 16, 45, 0).toISOString(),
-    userId: 'another-user-id',
-  },
-  {
-    id: 'deep-dive-into-css-tricks',
-    title: 'Deep Dive into Modern CSS Tricks',
-    content: 'CSS has come a long way. This post explores some of the latest and greatest CSS features like Grid, Flexbox, custom properties, and container queries that can help you build stunning and responsive layouts with cleaner code.',
-    tags: ['css', 'webdev', 'frontend', 'design'],
-    createdAt: new Date(2024, 5, 5, 11, 0, 0).toISOString(),
-    userId: mockProfileUserId, // Assign to mock user
-  }
-];
+// const initialPostsData_DEPRECATED: Post_DEPRECATED[] = [
+//   {
+//     id: 'hello-world',
+//     title: 'Hello World: My First Post',
+//     content: 'This is the content of my very first blog post. Welcome to WitWaves! We are excited to share thoughts and ideas with you. Stay tuned for more interesting articles covering a wide range of topics. Feel free to explore and engage with our community.',
+//     tags: ['welcome', 'first-post', 'introduction'],
+//     createdAt: new Date(2023, 0, 15, 10, 30, 0).toISOString(),
+//     userId: mockProfileUserId,
+//   },
+// ];
 
-// This mutable array simulates a database.
-// In a real application, you would use a proper database.
-export const posts: Post[] = [...initialPostsData];
+// export const posts_DEPRECATED: Post_DEPRECATED[] = [...initialPostsData_DEPRECATED];
+
+// This file is effectively deprecated for posts.
+// Firestore is now the source of truth.

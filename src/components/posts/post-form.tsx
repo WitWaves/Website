@@ -3,18 +3,17 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
-import { useActionState } from 'react'; // Corrected import
+import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card'; // Removed CardHeader, CardTitle, CardFooter, CardDescription
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState } from '@/app/actions';
-import type { Post } from '@/lib/postsStore';
+import type { Post } from '@/lib/posts'; // Changed from postsStore
 import { AlertCircle, Loader2, Wand2, CheckCircle, ImageUp, Minus, Image as ImageIcon, Code2 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/auth-context'; // Import useAuth
 
 interface PostFormProps {
   post?: Post;
@@ -39,12 +38,13 @@ function PublishButton({isUpdate}: {isUpdate: boolean}) {
 export default function PostForm({ post }: PostFormProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth(); // Get user from auth context
   const [isAISuggesting, startAITransition] = useTransition();
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
   const [tagInput, setTagInput] = useState('');
   const [contentForAI, setContentForAI] = useState(post?.content || '');
-  const [titleValue, setTitleValue] = useState(post?.title || ''); // For controlled title textarea
+  const [titleValue, setTitleValue] = useState(post?.title || '');
 
   const action = post ? updatePostAction.bind(null, post.id) : createPostAction;
   const [state, formAction] = useActionState(action, undefined);
@@ -57,12 +57,13 @@ export default function PostForm({ post }: PostFormProps) {
         description: post ? `Post "${titleValue}" updated.` : `Post created.`,
         action: <CheckCircle className="text-green-500" />,
       });
-      if (!post && (state as any).newPostId) {
-        router.push(`/posts/${(state as any).newPostId}`);
+      if (!post && state.newPostId) { // Ensure newPostId exists
+        router.push(`/posts/${state.newPostId}`);
       } else if (post) {
         router.push(`/posts/${post.id}`);
       } else {
-        router.push('/');
+        // Fallback if newPostId is somehow missing, though it shouldn't be on success
+        router.push('/blog'); 
       }
     } else if (state?.message && !state.success) {
       toast({
@@ -105,13 +106,34 @@ export default function PostForm({ post }: PostFormProps) {
     }
   };
 
+  if (authLoading) {
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
+  }
+
+  if (!user && !post) { // If creating new post, user must be logged in.
+    return (
+      <div className="text-center py-10">
+        <p className="text-lg text-muted-foreground">Please <a href="/login" className="text-primary hover:underline">log in</a> to create a post.</p>
+      </div>
+    );
+  }
+  // For editing, we might allow viewing the form but disable submission if not the owner.
+  // For now, if it's an edit form and `post.userId` doesn't match `user.uid`, it's problematic.
+  // This logic should be refined based on actual editing permissions.
+
   return (
-    // Removed Card wrapper to allow form to take full width of its container if needed
-    // or apply styling directly to the form or a new div.
-    // For this redesign, we'll use a flex container to manage layout.
-    <form action={formAction} className="w-full max-w-5xl mx-auto"> {/* Max width for content area */}
+    <form action={formAction} className="w-full max-w-5xl mx-auto">
+      {/* Hidden input for userId when creating a new post */}
+      {!post && user && (
+        <input type="hidden" name="userId" value={user.uid} />
+      )}
+      {/* For updates, userId might be needed for validation in action, but shouldn't be changed by user */}
+       {post && post.userId && ( // Pass existing userId for update for validation, not to change it
+        <input type="hidden" name="userId" value={post.userId} />
+      )}
+
+
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Left Column: Title, Content, Toolbar */}
         <div className="flex-grow lg:w-2/3 space-y-6">
           <div className="relative flex items-start">
             <div className="absolute left-0 top-2 bottom-2 w-1 bg-destructive rounded-full -ml-4 md:-ml-6"></div>
@@ -120,17 +142,16 @@ export default function PostForm({ post }: PostFormProps) {
               name="title"
               value={titleValue}
               onChange={(e) => setTitleValue(e.target.value)}
-              placeholder="The Timeless Beauty of Floral Patterns in Art and Design" // Placeholder from image
+              placeholder="The Timeless Beauty of Floral Patterns in Art and Design"
               className="text-3xl md:text-4xl lg:text-5xl font-bold border-none focus:ring-0 focus-visible:ring-0 p-0 h-auto resize-none overflow-hidden shadow-none leading-tight"
-              rows={2} // Start with 2 rows, auto-expands
+              rows={2}
               required
-              // Auto-resize textarea height for title
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = 'auto';
                 target.style.height = `${target.scrollHeight}px`;
               }}
-              onFocus={(e) => { // Ensure resize on focus in case of pre-filled content
+              onFocus={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = 'auto';
                 target.style.height = `${target.scrollHeight}px`;
@@ -143,14 +164,13 @@ export default function PostForm({ post }: PostFormProps) {
             id="content"
             name="content"
             defaultValue={post?.content}
-            placeholder="This stunning image showcases an intricate floral pattern..." // Placeholder from image
+            placeholder="This stunning image showcases an intricate floral pattern..."
             className="text-base leading-relaxed min-h-[500px] border-border focus:ring-primary"
             onChange={(e) => setContentForAI(e.target.value)}
             required
           />
           {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
 
-          {/* Placeholder Rich Text Toolbar */}
           <div className="flex items-center space-x-2 p-2 border border-border rounded-md bg-muted/50 sticky bottom-4 z-10">
             <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-foreground">
               <Minus className="h-5 w-5" />
@@ -164,9 +184,7 @@ export default function PostForm({ post }: PostFormProps) {
           </div>
         </div>
 
-        {/* Right Column: Thumbnail, Tags, Publish */}
-        <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max"> {/* Sticky for desktop */}
-          {/* Upload Thumbnail Placeholder */}
+        <div className="lg:w-1/3 space-y-8 lg:sticky lg:top-24 h-max">
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Featured Image</label>
             <div className="flex items-center justify-center w-full h-48 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors">
@@ -177,7 +195,6 @@ export default function PostForm({ post }: PostFormProps) {
             </div>
           </div>
 
-          {/* Tags Section */}
           <div className="space-y-3">
             <div>
                 <label htmlFor="tags-input" className="block text-sm font-medium text-foreground mb-0.5">
@@ -206,7 +223,6 @@ export default function PostForm({ post }: PostFormProps) {
             )}
              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-
             <Button type="button" variant="outline" size="sm" onClick={handleSuggestTags} disabled={isAISuggesting || !contentForAI.trim()} className="w-full text-xs py-2">
               {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
@@ -231,6 +247,7 @@ export default function PostForm({ post }: PostFormProps) {
               <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
             </p>
           )}
+           {state?.errors?.userId && <p className="text-sm text-destructive mt-1">{state.errors.userId.join(', ')}</p>}
           <PublishButton isUpdate={!!post} />
         </div>
       </div>

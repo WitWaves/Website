@@ -1,5 +1,5 @@
 
-'use client'; // Make this a client component to use hooks
+'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -7,21 +7,20 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, Link as LinkIcon, UserCircle } from 'lucide-react';
+import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, Link as LinkIcon, UserCircle, Loader2 } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import { getPosts, type Post } from '@/lib/posts';
-import type { MockAuthor } from '@/lib/authors'; // Keep for BlogPostCard if needed for author prop
-import { useAuth } from '@/contexts/auth-context'; // Import useAuth
+import type { MockAuthor } from '@/lib/authors';
+import { useAuth } from '@/contexts/auth-context';
 
 // Mock data for parts of the profile not in Firebase Auth by default
 // This would eventually come from a Firestore user profile collection
 const staticProfileDetails = {
-  handle: '@fayeerzk', // Example handle
+  handle: '@fayeerzk',
   bio: 'Exploring the intersections of technology, art, and philosophy. Avid reader, lifelong learner, and occasional writer. Sharing thoughts and discoveries.',
   stats: {
-    following: 45, // Mock data
-    followers: '4k', // Mock data
-    // Posts count will be dynamic
+    following: 45,
+    followers: '4k',
   },
   socialLinks: [
     { icon: X, href: '#', label: 'Twitter/X' },
@@ -31,100 +30,108 @@ const staticProfileDetails = {
   ],
 };
 
-const mockProfileUserId = 'user-fayeerzk-id'; // Same ID used in postsStore for demo
-
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
-  const [allPosts, setAllPosts] = useState<Post[]>([]);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
   useEffect(() => {
-    async function fetchPosts() {
+    async function fetchAndFilterPosts() {
+      if (!user) {
+        setIsLoadingPosts(false);
+        setUserPosts([]); // No user, no posts to show
+        return;
+      }
       setIsLoadingPosts(true);
-      const fetchedPosts = await getPosts();
-      setAllPosts(fetchedPosts);
-      setIsLoadingPosts(false);
+      try {
+        const allPosts = await getPosts(); // Fetches all posts from Firestore
+        const filteredPosts = allPosts.filter(post => post.userId === user.uid);
+        setUserPosts(filteredPosts);
+      } catch (error) {
+        console.error("Error fetching user posts:", error);
+        setUserPosts([]);
+      } finally {
+        setIsLoadingPosts(false);
+      }
     }
-    fetchPosts();
-  }, []);
 
-  useEffect(() => {
-    if (user && allPosts.length > 0) {
-      // Filter posts for the logged-in user.
-      // For demonstration, we'll also check against mockProfileUserId if user.uid doesn't match any
-      // In a real app, posts would reliably have the correct user.uid
-      const filtered = allPosts.filter(post => post.userId === user.uid || post.userId === mockProfileUserId);
-      setUserPosts(filtered);
-    } else if (!user && allPosts.length > 0) {
-      // If no user is logged in, or for broader demo, show posts by mockProfileUserId
-      setUserPosts(allPosts.filter(post => post.userId === mockProfileUserId));
-    } else {
+    if (user) {
+      fetchAndFilterPosts();
+    } else if (!authLoading) { // If not auth loading and no user, clear posts
+      setIsLoadingPosts(false);
       setUserPosts([]);
     }
-  }, [user, allPosts]);
+  }, [user, authLoading]);
 
-  const displayName = user?.displayName || "Fayee. ZRF"; // Fallback to mock
+  const displayName = user?.displayName || "Fayee. ZRF";
   const avatarUrl = user?.photoURL || 'https://placehold.co/128x128.png?text=FZ';
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
 
-  // This author object is for BlogPostCard, which expects a MockAuthor shape
-  // In a real app, you might have a more unified UserProfile type
-  const authorForCards: MockAuthor = {
-    id: user?.uid || mockProfileUserId,
+  const authorForCards: MockAuthor = { // This is for BlogPostCard prop
+    id: user?.uid || 'mock-user-id',
     name: displayName,
-    role: 'Author', // Generic role
+    role: 'Author',
     avatarUrl: user?.photoURL || 'https://placehold.co/40x40.png?text=AU',
   };
 
+  if (authLoading) {
+    return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3">Loading profile...</p></div>;
+  }
 
-  if (authLoading || isLoadingPosts) {
-    return <div className="flex justify-center items-center h-screen"><p>Loading profile...</p></div>;
+  if (!user) {
+     return (
+      <div className="container mx-auto max-w-5xl px-4 py-12 text-center">
+        <UserCircle className="mx-auto h-24 w-24 text-muted-foreground mb-4" />
+        <h1 className="text-2xl font-semibold mb-2">Profile Page</h1>
+        <p className="text-muted-foreground mb-6">Please <Link href="/login" className="text-primary hover:underline">log in</Link> to view your profile.</p>
+      </div>
+    );
   }
 
   return (
     <div className="w-full">
-      {/* Profile Info Section */}
       <div className="container mx-auto max-w-5xl px-4 pt-8">
-        <div className="flex flex-col md:flex-row items-center md:items-end md:space-x-6 bg-card p-6 rounded-lg shadow-lg">
-          <Avatar className="h-28 w-28 border-4 border-background shadow-md">
-            <AvatarImage src={avatarUrl} alt={displayName} data-ai-hint="person face"/>
-            <AvatarFallback>{fallbackAvatar}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 mt-4 md:mt-0 text-center md:text-left">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">{displayName}</h1>
-                <p className="text-md text-muted-foreground">{staticProfileDetails.handle}</p>
+        <div className="bg-card p-6 md:p-8 rounded-lg shadow-xl relative -mt-10">
+          <div className="flex flex-col md:flex-row items-center md:items-end md:space-x-6">
+            <Avatar className="h-28 w-28 md:h-32 md:w-32 border-4 border-background shadow-lg -mt-16 md:-mt-20 shrink-0">
+              <AvatarImage src={avatarUrl} alt={displayName} data-ai-hint="person face" />
+              <AvatarFallback>{fallbackAvatar}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 mt-4 md:mt-0 text-center md:text-left">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">{displayName}</h1>
+                  <p className="text-md text-muted-foreground">{staticProfileDetails.handle}</p>
+                </div>
+                <div className="mt-3 sm:mt-0 flex space-x-2 justify-center md:justify-start">
+                  <Button variant="outline" size="sm" onClick={() => alert('Edit profile clicked! (Not implemented yet)')}>
+                    <Settings2 className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                  <Button variant="ghost" size="icon">
+                    <Share2 className="h-4 w-4" />
+                    <span className="sr-only">Share Profile</span>
+                  </Button>
+                </div>
               </div>
-              <div className="mt-3 sm:mt-0 flex space-x-2 justify-center md:justify-start">
-                <Button variant="outline" size="sm" onClick={() => alert('Edit profile clicked! (Not implemented yet)')}>
-                  <Settings2 className="h-4 w-4 mr-2" />
-                  Edit Profile
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Share2 className="h-4 w-4" />
-                  <span className="sr-only">Share Profile</span>
-                </Button>
+              <div className="mt-4 flex justify-center md:justify-start space-x-6 text-sm text-muted-foreground">
+                <div><span className="font-semibold text-foreground">{staticProfileDetails.stats.following}</span> Following</div>
+                <div><span className="font-semibold text-foreground">{staticProfileDetails.stats.followers}</span> Followers</div>
+                <div><span className="font-semibold text-foreground">{isLoadingPosts ? <Loader2 className="h-4 w-4 animate-spin inline"/> : userPosts.length}</span> Posts</div>
               </div>
-            </div>
-            <div className="mt-4 flex justify-center md:justify-start space-x-6 text-sm text-muted-foreground">
-              <div><span className="font-semibold text-foreground">{staticProfileDetails.stats.following}</span> Following</div>
-              <div><span className="font-semibold text-foreground">{staticProfileDetails.stats.followers}</span> Followers</div>
-              <div><span className="font-semibold text-foreground">{userPosts.length}</span> Posts</div>
-            </div>
-            <p className="mt-4 text-sm text-foreground leading-relaxed max-w-xl">
-              {staticProfileDetails.bio}
-            </p>
-            <div className="mt-4 flex justify-center md:justify-start space-x-3">
-              {staticProfileDetails.socialLinks.map(link => (
-                <Link href={link.href} key={link.label} target="_blank" rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                  aria-label={link.label}
-                >
-                  <link.icon className="h-5 w-5" />
-                </Link>
-              ))}
+              <p className="mt-4 text-sm text-foreground leading-relaxed max-w-xl">
+                {staticProfileDetails.bio}
+              </p>
+              <div className="mt-4 flex justify-center md:justify-start space-x-3">
+                {staticProfileDetails.socialLinks.map(link => (
+                  <Link href={link.href} key={link.label} target="_blank" rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    aria-label={link.label}
+                  >
+                    <link.icon className="h-5 w-5" />
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -132,7 +139,6 @@ export default function ProfilePage() {
 
       <Separator className="my-8 container max-w-5xl" />
 
-      {/* Tabs Section */}
       <div className="container mx-auto max-w-5xl px-4">
         <Tabs defaultValue="posts" className="w-full">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-6 bg-muted/50 p-1 rounded-lg">
@@ -156,9 +162,11 @@ export default function ProfilePage() {
                 </Button>
               ))}
             </div>
-            {userPosts.length === 0 ? (
+            {isLoadingPosts ? (
+              <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading posts...</p></div>
+            ) : userPosts.length === 0 ? (
               <p className="text-center text-muted-foreground text-lg py-12">
-                {user ? "You haven't published any posts yet." : "No posts found for this user."}
+                You haven&apos;t published any posts yet.
               </p>
             ) : (
               <div className="space-y-8">
@@ -213,7 +221,6 @@ export default function ProfilePage() {
   );
 }
 
-// Simple Card component to wrap content for empty tabs for now
 function Card({ children, className }: { children: React.ReactNode, className?: string }) {
   return (
     <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>

@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -141,10 +142,13 @@
     /* font-family: var(--font-jost), sans-serif; */ /* Apply Jost font if needed, Quill might inherit */
   }
   .ql-toolbar.ql-snow {
-    @apply rounded-t-md border-input bg-card; /* Match card styling */
+    @apply rounded-t-md border-input;
+    background-color: hsl(var(--card)); /* Replaced @apply bg-card */
   }
   .ql-container.ql-snow {
-    @apply rounded-b-md border-input bg-card text-card-foreground; /* Match card styling */
+    @apply rounded-b-md border-input;
+    background-color: hsl(var(--card)); /* Replaced @apply bg-card */
+    color: hsl(var(--card-foreground)); /* Replaced @apply text-card-foreground */
   }
   /* Ensure toolbar buttons are visible in dark mode */
   .dark .ql-snow .ql-stroke {
@@ -156,17 +160,15 @@
   .dark .ql-snow .ql-picker-label {
     @apply text-foreground/70;
   }
-   /* Ensure Quill editor uses card background and foreground */
+   /* Ensure Quill editor uses card background and foreground if wrapped in .bg-card */
+  /* These rules are fine as they apply border-border, not bg-card itself. */
   .bg-card .ql-toolbar.ql-snow {
     @apply border-border;
   }
   .bg-card .ql-container.ql-snow {
     @apply border-border;
   }
-  .bg-card .ql-editor {
-    /* background-color: hsl(var(--card)); */ /* Already handled by parent */
-    /* color: hsl(var(--card-foreground)); */ /* Already handled by parent */
-  }
+  /* .bg-card .ql-editor is handled by parent */
   .dark .bg-card .ql-stroke {
      @apply stroke-current text-card-foreground/70;
   }

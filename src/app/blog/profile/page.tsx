@@ -257,9 +257,9 @@ export default function ProfilePage() {
     } else if (!newPhotoURL && (customProfile?.photoURL || user?.photoURL)) {
         formData.set('photoURL', '');
     }
-
+    // Proceed to call the server action for Firestore profile data
     startEditTransition(() => {
-        handleProfileFormSubmit(formData);
+      handleProfileFormSubmit(formData);
     });
   };
   
@@ -303,7 +303,7 @@ export default function ProfilePage() {
   return (
     <div className="flex flex-col md:flex-row gap-6 md:gap-8 py-6 md:py-8">
       {/* Left Sidebar - Profile Info Card */}
-      <aside className="w-full md:w-1/3 lg:w-1/4 shrink-0">
+      <aside className="w-full md:w-2/5 lg:w-1/3 shrink-0">
         <Card className="shadow-lg rounded-xl overflow-hidden">
           <div className="relative h-32 md:h-36 bg-muted">
             <Image
@@ -589,5 +589,7 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
 
     

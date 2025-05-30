@@ -3,6 +3,54 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+================================================================================
+CUSTOM SATOSHI FONT FACES
+================================================================================
+IMPORTANT: Replace the placeholder Firebase Storage URLs below with the
+actual public URLs of YOUR Satoshi font files.
+Ensure these files are publicly readable in your Firebase Storage.
+================================================================================
+*/
+
+@font-face {
+  font-family: 'Satoshi';
+  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Regular.woff2?alt=media') format('woff2');
+  /* Replace YOUR_PROJECT_ID.appspot.com with your actual Firebase project ID */
+  /* And ensure the path /fonts%2FSatoshi-Regular.woff2 is correct */
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Medium.woff2?alt=media') format('woff2');
+  /* Adjust path if your file is named differently */
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Bold.woff2?alt=media') format('woff2');
+  /* Adjust path if your file is named differently */
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Black.woff2?alt=media') format('woff2');
+  /* Adjust path if your file is named differently */
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -23,7 +71,7 @@
 
     --brand-green: 150 58% 42%;
     --brand-green-foreground: 0 0% 100%;
-    
+
     --brand-yellow-orange: 38 96% 54%;
     --brand-yellow-orange-foreground: 220 9% 23%; /* Dark text for contrast */
 
@@ -54,7 +102,7 @@
     --chart-3: var(--brand-pink-red);
     --chart-4: 30 80% 60%;  /* Keeping an orange variant */
     --chart-5: 0 0% 50%;   /* Gray variant */
-    
+
     --sidebar-background: 220 10% 98%;
     --sidebar-foreground: 220 9% 23%;
     --sidebar-primary: var(--brand-green);
@@ -63,6 +111,9 @@
     --sidebar-accent-foreground: var(--brand-yellow-orange-foreground);
     --sidebar-border: 220 10% 90%;
     --sidebar-ring: var(--brand-green);
+
+    /* Font Variable */
+    --font-satoshi: "Satoshi", sans-serif; /* Changed from --font-jost */
   }
 
   .dark {
@@ -81,7 +132,7 @@
 
     --brand-green: 150 50% 50%;
     --brand-green-foreground: 0 0% 100%;
-    
+
     --brand-yellow-orange: 38 80% 60%;
     --brand-yellow-orange-foreground: 220 10% 15%;
 
@@ -127,34 +178,43 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-jost), sans-serif;
+    font-family: var(--font-satoshi); /* Changed from var(--font-jost) */
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-jost), sans-serif;
-    @apply font-bold;
+    font-family: var(--font-satoshi); /* Changed from var(--font-jost) */
+    @apply font-bold; /* Keep existing font-bold or adjust weights based on Satoshi */
   }
 }
 
-/* Quill editor styling adjustments will now primarily come from CDN quill.snow.css */
-/* We might keep minimal overrides here if needed, but better to rely on the theme CSS */
+/* Quill editor styling adjustments */
 @layer components {
-  /* Example: Ensure Quill editor uses card background and foreground if it's inside a .bg-card div */
-  /* This might not be needed if quill.snow.css handles theming well with CSS variables */
-  /*
-  .bg-card .ql-toolbar.ql-snow {
-    @apply border-border;
+  .ql-toolbar.ql-snow {
+    @apply rounded-t-md border-input;
+    background-color: hsl(var(--card)); /* Use CSS var directly */
+    color: hsl(var(--card-foreground)); /* Use CSS var directly */
   }
-  .bg-card .ql-container.ql-snow {
-    @apply border-border;
+  .ql-container.ql-snow {
+    @apply rounded-b-md border-input;
+    background-color: hsl(var(--card)); /* Use CSS var directly */
+    color: hsl(var(--card-foreground)); /* Use CSS var directly */
   }
-  .dark .bg-card .ql-stroke {
-     @apply stroke-current text-card-foreground/70;
+  .ql-editor {
+    @apply min-h-[250px] text-base leading-relaxed;
+    color: hsl(var(--card-foreground)); /* Ensure editor text color matches card foreground */
   }
-   .dark .bg-card .ql-fill {
-    @apply fill-current text-card-foreground/70;
+
+  .dark .ql-toolbar.ql-snow .ql-stroke,
+  .dark .ql-toolbar.ql-snow .ql-picker-label,
+  .dark .ql-toolbar.ql-snow .ql-picker-item {
+    @apply stroke-current text-card-foreground/80;
   }
-  .dark .bg-card .ql-picker-label {
-    @apply text-card-foreground/70;
+   .dark .ql-toolbar.ql-snow .ql-fill {
+    @apply fill-current text-card-foreground/80;
   }
-  */
+   .dark .ql-toolbar.ql-snow .ql-picker-options {
+    @apply bg-popover text-popover-foreground;
+  }
+  .dark .ql-editor {
+    color: hsl(var(--card-foreground));
+  }
 }

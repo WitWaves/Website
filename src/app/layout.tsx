@@ -1,6 +1,6 @@
 
 import type { Metadata } from 'next';
-import { Jost } from 'next/font/google';
+// Removed Jost font import
 import Script from 'next/script'; // Import Script
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
@@ -9,11 +9,7 @@ import Footer from '@/components/layout/footer';
 import { cn } from '@/lib/utils';
 import { AuthProvider } from '@/contexts/auth-context';
 
-const jost = Jost({
-  variable: '--font-jost',
-  subsets: ['latin'],
-  weights: ['100', '200', '300', '400', '500', '600', '700', '800', '900']
-});
+// Removed jost constant
 
 export const metadata: Metadata = {
   title: 'WitWaves - Diverse Thoughts, One Ocean',
@@ -26,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn(jost.variable)}>
+    <html lang="en" className={cn('')}> {/* Removed jost.variable */}
       <head>
         {/* Quill Snow Theme CSS from CDN */}
         <link
@@ -46,7 +42,7 @@ export default function RootLayout({
         {/* Quill Library JS from CDN */}
         <Script
           src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
-          strategy="afterInteractive" // Changed from lazyOnload
+          strategy="afterInteractive"
         />
       </body>
     </html>

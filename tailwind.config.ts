@@ -8,7 +8,11 @@ export default {
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-  	extend: {
+    extend: {
+      fontFamily: {
+        sans: ['var(--font-satoshi)', 'sans-serif'], // Added Satoshi as default sans
+        satoshi: ['Satoshi', 'sans-serif'], // Specific utility class if needed
+      },
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

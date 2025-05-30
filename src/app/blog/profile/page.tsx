@@ -165,6 +165,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (activeActivityTab === 'activity' && user?.uid) {
       console.log('[ProfilePage] Activity tab active for user:', user.uid);
+      // Fetch Saved Posts
       setIsLoadingSavedPosts(true);
       getSavedPostsDetailsForUser(user.uid)
         .then(data => {
@@ -173,10 +174,12 @@ export default function ProfilePage() {
         })
         .catch(err => {
           console.error("[ProfilePage] Error fetching saved posts:", err);
-          toast({ title: "Error", description: "Could not load saved posts.", variant: "destructive" });
+          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check console & Firestore rules.", variant: "destructive" });
+          setSavedPosts([]); 
         })
         .finally(() => setIsLoadingSavedPosts(false));
 
+      // Fetch User Comments
       setIsLoadingUserComments(true);
       getCommentsByUser(user.uid)
         .then(data => {
@@ -185,9 +188,14 @@ export default function ProfilePage() {
         })
         .catch(err => {
           console.error("[ProfilePage] Error fetching user comments:", err);
-          toast({ title: "Error", description: "Could not load your comments.", variant: "destructive" });
+          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required or check Firestore rules.", variant: "destructive" });
+          setUserComments([]); 
         })
         .finally(() => setIsLoadingUserComments(false));
+    } else if (activeActivityTab !== 'activity') {
+      // Optionally clear data if tab is no longer active, or keep it cached
+      // setSavedPosts([]);
+      // setUserComments([]);
     }
   }, [activeActivityTab, user?.uid, toast]);
 
@@ -200,7 +208,7 @@ export default function ProfilePage() {
   };
 
   const clientSideProfileUpdateAndServerAction = async (formData: FormData) => {
-    if (!auth.currentUser) { 
+    if (!auth.currentUser || !user) { 
         toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
         return;
     }
@@ -278,7 +286,7 @@ export default function ProfilePage() {
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
   const bio = customProfile?.bio || "No bio set. Click 'Edit Profile' to add one.";
-  const userRole = "Web developer and designer"; 
+  const userRole = "Blog Author"; // Or derive this if available in UserProfile
   
   const profileSocialLinksArray = customProfile?.socialLinks ?
     Object.entries(customProfile.socialLinks)
@@ -317,7 +325,7 @@ export default function ProfilePage() {
           <div className="relative h-32 md:h-36 bg-muted">
             <Image
               src="https://placehold.co/400x150.png" 
-              alt="Profile background"
+              alt="Profile background decorative"
               layout="fill"
               objectFit="cover"
               data-ai-hint="abstract waves"
@@ -346,7 +354,7 @@ export default function ProfilePage() {
                 <DialogHeader>
                   <DialogTitle>Edit Profile</DialogTitle>
                 </DialogHeader>
-                <form action={clientSideProfileUpdateAndServerAction} className="space-y-4 py-4">
+                <form onSubmit={(e) => { e.preventDefault(); clientSideProfileUpdateAndServerAction(new FormData(e.currentTarget));}} className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Profile Picture</Label>
                     <div className="flex items-center space-x-4">
@@ -562,7 +570,7 @@ export default function ProfilePage() {
 
                   <section>
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
-                     <p className="text-muted-foreground text-sm">Your liked posts will appear here. (Feature coming soon)</p>
+                     <p className="text-muted-foreground text-sm">Your liked posts will appear here. (Feature under development)</p>
                   </section>
                   
                   <Separator/>

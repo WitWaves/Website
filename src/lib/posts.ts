@@ -145,9 +145,18 @@ export async function getPostsByUserId(userId: string): Promise<Post[]> {
         commentCount: data.commentCount || 0,
       } as Post;
     });
-  } catch (error) {
-    console.error(`Error fetching posts for user ${userId} from Firestore:`, error);
-    return [];
+  } catch (error: any) {
+    if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
+      console.error(
+        `Firestore query in getPostsByUserId failed because a composite index is missing. 
+         Please create the index in your Firebase console. 
+         The error message usually provides a direct link to create it. 
+         Error: ${error.message}`
+      );
+    } else {
+      console.error(`Error fetching posts for user ${userId} from Firestore:`, error);
+    }
+    return []; // Return empty array on error to prevent page crash
   }
 }
 

@@ -35,9 +35,9 @@ export default function Footer() {
                 <Image
                   src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
                   alt="WitWaves Logo"
-                  width={150} // Adjust width as needed
-                  height={36} // Adjust height as needed
-                  className="h-9 w-auto" // Tailwind classes for responsive height and auto width
+                  width={180} // Increased width
+                  height={43} // Increased height (maintaining aspect ratio)
+                  className="h-auto" // Allow height to adjust based on width
                   data-ai-hint="logo wordmark"
                 />
               </Link>

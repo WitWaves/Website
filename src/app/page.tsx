@@ -19,8 +19,8 @@ export default async function HomePage() {
                 <Image 
                   src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FExploreImage.jpg?alt=media&token=36ab8659-f902-4cb6-bf68-2cb1664d042e" 
                   alt="Decorative illustration" 
-                  width={60} 
-                  height={60} 
+                  width={80} 
+                  height={80} 
                   className="inline-block mr-2 -mt-2 relative top-[-0.1em] lg:top-[-0.15em]" 
                   data-ai-hint="explore theme"
                 />

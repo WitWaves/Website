@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn('')}>
+    <html lang="en" className={cn('')}>{/* Removed jost.variable and ensuring no leading/trailing space here */}
       <head>
         {/* Quill Snow Theme CSS from CDN */}
         <link

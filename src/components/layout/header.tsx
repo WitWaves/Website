@@ -21,18 +21,20 @@ export default function Header() {
     <header className="bg-background border-b border-border/50 sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         <div className="flex items-center justify-between h-20">
-          <div className="flex items-center space-x-6">
-            <Link href="/">
-              <Image
-                src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
-                alt="WitWaves Logo"
-                width={180} 
-                height={43} 
-                priority 
-                className="h-auto" 
-                data-ai-hint="logo wordmark"
-              />
-            </Link>
+          {/* Removed the intermediate div around the Link/Image */}
+          <Link href="/">
+            <Image
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
+              alt="WitWaves Logo"
+              width={180} 
+              height={43} 
+              priority 
+              className="h-auto" 
+              data-ai-hint="logo wordmark"
+            />
+          </Link>
+          
+          <div className="flex items-center space-x-3">
             <div className="hidden md:flex items-center">
               <div className="relative max-w-xs">
                 <Input
@@ -43,9 +45,6 @@ export default function Header() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-3">
             <nav className="hidden md:flex items-center space-x-6">
               {navLinks.map((link) => (
                 <Link

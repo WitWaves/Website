@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, Share2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon, Edit3, Globe, Users, FileCheck2, Minus, ImageUp, Code2 } from 'lucide-react';
+import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon, Edit3, Globe, Users, FileCheck2, Minus, ImageUp, Code2 } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import PostCard from '@/components/posts/post-card'; // For saved posts
 import { getPosts, type Post } from '@/lib/posts';
@@ -142,7 +142,6 @@ export default function ProfilePage() {
             if (profileDataFromDb) {
                 setCustomProfile(profileDataFromDb);
             } else {
-                 // Fallback if Firestore profile is somehow deleted post-update
                  setCustomProfile({
                     uid: user.uid,
                     displayName: auth.currentUser?.displayName || user.displayName || "User",
@@ -201,17 +200,16 @@ export default function ProfilePage() {
   };
 
   const clientSideProfileUpdateAndServerAction = async (formData: FormData) => {
-    if (!auth.currentUser) { // Use auth from Firebase config
+    if (!auth.currentUser) { 
         toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
         return;
     }
     const newDisplayName = formData.get('displayName') as string;
-    // Prioritize previewUrl for new photo, then current customProfile, then user's auth photoURL
     let newPhotoURL = previewUrl || customProfile?.photoURL || user?.photoURL || null;
 
     if (selectedFile) {
       setIsUploading(true);
-      setUploadProgress(0); // Reset progress
+      setUploadProgress(0);
       try {
         const imageFileRef = storageRef(storage, `profileImages/${auth.currentUser.uid}/profilePicture-${Date.now()}-${selectedFile.name}`);
         const uploadTask = uploadBytesResumable(imageFileRef, selectedFile);
@@ -225,8 +223,8 @@ export default function ProfilePage() {
             (error) => {
               console.error("Upload failed:", error);
               toast({ title: "Upload Error", description: `Failed to upload image. ${error.message}`, variant: "destructive" });
-              setIsUploading(false); // Ensure uploading state is reset on error
-              reject(error); // Reject the promise to stop further execution
+              setIsUploading(false); 
+              reject(error); 
             },
             async () => {
               newPhotoURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -236,12 +234,10 @@ export default function ProfilePage() {
           );
         });
       } catch (error) {
-        // Error already handled and toasted by the uploadTask's error callback
-        setIsUploading(false); // Ensure uploading state is reset
-        return; // Stop if upload failed
+        setIsUploading(false); 
+        return; 
       } finally {
-        setIsUploading(false); // Reset uploading state if successful or if initial try fails
-        // setUploadProgress(0); // Progress is reset at start of upload
+        setIsUploading(false);
       }
     }
 
@@ -249,10 +245,12 @@ export default function ProfilePage() {
     if (newDisplayName && newDisplayName !== auth.currentUser.displayName) {
       authProfileUpdates.displayName = newDisplayName;
     }
-    // Only update Firebase Auth photoURL if a new one was generated (from upload or explicitly set)
     if (newPhotoURL && newPhotoURL !== auth.currentUser.photoURL) { 
       authProfileUpdates.photoURL = newPhotoURL;
+    } else if (newPhotoURL === null && auth.currentUser.photoURL !== null) { // Explicitly removing photo
+      authProfileUpdates.photoURL = null; // Set to null to remove from Firebase Auth
     }
+
 
     if (Object.keys(authProfileUpdates).length > 0 && auth.currentUser) {
       try {
@@ -261,18 +259,15 @@ export default function ProfilePage() {
       } catch (error) {
         console.error("Error updating Firebase Auth profile:", error);
         toast({ title: "Auth Update Error", description: `Failed to update Firebase Auth profile. ${ (error as Error).message }`, variant: "destructive" });
-        // Optionally decide if this error should prevent Firestore update. For now, it proceeds.
       }
     }
 
     if (newPhotoURL) {
         formData.set('photoURL', newPhotoURL);
     } else if (newPhotoURL === null && (customProfile?.photoURL || user?.photoURL)) { 
-        // If newPhotoURL became null (e.g. user wants to remove photo, though UI for this isn't present)
-        // and there was an existing photo, set form 'photoURL' to empty string to signal removal in action.
         formData.set('photoURL', '');
     }
-    // Proceed to call the server action for Firestore profile data
+    
     startEditTransition(() => {
       handleProfileFormSubmit(formData);
     });
@@ -283,7 +278,7 @@ export default function ProfilePage() {
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
   const bio = customProfile?.bio || "No bio set. Click 'Edit Profile' to add one.";
-  const userRole = "Web developer and designer"; // Static for now as per image
+  const userRole = "Web developer and designer"; 
   
   const profileSocialLinksArray = customProfile?.socialLinks ?
     Object.entries(customProfile.socialLinks)
@@ -317,12 +312,11 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col md:flex-row gap-6 md:gap-8 py-6 md:py-8">
-      {/* Left Sidebar - Profile Info Card */}
       <aside className="w-full md:w-2/5 lg:w-1/3 shrink-0">
-        <Card className="shadow-lg rounded-xl overflow-hidden">
+        <Card className="shadow-lg rounded-xl overflow-hidden relative">
           <div className="relative h-32 md:h-36 bg-muted">
             <Image
-              src="https://placehold.co/400x150.png"
+              src="https://placehold.co/400x150.png" 
               alt="Profile background"
               layout="fill"
               objectFit="cover"
@@ -334,13 +328,13 @@ export default function ProfilePage() {
             </Avatar>
           </div>
 
-          <div className="pt-16 pb-6 px-6 text-center">
+          <div className="pt-16 pb-6 px-6 text-center relative"> {/* Added relative here */}
             <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
                 setIsEditModalOpen(isOpen);
                 if (!isOpen) {
                     setSelectedFile(null);
-                    setPreviewUrl(null); // Clear preview when dialog closes
-                    if (fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
+                    setPreviewUrl(null); 
+                    if (fileInputRef.current) fileInputRef.current.value = ''; 
                 }
             }}>
               <DialogTrigger asChild>
@@ -361,8 +355,8 @@ export default function ProfilePage() {
                         <AvatarFallback>{(displayName || 'U').substring(0,2).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <Input
-                        id="photoURLForm" // Not directly used as form field name for file, but good for label association
-                        name="photoFile" // This name isn't used by FormData directly if we handle file separately
+                        id="photoURLForm" 
+                        name="photoFile" 
                         type="file"
                         accept="image/*"
                         onChange={handleFileChange}
@@ -375,9 +369,6 @@ export default function ProfilePage() {
                         <div className="bg-primary h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
                       </div>
                     )}
-                    {/* Hidden input for photoURL to be set by clientSideProfileUpdateAndServerAction */}
-                    {/* <input type="hidden" name="photoURL" value={previewUrl || customProfile?.photoURL || user?.photoURL || ''} /> */}
-
                   </div>
                   <div>
                     <Label htmlFor="displayNameForm">Display Name</Label>
@@ -418,7 +409,7 @@ export default function ProfilePage() {
                    <div>
                     <Label htmlFor="githubForm">GitHub URL</Label>
                     <Input id="githubForm" name="github" defaultValue={customProfile?.socialLinks?.github || ''} placeholder="https://github.com/yourusername" />
-                    {/* No specific error display for github in schema, but can be added if needed */}
+                     {editProfileState?.errors?.github && <p className="text-sm text-destructive mt-1">{editProfileState.errors.github.join(', ')}</p>}
                   </div>
                   {editProfileState?.message && !editProfileState.success && (!editProfileState.errors || Object.keys(editProfileState.errors).length === 0 || (Object.keys(editProfileState.errors).length === 1 && editProfileState.errors.photoURL)) && (
                      <p className="text-sm text-destructive mt-1">{editProfileState.message}</p>
@@ -429,8 +420,8 @@ export default function ProfilePage() {
                           <Button type="button" variant="outline" onClick={() => {
                               setIsEditModalOpen(false);
                               setSelectedFile(null);
-                              setPreviewUrl(null); // Clear preview
-                              if (fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
+                              setPreviewUrl(null); 
+                              if (fileInputRef.current) fileInputRef.current.value = ''; 
                           }}>Cancel</Button>
                       </DialogClose>
                       <Button type="submit" disabled={isEditPending || isEditPendingTransition || isUploading}>
@@ -445,7 +436,6 @@ export default function ProfilePage() {
             <p className="text-sm text-muted-foreground">{usernameHandle}</p>
             <div className="flex items-center justify-center text-sm text-muted-foreground mt-1">
               <span>{userRole}</span>
-              {/* <LinkIcon className="ml-2 h-4 w-4 text-muted-foreground hover:text-primary cursor-pointer" /> */}
             </div>
 
             <div className="grid grid-cols-3 gap-2 my-4 text-center">
@@ -494,7 +484,6 @@ export default function ProfilePage() {
         </Card>
       </aside>
 
-      {/* Right Content Area - Tabs */}
       <main className="flex-1 min-w-0">
         <Tabs defaultValue="posts" className="w-full" onValueChange={setActiveActivityTab}>
           <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1 rounded-lg border">
@@ -600,3 +589,6 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+
+    

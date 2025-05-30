@@ -1,7 +1,6 @@
 
 'use client'; // Add 'use client' for usePathname
 
-import type { Metadata } from 'next';
 import { usePathname } from 'next/navigation'; // Import usePathname
 import { Jost } from 'next/font/google';
 import Script from 'next/script';
@@ -18,7 +17,8 @@ import { AuthProvider } from '@/contexts/auth-context';
 const jost = Jost({
   variable: '--font-jost',
   subsets: ['latin'],
-  weights: ['100', '200', '300', '400', '500', '600', '700', '800', '900']
+  display: 'swap', // Added display: 'swap'
+  // weights: ['100', '200', '300', '400', '500', '600', '700', '800', '900'] // Removed specific weights to use variable font capabilities
 });
 
 // Metadata cannot be exported from client components. 
@@ -34,7 +34,8 @@ export default function BlogLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
-  const showSidebars = pathname !== '/blog/profile'; // Hide on profile page
+  // Hide sidebars on the logged-in user's profile page AND on public user profile pages
+  const showSidebars = !pathname.startsWith('/blog/profile'); 
 
   return (
     // This div structure will be injected into the <main> tag of the parent layout (src/app/layout.tsx)

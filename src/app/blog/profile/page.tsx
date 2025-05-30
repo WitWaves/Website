@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon, Edit3, Globe, Users, FileCheck2, Minus, ImageUp, Code2 } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
-import PostCard from '@/components/posts/post-card'; // For saved posts
+import PostCard from '@/components/posts/post-card';
 import { getPosts, type Post } from '@/lib/posts';
 import type { AuthorProfileForCard, UserProfile, SocialLinks } from '@/lib/userProfile';
 import { useAuth } from '@/contexts/auth-context';
@@ -37,8 +37,8 @@ const socialIcons: Record<keyof Required<SocialLinks>, typeof LinkIcon> = {
 };
 
 const staticProfileStats = {
-    following: 45, 
-    followers: 45, 
+    following: 45,
+    followers: 45,
 };
 
 const topInterestsStatic = ["Web", "Web Design", "Programming", "Art", "Maths"];
@@ -80,15 +80,15 @@ export default function ProfilePage() {
         return;
       }
       setIsLoadingPosts(true);
-      console.log('ProfilePage: Fetching posts for user:', user.uid);
+      console.log('[ProfilePage] Fetching posts for user:', user.uid);
       try {
         const allPosts = await getPosts();
-        console.log('ProfilePage: All posts fetched from DB for profile:', allPosts);
+        console.log('[ProfilePage] All posts fetched for profile consideration:', allPosts);
         const filteredPosts = allPosts.filter(post => post.userId === user.uid);
-        console.log('ProfilePage: Filtered posts for current user:', filteredPosts);
+        console.log('[ProfilePage] Filtered posts for current user:', filteredPosts);
         setUserPosts(filteredPosts);
       } catch (error) {
-        console.error("Error fetching user posts:", error);
+        console.error("[ProfilePage] Error fetching user posts:", error);
         setUserPosts([]);
       } finally {
         setIsLoadingPosts(false);
@@ -102,23 +102,36 @@ export default function ProfilePage() {
       if (authLoading) return;
       if (user?.uid) {
         setIsLoadingProfile(true);
-        console.log('ProfilePage: Fetching custom profile for user:', user.uid);
-        const profileDataFromDb = await getUserProfile(user.uid);
-        console.log('ProfilePage: Custom profile data from DB:', profileDataFromDb);
-        if (profileDataFromDb) {
-          setCustomProfile(profileDataFromDb);
-        } else {
-          console.log('ProfilePage: No custom profile in DB, creating fallback from Auth data.');
-          setCustomProfile({
-            uid: user.uid,
-            displayName: user.displayName || "User",
-            photoURL: user.photoURL || undefined,
-            username: user.email?.split('@')[0] || 'username',
-            bio: "",
-            socialLinks: {},
-          });
+        console.log('[ProfilePage] Fetching custom profile for user:', user.uid);
+        try {
+          const profileDataFromDb = await getUserProfile(user.uid);
+          console.log('[ProfilePage] Custom profile data from DB:', profileDataFromDb);
+          if (profileDataFromDb) {
+            setCustomProfile(profileDataFromDb);
+          } else {
+            console.log('[ProfilePage] No custom profile in DB, creating fallback from Auth data.');
+            setCustomProfile({
+              uid: user.uid,
+              displayName: user.displayName || "User",
+              photoURL: user.photoURL || undefined,
+              username: user.email?.split('@')[0] || 'username',
+              bio: "",
+              socialLinks: {},
+            });
+          }
+        } catch (error) {
+            console.error("[ProfilePage] Error fetching custom profile:", error);
+            setCustomProfile({ // Fallback on error
+              uid: user.uid,
+              displayName: user.displayName || "User",
+              photoURL: user.photoURL || undefined,
+              username: user.email?.split('@')[0] || 'username',
+              bio: "Error loading profile details.",
+              socialLinks: {},
+            });
+        } finally {
+            setIsLoadingProfile(false);
         }
-        setIsLoadingProfile(false);
       } else {
         setIsLoadingProfile(false);
         setCustomProfile(null);
@@ -137,7 +150,7 @@ export default function ProfilePage() {
       setSelectedFile(null);
       setPreviewUrl(null);
       if (user?.uid) {
-        console.log('ProfilePage: Re-fetching custom profile after successful edit for user:', user.uid);
+        console.log('[ProfilePage] Re-fetching custom profile after successful edit for user:', user.uid);
         getUserProfile(user.uid).then(profileDataFromDb => {
             if (profileDataFromDb) {
                 setCustomProfile(profileDataFromDb);
@@ -167,35 +180,33 @@ export default function ProfilePage() {
       console.log('[ProfilePage] Activity tab active for user:', user.uid);
       // Fetch Saved Posts
       setIsLoadingSavedPosts(true);
+      console.log('[ProfilePage] Fetching saved posts for user:', user.uid);
       getSavedPostsDetailsForUser(user.uid)
         .then(data => {
-          console.log('[ProfilePage] Fetched saved posts:', data);
+          console.log('[ProfilePage] Fetched saved posts data:', data);
           setSavedPosts(data);
         })
         .catch(err => {
           console.error("[ProfilePage] Error fetching saved posts:", err);
-          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check console & Firestore rules.", variant: "destructive" });
-          setSavedPosts([]); 
+          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check console & Firestore rules. This could be a permissions issue.", variant: "destructive" });
+          setSavedPosts([]);
         })
         .finally(() => setIsLoadingSavedPosts(false));
 
       // Fetch User Comments
       setIsLoadingUserComments(true);
+      console.log('[ProfilePage] Fetching user comments for user:', user.uid);
       getCommentsByUser(user.uid)
         .then(data => {
-          console.log('[ProfilePage] Fetched user comments:', data);
+          console.log('[ProfilePage] Fetched user comments data:', data);
           setUserComments(data);
         })
         .catch(err => {
           console.error("[ProfilePage] Error fetching user comments:", err);
-          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required or check Firestore rules.", variant: "destructive" });
-          setUserComments([]); 
+          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required (check console) or verify Firestore rules.", variant: "destructive" });
+          setUserComments([]);
         })
         .finally(() => setIsLoadingUserComments(false));
-    } else if (activeActivityTab !== 'activity') {
-      // Optionally clear data if tab is no longer active, or keep it cached
-      // setSavedPosts([]);
-      // setUserComments([]);
     }
   }, [activeActivityTab, user?.uid, toast]);
 
@@ -208,7 +219,7 @@ export default function ProfilePage() {
   };
 
   const clientSideProfileUpdateAndServerAction = async (formData: FormData) => {
-    if (!auth.currentUser || !user) { 
+    if (!auth.currentUser || !user) {
         toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
         return;
     }
@@ -221,7 +232,7 @@ export default function ProfilePage() {
       try {
         const imageFileRef = storageRef(storage, `profileImages/${auth.currentUser.uid}/profilePicture-${Date.now()}-${selectedFile.name}`);
         const uploadTask = uploadBytesResumable(imageFileRef, selectedFile);
-        
+
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
             (snapshot) => {
@@ -231,8 +242,8 @@ export default function ProfilePage() {
             (error) => {
               console.error("Upload failed:", error);
               toast({ title: "Upload Error", description: `Failed to upload image. ${error.message}`, variant: "destructive" });
-              setIsUploading(false); 
-              reject(error); 
+              setIsUploading(false);
+              reject(error);
             },
             async () => {
               newPhotoURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -242,8 +253,8 @@ export default function ProfilePage() {
           );
         });
       } catch (error) {
-        setIsUploading(false); 
-        return; 
+        setIsUploading(false);
+        return;
       } finally {
         setIsUploading(false);
       }
@@ -253,10 +264,11 @@ export default function ProfilePage() {
     if (newDisplayName && newDisplayName !== auth.currentUser.displayName) {
       authProfileUpdates.displayName = newDisplayName;
     }
-    if (newPhotoURL && newPhotoURL !== auth.currentUser.photoURL) { 
+    // Handle photoURL: if it's an empty string, use null for Firebase Auth update to remove it
+    if (newPhotoURL && newPhotoURL !== auth.currentUser.photoURL) {
       authProfileUpdates.photoURL = newPhotoURL;
-    } else if (newPhotoURL === null && auth.currentUser.photoURL !== null) { 
-      authProfileUpdates.photoURL = null; 
+    } else if (newPhotoURL === null && auth.currentUser.photoURL !== null) { // Explicitly removing
+      authProfileUpdates.photoURL = null;
     }
 
 
@@ -272,22 +284,22 @@ export default function ProfilePage() {
 
     if (newPhotoURL) {
         formData.set('photoURL', newPhotoURL);
-    } else if (newPhotoURL === null && (customProfile?.photoURL || user?.photoURL)) { 
-        formData.set('photoURL', '');
+    } else if (newPhotoURL === null && (customProfile?.photoURL || user?.photoURL)) {
+        formData.set('photoURL', ''); // Server action expects empty string to delete from Firestore
     }
-    
+
     startEditTransition(() => {
       handleProfileFormSubmit(formData);
     });
   };
-  
+
   const currentAvatarUrl = previewUrl || customProfile?.photoURL || user?.photoURL || `https://placehold.co/128x128.png?text=${(customProfile?.displayName || user?.displayName || "U").substring(0,1).toUpperCase()}`;
   const displayName = customProfile?.displayName || user?.displayName || "User";
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
   const bio = customProfile?.bio || "No bio set. Click 'Edit Profile' to add one.";
-  const userRole = "Blog Author"; // Or derive this if available in UserProfile
-  
+  const userRole = "Blog Author";
+
   const profileSocialLinksArray = customProfile?.socialLinks ?
     Object.entries(customProfile.socialLinks)
       .filter(([key, value]) => value && socialIcons[key as keyof Required<SocialLinks>])
@@ -324,7 +336,7 @@ export default function ProfilePage() {
         <Card className="shadow-lg rounded-xl overflow-hidden relative">
           <div className="relative h-32 md:h-36 bg-muted">
             <Image
-              src="https://placehold.co/400x150.png" 
+              src="https://placehold.co/400x150.png"
               alt="Profile background decorative"
               layout="fill"
               objectFit="cover"
@@ -341,8 +353,8 @@ export default function ProfilePage() {
                 setIsEditModalOpen(isOpen);
                 if (!isOpen) {
                     setSelectedFile(null);
-                    setPreviewUrl(null); 
-                    if (fileInputRef.current) fileInputRef.current.value = ''; 
+                    setPreviewUrl(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
                 }
             }}>
               <DialogTrigger asChild>
@@ -363,8 +375,8 @@ export default function ProfilePage() {
                         <AvatarFallback>{(displayName || 'U').substring(0,2).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <Input
-                        id="photoURLForm" 
-                        name="photoFile" 
+                        id="photoURLForm"
+                        name="photoFile"
                         type="file"
                         accept="image/*"
                         onChange={handleFileChange}
@@ -390,13 +402,13 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <Label htmlFor="bioForm">Bio</Label>
-                    <Textarea 
-                      id="bioForm" 
-                      name="bio" 
-                      defaultValue={customProfile?.bio || ''} 
-                      placeholder="Tell us about yourself... (approx. 100 words)" 
-                      rows={3} 
-                      maxLength={600} 
+                    <Textarea
+                      id="bioForm"
+                      name="bio"
+                      defaultValue={customProfile?.bio || ''}
+                      placeholder="Tell us about yourself... (approx. 100 words)"
+                      rows={3}
+                      maxLength={600}
                     />
                     {editProfileState?.errors?.bio && <p className="text-sm text-destructive mt-1">{editProfileState.errors.bio.join(', ')}</p>}
                   </div>
@@ -435,8 +447,8 @@ export default function ProfilePage() {
                           <Button type="button" variant="outline" onClick={() => {
                               setIsEditModalOpen(false);
                               setSelectedFile(null);
-                              setPreviewUrl(null); 
-                              if (fileInputRef.current) fileInputRef.current.value = ''; 
+                              setPreviewUrl(null);
+                              if (fileInputRef.current) fileInputRef.current.value = '';
                           }}>Cancel</Button>
                       </DialogClose>
                       <Button type="submit" disabled={isEditPending || isEditPendingTransition || isUploading}>
@@ -541,7 +553,7 @@ export default function ProfilePage() {
                   {["Saved", "Liked", "Comments"].map((tab, index) => (
                     <Button
                       key={tab}
-                      variant={index === 0 ? "secondary" : "ghost"} 
+                      variant={index === 0 ? "secondary" : "ghost"}
                       size="sm"
                       className={index === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}
                     >
@@ -549,7 +561,7 @@ export default function ProfilePage() {
                     </Button>
                   ))}
                 </div>
-                
+
                 <div className="space-y-8">
                   <section>
                     <h3 className="text-md font-medium mb-3 text-muted-foreground">Saved Posts</h3>
@@ -572,7 +584,7 @@ export default function ProfilePage() {
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
                      <p className="text-muted-foreground text-sm">Your liked posts will appear here. (Feature under development)</p>
                   </section>
-                  
+
                   <Separator/>
 
                   <section>
@@ -605,5 +617,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

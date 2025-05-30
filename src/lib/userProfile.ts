@@ -1,10 +1,10 @@
 
 'use server';
 
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp, collection, query, where, getDocs, deleteField } from 'firebase/firestore'; 
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp, collection, query, where, getDocs, deleteField } from 'firebase/firestore';
 import { db } from './firebase/config';
-import type { Post } from './posts'; // Import Post type
-import { getPost } from './posts';   // Import getPost to fetch post details
+import type { Post } from './posts';
+import { getPost } from './posts';
 
 export interface SocialLinks {
   twitter?: string;
@@ -17,12 +17,12 @@ export interface SocialLinks {
 export interface UserProfile {
   uid: string;
   username?: string;
-  displayName?: string; 
+  displayName?: string;
   bio?: string;
-  photoURL?: string; 
+  photoURL?: string;
   socialLinks?: SocialLinks;
-  createdAt?: string | any; 
-  updatedAt?: string | any; 
+  createdAt?: string | any;
+  updatedAt?: string | any;
 }
 
 export interface AuthorProfileForCard {
@@ -56,7 +56,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
         username: data.username,
         displayName: data.displayName,
         bio: data.bio,
-        photoURL: data.photoURL, 
+        photoURL: data.photoURL,
         socialLinks: data.socialLinks || {},
         createdAt: formatProfileTimestamp(data.createdAt),
         updatedAt: formatProfileTimestamp(data.updatedAt),
@@ -76,18 +76,18 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
     return profilesMap;
   }
 
-  const uniqueUids = Array.from(new Set(uids.filter(uid => !!uid))); 
+  const uniqueUids = Array.from(new Set(uids.filter(uid => !!uid)));
 
   if (uniqueUids.length === 0) {
     return profilesMap;
   }
-  
+
   console.log('[getAuthorProfilesForCards] Fetching profiles for UIDs:', uniqueUids);
   try {
-    const profilePromises = uniqueUids.map(uid => 
+    const profilePromises = uniqueUids.map(uid =>
       getDoc(doc(db, 'userProfiles', uid)).then(docSnap => ({ uid, docSnap }))
     );
-    
+
     const results = await Promise.all(profilePromises);
 
     for (const { uid, docSnap } of results) {
@@ -98,21 +98,20 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
         }
         profilesMap.set(uid, {
           uid: uid,
-          displayName: data.displayName || "WitWaves User", 
-          photoURL: data.photoURL, 
+          displayName: data.displayName || "WitWaves User",
+          photoURL: data.photoURL,
         });
       } else {
         console.warn(`[getAuthorProfilesForCards] Author profile not found in Firestore for UID ${uid}. Defaulting to 'WitWaves User'.`);
         profilesMap.set(uid, {
           uid: uid,
-          displayName: "WitWaves User", // Consistent default
+          displayName: "WitWaves User",
           photoURL: undefined,
         });
       }
     }
   } catch (error) {
     console.error("[getAuthorProfilesForCards] Error fetching multiple author profiles:", error);
-    // Fallback for UIDs that might have failed due to a general error but weren't processed
     uniqueUids.forEach(uid => {
       if (!profilesMap.has(uid)) {
         console.warn(`[getAuthorProfilesForCards] Fallback: Author profile for UID ${uid} could not be fetched due to overall error. Defaulting to 'WitWaves User'.`);
@@ -127,71 +126,62 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
 
 export async function updateUserProfileData(
   userId: string,
-  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> 
+  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   if (!userId) throw new Error("User ID is required to update profile data.");
   const profileDocRef = doc(db, 'userProfiles', userId);
-  
-  const dataToSave: { [key: string]: any } = { ...data }; // Create a mutable copy
 
-  // Clean socialLinks: remove empty string values and use deleteField for the whole map if it becomes empty
+  const dataToSave: { [key: string]: any } = { ...data };
+
   if (dataToSave.socialLinks && typeof dataToSave.socialLinks === 'object') {
     const socialLinksCopy = { ...dataToSave.socialLinks };
     let hasActualLinks = false;
     for (const key of Object.keys(socialLinksCopy) as Array<keyof SocialLinks>) {
       if (socialLinksCopy[key] === '' || socialLinksCopy[key] === undefined || socialLinksCopy[key] === null) {
-        delete socialLinksCopy[key]; // Remove empty/null/undefined keys
+        delete socialLinksCopy[key];
       } else {
         hasActualLinks = true;
       }
     }
-    
+
     if (hasActualLinks) {
       dataToSave.socialLinks = socialLinksCopy;
     } else {
-      // If all social links are empty, we should remove the socialLinks field
       dataToSave.socialLinks = deleteField();
     }
-  } else if (dataToSave.socialLinks === undefined) { // Explicitly passed as undefined
-    delete dataToSave.socialLinks; // Don't try to save undefined
+  } else if (dataToSave.socialLinks === undefined) {
+    delete dataToSave.socialLinks;
   }
 
-
-  // Handle photoURL: if it's an empty string, use deleteField to remove it
   if (dataToSave.photoURL === '') {
     dataToSave.photoURL = deleteField();
   } else if (dataToSave.photoURL === undefined) {
-     delete dataToSave.photoURL; // Don't save undefined photoURL
+    delete dataToSave.photoURL;
   }
 
-  // Remove any top-level undefined properties to prevent Firestore errors
   Object.keys(dataToSave).forEach(key => {
     if (dataToSave[key] === undefined) {
       delete dataToSave[key];
     }
   });
 
-
   dataToSave.updatedAt = serverTimestamp();
-  console.log(`[updateUserProfileData] Preparing to update profile for ${userId} with:`, dataToSave);
+  console.log(`[updateUserProfileData] Preparing to update/set profile for ${userId} with:`, dataToSave);
 
   try {
     const docSnap = await getDoc(profileDocRef);
     if (docSnap.exists()) {
       await updateDoc(profileDocRef, dataToSave);
-      console.log(`[updateUserProfileData] User profile updated for userId: ${userId}`);
+      console.log(`[updateUserProfileData] User profile UPDATED for userId: ${userId}`);
     } else {
-      // If document doesn't exist, create it
-      dataToSave.uid = userId; // Ensure uid is part of the initial document if you store it as a field
+      dataToSave.uid = userId;
       dataToSave.createdAt = serverTimestamp();
-      // Remove updatedAt if creating, or let it be set by serverTimestamp
-      // delete dataToSave.updatedAt; // Firestore will add it with serverTimestamp on create
       await setDoc(profileDocRef, dataToSave);
-      console.log(`[updateUserProfileData] User profile created for userId: ${userId}`);
+      console.log(`[updateUserProfileData] User profile CREATED for userId: ${userId}`);
     }
   } catch (error) {
     console.error(`[updateUserProfileData] Error updating/setting user profile data for userId ${userId} in Firestore:`, error);
-    throw error; 
+    throw error;
   }
 }
 
@@ -208,22 +198,37 @@ export async function isPostSavedByUser(userId: string, postId: string): Promise
 }
 
 export async function getSavedPostsDetailsForUser(userId: string): Promise<Post[]> {
-  if (!userId) return [];
+  if (!userId) {
+    console.log('[getSavedPostsDetailsForUser] No userId provided.');
+    return [];
+  }
+  console.log(`[getSavedPostsDetailsForUser] Fetching saved posts for userId: ${userId}`);
   try {
     const savedPostsColRef = collection(db, 'userProfiles', userId, 'savedPosts');
     const q = query(savedPostsColRef, orderBy('savedAt', 'desc'));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
+      console.log(`[getSavedPostsDetailsForUser] No saved post documents found for userId: ${userId}`);
       return [];
     }
+    console.log(`[getSavedPostsDetailsForUser] Found ${snapshot.docs.length} saved post references for userId: ${userId}.`);
 
-    const postPromises = snapshot.docs.map(docSnap => getPost(docSnap.id)); // docSnap.id is the postId
+    const postIdsToFetch = snapshot.docs.map(docSnap => docSnap.id);
+    console.log(`[getSavedPostsDetailsForUser] Post IDs to fetch details for:`, postIdsToFetch);
+
+    const postPromises = postIdsToFetch.map(postId =>
+      getPost(postId).catch(err => {
+        console.error(`[getSavedPostsDetailsForUser] Error fetching details for postId ${postId}:`, err);
+        return undefined; // Return undefined if a single post fetch fails
+      })
+    );
     const posts = (await Promise.all(postPromises)).filter(post => post !== undefined) as Post[];
-    
+
+    console.log(`[getSavedPostsDetailsForUser] Successfully fetched details for ${posts.length} saved posts for userId: ${userId}`);
     return posts;
   } catch (error) {
-    console.error(`Error fetching saved posts for user ${userId}:`, error);
+    console.error(`[getSavedPostsDetailsForUser] Error fetching saved post references for user ${userId}:`, error);
     return [];
   }
 }

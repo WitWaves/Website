@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
-import { getAllTags } from '@/lib/posts'; // For fetching existing tags
-import { AlertCircle, Loader2, Wand2, CheckCircle, ImageIcon, Code2, PlusCircle, XIcon, ChevronsUpDown, Check, ImageUp } from 'lucide-react';
+import { getAllTags } from '@/lib/posts';
+import { AlertCircle, Loader2, Wand2, ImageIcon, Code2, PlusCircle, XIcon, ChevronsUpDown, Check, ImageUp, Minus } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
@@ -62,7 +62,6 @@ export default function PostForm({ post }: PostFormProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const quillInstanceRef = useRef<any>(null);
 
-  // State for tags
   const [currentTags, setCurrentTags] = useState<string[]>(post?.tags || []);
   const [tagInputValue, setTagInputValue] = useState('');
   const [allSystemTags, setAllSystemTags] = useState<string[]>([]);
@@ -71,11 +70,94 @@ export default function PostForm({ post }: PostFormProps) {
 
 
   useEffect(() => {
-    setIsClient(true);
+    setIsClient(true); // This effect runs once on mount client-side
+  }, []);
+
+  // Effect to initialize Quill
+  useEffect(() => {
+    if (isClient && editorRef.current && !quillInstanceRef.current) {
+      console.log('Attempting to initialize Quill. window.Quill:', typeof window.Quill);
+      if (typeof window.Quill !== 'undefined') {
+        const quill = new window.Quill(editorRef.current, {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              ['blockquote', 'code-block'],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              [{ 'script': 'sub' }, { 'script': 'super' }],
+              [{ 'indent': '-1' }, { 'indent': '+1' }],
+              [{ 'direction': 'rtl' }],
+              [{ 'color': [] }, { 'background': [] }],
+              [{ 'align': [] }],
+              ['link', 'image', 'video'],
+              ['clean']
+            ],
+          },
+          placeholder: "Start writing your stunning piece here...",
+        });
+        quillInstanceRef.current = quill;
+        console.log("Quill initialized successfully.");
+
+        quill.on('text-change', (_delta: any, _oldDelta: any, source: string) => {
+          if (source === 'user') {
+            const currentHTML = quill.root.innerHTML;
+            if (currentHTML === '<p><br></p>') { // Quill's representation of empty
+              setQuillContent('');
+            } else {
+              setQuillContent(currentHTML);
+            }
+          }
+        });
+        console.log("Quill 'text-change' listener attached.");
+      } else {
+        console.warn("Quill library (window.Quill) not found at initialization time. Editor will not load.");
+      }
+    }
+
+    // Cleanup function for the Quill instance
+    return () => {
+      if (quillInstanceRef.current && typeof quillInstanceRef.current.off === 'function') {
+        console.log("Cleaning up Quill listeners.");
+        quillInstanceRef.current.off('text-change');
+        // Note: Quill doesn't have a standard .destroy() method.
+        // Removing the editor's container or its content might be needed for full cleanup if issues arise.
+        // For now, just removing the listener.
+      }
+    };
+  }, [isClient]); // Only depends on isClient to run once when client is ready
+
+  // Effect to set/update Quill content when `post.content` changes or Quill instance becomes available
+  useEffect(() => {
+    const quill = quillInstanceRef.current;
+    if (isClient && quill) { // Ensure client-side and Quill instance exists
+      const currentEditorHTML = quill.root.innerHTML;
+
+      if (post?.content && post.content !== currentEditorHTML) {
+        console.log("Setting initial content for existing post in Quill.");
+        quill.clipboard.dangerouslyPasteHTML(0, post.content);
+        // Sync React state if it wasn't updated by a 'user' text-change event
+        if(quillContent !== post.content) {
+            setQuillContent(post.content);
+        }
+      } else if (!post?.content && (currentEditorHTML !== '<p><br></p>' && currentEditorHTML !== '')) {
+        console.log("Clearing Quill editor for new post.");
+        quill.setText(''); // Clears content efficiently
+        setQuillContent(''); // Sync React state
+      }
+    }
+  }, [post?.content, isClient]); // Re-run if post.content changes or when isClient changes (which signals Quill might be ready)
+
+
+  useEffect(() => {
     async function fetchAllSystemTagsData() {
+      if (!isClient) return; // Only fetch tags on the client
       try {
+        console.log("PostForm: Fetching all system tags.");
         const tags = await getAllTags();
         setAllSystemTags(tags.sort());
+        console.log("PostForm: System tags fetched:", tags);
       } catch (error) {
         console.error("PostForm: Error fetching all system tags:", error);
         setAllSystemTags([]);
@@ -87,7 +169,8 @@ export default function PostForm({ post }: PostFormProps) {
       }
     }
     fetchAllSystemTagsData();
-  }, [toast]);
+  }, [isClient, toast]);
+
 
   useEffect(() => {
     if (contentHiddenInputRef.current) {
@@ -95,84 +178,12 @@ export default function PostForm({ post }: PostFormProps) {
     }
   }, [quillContent]);
 
-  useEffect(() => {
-    if (isClient && editorRef.current && typeof window.Quill !== 'undefined' && !quillInstanceRef.current) {
-      const toolbarOptions = [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        ['blockquote', 'code-block'],
-        [{'list': 'ordered'}, {'list': 'bullet'}],
-        [{ 'script': 'sub'}, { 'script': 'super' }],
-        [{ 'indent': '-1'}, { 'indent': '+1' }],
-        [{ 'direction': 'rtl' }],
-        [{ 'color': [] }, { 'background': [] }],
-        // Removed font selection: [{ 'font': [] }],
-        [{ 'align': [] }],
-        ['link', 'image', 'video'],
-        ['clean']
-      ];
-
-      const quill = new window.Quill(editorRef.current, {
-        theme: 'snow',
-        modules: {
-          toolbar: toolbarOptions,
-        },
-        placeholder: "Start writing your stunning piece here...",
-      });
-      quillInstanceRef.current = quill;
-
-      if (post?.content) {
-        try {
-            // Attempt to convert HTML to Delta if Quill supports it well,
-            // or directly paste HTML. For simplicity, pasting HTML is often more reliable
-            // if the content is already well-formed HTML from a previous Quill session.
-            quill.clipboard.dangerouslyPasteHTML(0, post.content);
-            setQuillContent(post.content); // Ensure React state is also updated
-        } catch (e) {
-            console.warn("Could not set initial Quill content:", e);
-            // Fallback if dangerouslyPasteHTML fails or isn't suitable
-            quill.setText(post.content || ''); 
-            setQuillContent(post.content || '');
-        }
-      } else {
-        setQuillContent(''); // Initialize with empty for new posts
-      }
-
-      quill.on('text-change', (_delta: any, _oldDelta: any, source: string) => {
-        if (source === 'user') {
-          const currentHTML = quill.root.innerHTML;
-           if (currentHTML === '<p><br></p>') { // Quill's representation of empty
-             setQuillContent('');
-          } else {
-             setQuillContent(currentHTML);
-          }
-        }
-      });
-    }
-
-    return () => {
-      // Cleanup Quill instance on component unmount
-      // Accessing quillInstanceRef.current directly might be an issue if this cleanup runs
-      // after the ref is potentially nulled or changed. Consider if `quillInstanceRef.current?.destroy()` is safer
-      // or if the instance needs to be captured in a variable within the effect scope.
-      // For now, assuming quillInstanceRef.current remains valid during cleanup.
-      if (quillInstanceRef.current && typeof quillInstanceRef.current.off === 'function') {
-        quillInstanceRef.current.off('text-change');
-      }
-      // Note: Quill doesn't have a standard 'destroy' method. Manual cleanup of listeners and DOM might be needed
-      // if memory leaks become an issue, but often unmounting the parent DOM node is sufficient.
-      // For this example, we primarily care about removing the event listener.
-      // quillInstanceRef.current = null; // Optional: explicitly nullify the ref after cleanup
-    };
-  }, [isClient, post?.content]); // Rerun if post.content changes for editing
-
 
   const actionToRun = post ? updatePostAction.bind(null, post.id) : createPostAction;
   const [state, formAction] = useActionState(actionToRun, undefined);
 
-  // Client-side wrapper for form submission to include Quill content
   const clientSideFormAction = (formData: FormData) => {
-    formData.set('content', quillContent); // Ensure latest Quill content is on FormData
+    formData.set('content', quillContent);
     formAction(formData);
   };
 
@@ -200,7 +211,11 @@ export default function PostForm({ post }: PostFormProps) {
   }, [state, router, toast, post, titleValue]);
 
   const handleSuggestTags = () => {
-    if (!isClient || !quillInstanceRef.current) return;
+    if (!isClient || !quillInstanceRef.current) {
+      toast({ title: "Editor Not Ready", description: "The text editor is still loading.", variant: "default" });
+      return;
+    }
+    
     let textContentForAI = quillInstanceRef.current.getText(0, 2000); 
     if (titleValue) {
         textContentForAI = titleValue + "\n\n" + textContentForAI;
@@ -236,15 +251,13 @@ export default function PostForm({ post }: PostFormProps) {
     if (newTag && !currentTags.includes(newTag)) {
       setCurrentTags(prevTags => [...prevTags, newTag]);
     }
-    setTagInputValue(''); // Clear input after adding
-    setAISuggestedTags(prev => prev.filter(t => t !== newTag)); // Remove from AI suggestions if it was there
-    // setIsTagPopoverOpen(false); // Close popover after selection
+    setTagInputValue('');
+    setAISuggestedTags(prev => prev.filter(t => t !== newTag));
   };
 
   const removeTag = (tagToRemove: string) => {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
-
 
   if (authLoading && !post) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
@@ -275,18 +288,16 @@ export default function PostForm({ post }: PostFormProps) {
   );
 
   return (
-    <form action={clientSideFormAction} className="w-full max-w-6xl mx-auto">
+    <form action={clientSideFormAction} className="w-full max-w-7xl mx-auto">
       {user && (
         <input type="hidden" name="userId" value={user.uid} />
       )}
-      {/* Hidden input to carry Quill's HTML content */}
       <input type="hidden" name="content" ref={contentHiddenInputRef} value={quillContent} />
       <input type="hidden" name="tags" value={currentTags.join(',')} />
 
-
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Column: Main Content Area */}
-        <div className="flex-grow lg:w-3/4 space-y-6"> {/* Changed from lg:w-2/3 */}
+        <div className="flex-grow lg:w-3/4 space-y-6">
           <div className="flex items-start space-x-3">
             <div className="w-1.5 bg-destructive h-10 mt-1 shrink-0 rounded-full"></div>
             <Input
@@ -301,20 +312,13 @@ export default function PostForm({ post }: PostFormProps) {
           </div>
            {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
           
-          {/* Placeholder for Featured Image */}
-          {/* <div className="h-40 md:h-64 bg-muted/50 rounded-lg flex items-center justify-center border border-dashed border-border">
-            <p className="text-muted-foreground">Featured Image Placeholder</p>
-          </div> */}
-
-          <div className="bg-card border-0 rounded-md shadow-none">
+          <div className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
             {isClient ? (
-              <div ref={editorRef} className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
-                {/* Quill editor will be initialized here by useEffect */}
-              </div>
+               <div ref={editorRef} /> // Quill will mount here
             ) : (
               <div className="min-h-[300px] border border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-3 text-muted-foreground">Initializing editor...</p>
+                <p className="ml-3 text-muted-foreground">Loading editor...</p>
               </div>
             )}
           </div>
@@ -322,7 +326,7 @@ export default function PostForm({ post }: PostFormProps) {
         </div>
 
         {/* Right Column: Sidebar */}
-        <div className="lg:w-1/4 space-y-6 lg:sticky lg:top-24 h-max pt-2 flex flex-col"> {/* Changed from lg:w-1/3 */}
+        <div className="lg:w-1/4 space-y-6 lg:sticky lg:top-24 h-max pt-2 flex flex-col">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Upload Thumbnail</label>
             <div className="flex items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30">
@@ -366,28 +370,30 @@ export default function PostForm({ post }: PostFormProps) {
                         <Button variant="ghost" className="w-full justify-start text-sm" onClick={() => { addTag(tagInputValue); setIsTagPopoverOpen(false); }}>
                           Create tag: "{tagInputValue}"
                         </Button>
-                      ) : "No tags found. Type to create."}
+                      ) : (isClient && allSystemTags.length > 0 ? "No matching tags found." : "Loading tags or type to create...")}
                     </CommandEmpty>
-                    <CommandGroup>
-                      {filteredSystemTags.map((tag) => (
-                        <CommandItem
-                          key={tag}
-                          value={tag}
-                          onSelect={(currentValue) => {
-                            addTag(currentValue);
-                            setIsTagPopoverOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              currentTags.includes(tag) ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {tag}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
+                    {isClient && allSystemTags.length > 0 && (
+                      <CommandGroup>
+                        {filteredSystemTags.map((tag) => (
+                          <CommandItem
+                            key={tag}
+                            value={tag}
+                            onSelect={(currentValue) => {
+                              addTag(currentValue);
+                              // setIsTagPopoverOpen(false); // Keep open for multi-select
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                currentTags.includes(tag) ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {tag}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
                   </CommandList>
                 </Command>
               </PopoverContent>
@@ -448,4 +454,3 @@ export default function PostForm({ post }: PostFormProps) {
     </form>
   );
 }
-

@@ -8,35 +8,45 @@ import {
   where,
   orderBy,
   Timestamp,
-  limit
+  limit,
+  setDoc, // For createPostWithId
+  updateDoc // For updatePost
 } from 'firebase/firestore';
 import { db } from './firebase/config';
 import { format } from 'date-fns';
 
 export interface Post {
-  id: string;
+  id: string; // This will be the slug
   title: string;
   content: string;
   tags: string[];
   createdAt: string; // ISO date string for client, Firestore Timestamp for server
   updatedAt?: string; // ISO date string for client, Firestore Timestamp for server
   userId?: string;
-  imageUrl?: string; // Optional field for post image
-  likedBy?: string[]; // Array of user IDs who liked the post
-  likeCount?: number; // Total number of likes
-  commentCount?: number; // Total number of comments
+  imageUrl?: string;
+  likedBy: string[];
+  likeCount: number;
+  commentCount: number;
 }
 
 // Helper to convert Firestore Timestamp to ISO string or return existing string
 const formatTimestamp = (timestamp: any): string => {
-  if (!timestamp) return new Date().toISOString(); // Fallback
+  if (!timestamp) return new Date().toISOString();
   if (timestamp instanceof Timestamp) {
     return timestamp.toDate().toISOString();
   }
   if (typeof timestamp === 'string') {
-    return timestamp;
+    // Attempt to parse if it's a string that might be a date, otherwise return as is or handle error
+    const parsedDate = new Date(timestamp);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString();
+    }
+    // If it's not a valid date string, log warning and return current time as fallback
+    console.warn('Unexpected string timestamp format, not a valid ISO string or parsable date:', timestamp);
+    return new Date().toISOString();
   }
-  console.warn('Unexpected timestamp format:', timestamp, 'Returning current date as ISO string.');
+  // For any other type, log warning and return current time
+  console.warn('Unexpected timestamp format:', timestamp, typeof timestamp, 'Returning current date as ISO string.');
   return new Date().toISOString();
 };
 
@@ -103,6 +113,41 @@ export async function getPost(id: string): Promise<Post | undefined> {
   } catch (error) {
     console.error(`Error fetching post ${id} from Firestore:`, error);
     return undefined;
+  }
+}
+
+export async function getPostsByUserId(userId: string): Promise<Post[]> {
+  if (!userId) {
+    console.warn('getPostsByUserId called without userId');
+    return [];
+  }
+  try {
+    const postsCol = collection(db, 'posts');
+    const q = query(
+      postsCol,
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    const postSnapshot = await getDocs(q);
+    return postSnapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        title: data.title,
+        content: data.content,
+        tags: data.tags || [],
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+        userId: data.userId,
+        imageUrl: data.imageUrl,
+        likedBy: data.likedBy || [],
+        likeCount: data.likeCount || 0,
+        commentCount: data.commentCount || 0,
+      } as Post;
+    });
+  } catch (error) {
+    console.error(`Error fetching posts for user ${userId} from Firestore:`, error);
+    return [];
   }
 }
 
@@ -177,7 +222,7 @@ export async function getPostsByArchive(year: number, month: number): Promise<Po
 
 export async function getAllTags(): Promise<string[]> {
   try {
-    const posts = await getPosts(); // Fetches all posts
+    const posts = await getPosts(); 
     const tagSet = new Set<string>();
     posts.forEach(post => {
       if (post.tags && Array.isArray(post.tags)) {
@@ -200,7 +245,7 @@ export type ArchivePeriod = {
 
 export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
    try {
-    const posts = await getPosts(); // Fetches all posts
+    const posts = await getPosts(); 
     const periodsMap = new Map<string, ArchivePeriod>();
     posts.forEach(post => {
       if (post.createdAt) {
@@ -234,11 +279,11 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
 export function generateSlug(title: string): string {
   return title
     .toLowerCase()
-    .replace(/\s+/g, '-') // Replace spaces with -
-    .replace(/[^\w-]+/g, '') // Remove all non-word chars
-    .replace(/--+/g, '-') // Replace multiple - with single -
-    .replace(/^-+/, '') // Trim - from start of text
-    .replace(/-+$/, ''); // Trim - from end of text
+    .replace(/\s+/g, '-') 
+    .replace(/[^\w-]+/g, '') 
+    .replace(/--+/g, '-') 
+    .replace(/^-+/, '') 
+    .replace(/-+$/, ''); 
 }
 
 export async function isSlugUnique(slug: string): Promise<boolean> {

@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useState, useEffect, useActionState, useTransition } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, toggleSavePostAction, type FormState } from '@/app/actions'; // Added toggleSavePostAction
+import { toggleLikePostAction, toggleSavePostAction, type FormState } from '@/app/actions'; 
 import { useToast } from '@/hooks/use-toast';
 
 type BlogPostCardProps = {
@@ -37,7 +37,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const [optimisticLiked, setOptimisticLiked] = useState(post.likedBy?.includes(user?.uid || '') || false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(post.likeCount || 0);
   const [optimisticCommentCount, setOptimisticCommentCount] = useState(post.commentCount || 0);
-  const [optimisticSaved, setOptimisticSaved] = useState(false); // Cannot easily check initial saved state here without extra props/fetches per card
+  const [optimisticSaved, setOptimisticSaved] = useState(false); 
 
   const [likeState, handleLikeAction, isLikePending] = useActionState<FormState, FormData>(
     toggleLikePostAction,
@@ -53,8 +53,6 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
     setOptimisticLikeCount(post.likeCount || 0);
     setOptimisticCommentCount(post.commentCount || 0);
-    // Note: optimisticSaved initial state is tricky on cards without individual checks.
-    // It will update based on user interaction.
   }, [post.likedBy, post.likeCount, post.commentCount, user?.uid]);
 
   useEffect(() => {
@@ -70,8 +68,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
 
   useEffect(() => {
     if (saveState?.success && saveState.updatedSaveStatus?.postId === post.id) {
-        setOptimisticSaved(saveState.updatedSaveStatus.saved); // Update based on action result
-        // No toast here to avoid too many toasts on a list page
+        setOptimisticSaved(saveState.updatedSaveStatus.saved); 
     } else if (saveState?.message && !saveState.success && saveState?.updatedSaveStatus?.postId === post.id) {
         toast({ title: 'Error saving post', description: saveState.message, variant: 'destructive' });
     }
@@ -97,7 +94,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
         return;
     }
     const formData = new FormData(event.currentTarget);
-    setOptimisticSaved(!optimisticSaved); // Optimistic update
+    setOptimisticSaved(!optimisticSaved); 
     startSaveTransition(() => handleSaveAction(formData));
   };
 
@@ -160,7 +157,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                     disabled={isSavePending || isSavePendingTransition || !user}
                 >
                     {(isSavePending || isSavePendingTransition) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Bookmark className={`h-4 w-4 mr-1 ${optimisticSaved ? 'fill-current' : ''}`} />} 
-                    <span className="sr-only">{optimisticSaved ? "Unsave" : "Save"}</span> {/* Keep text for screen readers */}
+                    <span className="sr-only">{optimisticSaved ? "Unsave" : "Save"}</span>
                 </Button>
             </form>
 
@@ -171,13 +168,15 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
         </div>
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/50">
           <div className="flex items-center space-x-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={authorAvatarUrl} alt={authorDisplayName} data-ai-hint="author avatar"/>
-              <AvatarFallback>{authorFallback}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="text-sm font-medium text-foreground">{authorDisplayName}</p>
-            </div>
+             <Link href={`/blog/profile/${author.uid}`} className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
+                <Avatar className="h-8 w-8">
+                <AvatarImage src={authorAvatarUrl} alt={authorDisplayName} data-ai-hint="author avatar"/>
+                <AvatarFallback>{authorFallback}</AvatarFallback>
+                </Avatar>
+                <div>
+                <p className="text-sm font-medium text-foreground">{authorDisplayName}</p>
+                </div>
+            </Link>
           </div>
           <div className="flex items-center space-x-3">
             <p className="text-xs text-muted-foreground">

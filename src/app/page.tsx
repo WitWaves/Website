@@ -17,12 +17,12 @@ export default async function HomePage() {
               <span className="block text-destructive">Dive.</span>
               <span className="block text-primary relative">
                 <Image 
-                  src="https://placehold.co/80x80.png" 
+                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FExploreImage.jpg?alt=media&token=36ab8659-f902-4cb6-bf68-2cb1664d042e" 
                   alt="Decorative illustration" 
                   width={60} 
                   height={60} 
                   className="inline-block mr-2 -mt-2 relative top-[-0.1em] lg:top-[-0.15em]" 
-                  data-ai-hint="abstract shape"
+                  data-ai-hint="explore theme"
                 />
                 Explore.
               </span>

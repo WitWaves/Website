@@ -26,12 +26,13 @@ const socialIcons: Record<keyof Required<SocialLinks>, typeof LinkIcon> = {
     github: Github,
 };
 
-// Static stats for public profile
+// Static stats for public profile - these will remain static as we don't have this data dynamically
 const staticProfileStats = {
-    following: 45, 
-    followers: 120, 
+    following: 45,
+    followers: 120,
 };
 
+// Top interests will remain static for now as it's not part of the UserProfile model
 const topInterestsStatic = ["Web", "Web Design", "Programming", "Art", "Maths"];
 
 
@@ -72,7 +73,7 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
         label: key.charAt(0).toUpperCase() + key.slice(1),
       }))
     : [];
-  
+
   const authorForCards: AuthorProfileForCard = {
     uid: userProfile.uid,
     displayName: userProfile.displayName || 'WitWaves User',
@@ -88,7 +89,7 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
           <div className="relative h-32 md:h-36 bg-muted">
             {/* Placeholder for decorative background */}
             <Image
-              src="https://placehold.co/400x150.png" 
+              src="https://placehold.co/400x150.png"
               alt="Profile background decorative"
               layout="fill"
               objectFit="cover"
@@ -141,7 +142,7 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
                 ))}
               </div>
             </div>
-            
+
             {/* Social Links */}
             {profileSocialLinksArray.length > 0 && (
               <div className="flex justify-center space-x-4 py-2 border-t border-border">

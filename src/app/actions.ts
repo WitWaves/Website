@@ -21,7 +21,7 @@ const PostFormSchema = z.object({
 const UserProfileSchema = z.object({
   displayName: z.string().min(1, 'Display name cannot be empty.'),
   username: z.string().min(3, 'Username must be at least 3 characters.').regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, underscores, and periods.').optional(),
-  bio: z.string().max(200, 'Bio cannot exceed 200 characters.').optional(),
+  bio: z.string().max(600, 'Bio cannot exceed 600 characters (approx. 100 words).').optional(),
   photoURL: z.string().url('Invalid Photo URL.').optional().or(z.literal('')),
   twitter: z.string().url('Invalid Twitter URL.').optional().or(z.literal('')),
   linkedin: z.string().url('Invalid LinkedIn URL.').optional().or(z.literal('')),
@@ -200,7 +200,7 @@ export async function getAISuggestedTagsAction(postContent: string): Promise<str
 export async function updateUserProfileAction(userId: string, prevState: FormState, formData: FormData): Promise<FormState> {
   const validatedFields = UserProfileSchema.safeParse({
     displayName: formData.get('displayName'),
-    username: formData.get('username') || undefined, // Ensure empty string becomes undefined for optional
+    username: formData.get('username') || undefined, 
     bio: formData.get('bio') || undefined,
     photoURL: formData.get('photoURL') || undefined, 
     twitter: formData.get('twitter') || undefined,
@@ -221,12 +221,11 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
   const { displayName, username, bio, photoURL, ...socialLinksInput } = validatedFields.data;
   
   const profileUpdateData: Partial<UserProfile> = {
-    // uid is not set here as it's the document ID, not a field in the doc itself typically
     username: username,
     displayName: displayName, 
     bio: bio,
-    photoURL: photoURL, // This will be handled to be deleteField if empty string
-    socialLinks: socialLinksInput as SocialLinks, // This will be cleaned by updateUserProfileDataInDb
+    photoURL: photoURL,
+    socialLinks: socialLinksInput as SocialLinks,
   };
 
   try {
@@ -235,27 +234,24 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
   } catch (error) {
     console.error("[updateUserProfileAction] Error updating user profile in DB:", error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-    // Check for Firestore specific errors like permission denied or data validation
     if (errorMessage.includes("invalid data") || errorMessage.includes("undefined")) {
         return { message: `Error: Failed to update profile due to invalid data format. ${errorMessage}`, success: false };
     }
     return { message: `Error: Failed to update profile in database. ${errorMessage}`, success: false };
   }
  
-  // Prepare data for optimistic UI update or state refresh on client
   const updatedProfileForState: Partial<UserProfile> = {
-      uid: userId, // Include uid for client-side identification
+      uid: userId,
       ...profileUpdateData 
   };
-   // Ensure photoURL is correctly represented for state update
   if (profileUpdateData.photoURL === '') {
-    updatedProfileForState.photoURL = undefined; // Reflect removal for UI
+    updatedProfileForState.photoURL = undefined; 
   }
 
 
-  revalidatePath('/blog/profile'); // Revalidates the current user's profile
-  revalidatePath(`/blog/profile/${userId}`); // For potential public view if structure changes
-  revalidatePath('/blog'); // For author cards on blog listing
+  revalidatePath('/blog/profile'); 
+  revalidatePath(`/blog/profile/${userId}`); 
+  revalidatePath('/blog'); 
 
   return { message: 'Profile updated successfully!', success: true, updatedProfile: updatedProfileForState };
 }
@@ -350,7 +346,6 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
 
   try {
     const postDocRef = doc(db, 'posts', postId);
-    // Ensure the postId field is added to the comment document for collectionGroup queries
     const commentsColRef = collection(db, 'posts', postId, 'comments');
 
     const newCommentRef = await addDoc(commentsColRef, {
@@ -359,7 +354,7 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
       userPhotoURL: userPhotoURL || null, 
       text: commentText,
       createdAt: serverTimestamp(),
-      postId: postId, // Explicitly add postId to the comment document
+      postId: postId, 
     });
     console.log('[addCommentAction] Comment added with ID:', newCommentRef.id);
 
@@ -440,3 +435,5 @@ export async function toggleSavePostAction(prevState: FormState, formData: FormD
     return { message: `Error: Failed to update save status. ${errorMessage}`, success: false };
   }
 }
+
+    

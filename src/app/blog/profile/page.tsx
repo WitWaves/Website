@@ -247,8 +247,8 @@ export default function ProfilePage() {
     }
     if (newPhotoURL && newPhotoURL !== auth.currentUser.photoURL) { 
       authProfileUpdates.photoURL = newPhotoURL;
-    } else if (newPhotoURL === null && auth.currentUser.photoURL !== null) { // Explicitly removing photo
-      authProfileUpdates.photoURL = null; // Set to null to remove from Firebase Auth
+    } else if (newPhotoURL === null && auth.currentUser.photoURL !== null) { 
+      authProfileUpdates.photoURL = null; 
     }
 
 
@@ -328,7 +328,7 @@ export default function ProfilePage() {
             </Avatar>
           </div>
 
-          <div className="pt-16 pb-6 px-6 text-center relative"> {/* Added relative here */}
+          <div className="pt-16 pb-6 px-6 text-center relative">
             <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
                 setIsEditModalOpen(isOpen);
                 if (!isOpen) {
@@ -342,7 +342,7 @@ export default function ProfilePage() {
                   Edit profile
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[525px]">
+              <DialogContent className="sm:max-w-[525px] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Profile</DialogTitle>
                 </DialogHeader>
@@ -382,7 +382,14 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <Label htmlFor="bioForm">Bio</Label>
-                    <Textarea id="bioForm" name="bio" defaultValue={customProfile?.bio || ''} placeholder="Tell us about yourself..." rows={3} />
+                    <Textarea 
+                      id="bioForm" 
+                      name="bio" 
+                      defaultValue={customProfile?.bio || ''} 
+                      placeholder="Tell us about yourself... (approx. 100 words)" 
+                      rows={3} 
+                      maxLength={600} 
+                    />
                     {editProfileState?.errors?.bio && <p className="text-sm text-destructive mt-1">{editProfileState.errors.bio.join(', ')}</p>}
                   </div>
                   <h3 className="text-md font-medium pt-2">Social Links</h3>
@@ -435,6 +442,7 @@ export default function ProfilePage() {
             <h1 className="text-xl font-semibold text-foreground mt-2">{displayName}</h1>
             <p className="text-sm text-muted-foreground">{usernameHandle}</p>
             <div className="flex items-center justify-center text-sm text-muted-foreground mt-1">
+              <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
               <span>{userRole}</span>
             </div>
 
@@ -589,6 +597,5 @@ export default function ProfilePage() {
     </div>
   );
 }
-
 
     

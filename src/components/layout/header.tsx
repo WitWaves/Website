@@ -1,12 +1,13 @@
 
 'use client';
 import Link from 'next/link';
-import Image from 'next/image'; // Import Image
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Bell, LogOut, UserPlus, LogIn } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/auth-context';
+import { useState, useEffect } from 'react'; // Import useState and useEffect
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -16,12 +17,16 @@ const navLinks = [
 
 export default function Header() {
   const { user, loading, logout } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <header className="bg-background border-b border-border/50 sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         <div className="flex items-center justify-between h-20">
-          {/* Removed the intermediate div around the Link/Image */}
           <Link href="/">
             <Image
               src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
@@ -29,7 +34,7 @@ export default function Header() {
               width={180} 
               height={43} 
               priority 
-              className="h-auto" 
+              className="h-auto"
               data-ai-hint="logo wordmark"
             />
           </Link>
@@ -57,40 +62,46 @@ export default function Header() {
               ))}
             </nav>
             
-            {loading ? (
-              <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> 
-            ) : user ? (
-              <>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Bell className="h-5 w-5" />
-                  <span className="sr-only">Notifications</span>
-                </Button>
-                <Link href="/blog/profile">
-                  <Avatar className="h-9 w-9 cursor-pointer">
-                    <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png?text=${(user.displayName || user.email || 'U').substring(0,1).toUpperCase()}`} alt={user.displayName || "User Profile"} data-ai-hint="person face"/>
-                    <AvatarFallback>{user.displayName ? user.displayName.substring(0,1).toUpperCase() : (user.email ? user.email.substring(0,1).toUpperCase() : 'U')}</AvatarFallback>
-                  </Avatar>
-                </Link>
-                <Button variant="ghost" size="icon" onClick={logout} title="Logout" className="rounded-full">
-                  <LogOut className="h-5 w-5" />
-                  <span className="sr-only">Logout</span>
-                </Button>
-              </>
+            {isMounted ? (
+              loading ? (
+                <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> 
+              ) : user ? (
+                <>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <Bell className="h-5 w-5" />
+                    <span className="sr-only">Notifications</span>
+                  </Button>
+                  <Link href="/blog/profile">
+                    <Avatar className="h-9 w-9 cursor-pointer">
+                      <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png?text=${(user.displayName || user.email || 'U').substring(0,1).toUpperCase()}`} alt={user.displayName || "User Profile"} data-ai-hint="person face"/>
+                      <AvatarFallback>{user.displayName ? user.displayName.substring(0,1).toUpperCase() : (user.email ? user.email.substring(0,1).toUpperCase() : 'U')}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Button variant="ghost" size="icon" onClick={logout} title="Logout" className="rounded-full">
+                    <LogOut className="h-5 w-5" />
+                    <span className="sr-only">Logout</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link href="/login">
+                      <LogIn className="mr-2 h-4 w-4" />
+                      Login
+                    </Link>
+                  </Button>
+                  <Button variant="default" asChild>
+                    <Link href="/signup">
+                       <UserPlus className="mr-2 h-4 w-4" />
+                      Sign Up
+                    </Link>
+                  </Button>
+                </>
+              )
             ) : (
-              <>
-                <Button variant="ghost" asChild>
-                  <Link href="/login">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    Login
-                  </Link>
-                </Button>
-                <Button variant="default" asChild>
-                  <Link href="/signup">
-                     <UserPlus className="mr-2 h-4 w-4" />
-                    Sign Up
-                  </Link>
-                </Button>
-              </>
+              // Render a placeholder with the same dimensions as the loading skeleton
+              // to prevent layout shift and ensure SSR/client initial render match.
+              <div className="h-9 w-24"></div> 
             )}
           </div>
         </div>

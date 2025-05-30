@@ -7,17 +7,11 @@
 ================================================================================
 CUSTOM SATOSHI FONT FACES
 ================================================================================
-IMPORTANT: Replace the placeholder Firebase Storage URLs below with the
-actual public URLs of YOUR Satoshi font files.
-Ensure these files are publicly readable in your Firebase Storage.
-================================================================================
 */
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Regular.woff2?alt=media') format('woff2');
-  /* Replace YOUR_PROJECT_ID.appspot.com with your actual Firebase project ID */
-  /* And ensure the path /fonts%2FSatoshi-Regular.woff2 is correct */
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Regular.otf?alt=media&token=a57890c1-54f2-427d-8e65-4d103b062147') format('opentype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -25,8 +19,7 @@ Ensure these files are publicly readable in your Firebase Storage.
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Medium.woff2?alt=media') format('woff2');
-  /* Adjust path if your file is named differently */
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Medium.otf?alt=media&token=322492f4-0d6e-4df9-9463-e622e077788c') format('opentype');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -34,8 +27,7 @@ Ensure these files are publicly readable in your Firebase Storage.
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Bold.woff2?alt=media') format('woff2');
-  /* Adjust path if your file is named differently */
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Bold.otf?alt=media&token=ae441d29-8d4e-4a63-a110-6b1f0e7ca370') format('opentype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -43,8 +35,7 @@ Ensure these files are publicly readable in your Firebase Storage.
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/fonts%2FSatoshi-Black.woff2?alt=media') format('woff2');
-  /* Adjust path if your file is named differently */
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Black.otf?alt=media&token=33498b73-c5f4-4134-a1f0-a6f21dbc7c9b') format('opentype');
   font-weight: 900;
   font-style: normal;
   font-display: swap;
@@ -113,7 +104,7 @@ Ensure these files are publicly readable in your Firebase Storage.
     --sidebar-ring: var(--brand-green);
 
     /* Font Variable */
-    --font-satoshi: "Satoshi", sans-serif; /* Changed from --font-jost */
+    --font-satoshi: "Satoshi", sans-serif;
   }
 
   .dark {
@@ -178,11 +169,11 @@ Ensure these files are publicly readable in your Firebase Storage.
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-satoshi); /* Changed from var(--font-jost) */
+    font-family: var(--font-satoshi);
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-satoshi); /* Changed from var(--font-jost) */
-    @apply font-bold; /* Keep existing font-bold or adjust weights based on Satoshi */
+    font-family: var(--font-satoshi);
+    @apply font-bold;
   }
 }
 
@@ -190,17 +181,17 @@ Ensure these files are publicly readable in your Firebase Storage.
 @layer components {
   .ql-toolbar.ql-snow {
     @apply rounded-t-md border-input;
-    background-color: hsl(var(--card)); /* Use CSS var directly */
-    color: hsl(var(--card-foreground)); /* Use CSS var directly */
+    background-color: hsl(var(--card)); 
+    color: hsl(var(--card-foreground)); 
   }
   .ql-container.ql-snow {
     @apply rounded-b-md border-input;
-    background-color: hsl(var(--card)); /* Use CSS var directly */
-    color: hsl(var(--card-foreground)); /* Use CSS var directly */
+    background-color: hsl(var(--card)); 
+    color: hsl(var(--card-foreground)); 
   }
   .ql-editor {
     @apply min-h-[250px] text-base leading-relaxed;
-    color: hsl(var(--card-foreground)); /* Ensure editor text color matches card foreground */
+    color: hsl(var(--card-foreground)); 
   }
 
   .dark .ql-toolbar.ql-snow .ql-stroke,

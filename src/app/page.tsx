@@ -21,7 +21,7 @@ export default async function HomePage() {
                   alt="Decorative illustration" 
                   width={100} 
                   height={100} 
-                  className="inline-block mr-2 -mt-2 relative top-[-0.1em] lg:top-[-0.15em]" 
+                  className="inline-block mr-2 relative top-[-0.1em] lg:top-[-0.15em]" 
                   data-ai-hint="explore theme"
                 />
                 Explore.

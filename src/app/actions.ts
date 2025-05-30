@@ -27,6 +27,7 @@ const UserProfileSchema = z.object({
   linkedin: z.string().url('Invalid LinkedIn URL.').optional().or(z.literal('')),
   instagram: z.string().url('Invalid Instagram URL.').optional().or(z.literal('')),
   portfolio: z.string().url('Invalid Portfolio URL.').optional().or(z.literal('')),
+  github: z.string().url('Invalid GitHub URL.').optional().or(z.literal('')),
 });
 
 const AddCommentSchema = z.object({
@@ -55,6 +56,7 @@ export type FormState = {
     linkedin?: string[];
     instagram?: string[];
     portfolio?: string[];
+    github?: string[];
     // Like/Save action specific
     postId?: string[];
     // Comment action specific
@@ -198,13 +200,14 @@ export async function getAISuggestedTagsAction(postContent: string): Promise<str
 export async function updateUserProfileAction(userId: string, prevState: FormState, formData: FormData): Promise<FormState> {
   const validatedFields = UserProfileSchema.safeParse({
     displayName: formData.get('displayName'),
-    username: formData.get('username') || undefined,
+    username: formData.get('username') || undefined, // Ensure empty string becomes undefined for optional
     bio: formData.get('bio') || undefined,
     photoURL: formData.get('photoURL') || undefined, 
     twitter: formData.get('twitter') || undefined,
     linkedin: formData.get('linkedin') || undefined,
     instagram: formData.get('instagram') || undefined,
     portfolio: formData.get('portfolio') || undefined,
+    github: formData.get('github') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -214,34 +217,45 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
       success: false,
     };
   }
-
+  
   const { displayName, username, bio, photoURL, ...socialLinksInput } = validatedFields.data;
   
   const profileUpdateData: Partial<UserProfile> = {
+    // uid is not set here as it's the document ID, not a field in the doc itself typically
     username: username,
     displayName: displayName, 
     bio: bio,
-    photoURL: photoURL, 
-    socialLinks: socialLinksInput as SocialLinks, 
+    photoURL: photoURL, // This will be handled to be deleteField if empty string
+    socialLinks: socialLinksInput as SocialLinks, // This will be cleaned by updateUserProfileDataInDb
   };
 
   try {
     await updateUserProfileDataInDb(userId, profileUpdateData);
-    console.log('[updateUserProfileAction] User profile updated successfully for userId:', userId);
+    console.log('[updateUserProfileAction] User profile updated successfully in Firestore for userId:', userId);
   } catch (error) {
     console.error("[updateUserProfileAction] Error updating user profile in DB:", error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    // Check for Firestore specific errors like permission denied or data validation
+    if (errorMessage.includes("invalid data") || errorMessage.includes("undefined")) {
+        return { message: `Error: Failed to update profile due to invalid data format. ${errorMessage}`, success: false };
+    }
     return { message: `Error: Failed to update profile in database. ${errorMessage}`, success: false };
   }
  
+  // Prepare data for optimistic UI update or state refresh on client
   const updatedProfileForState: Partial<UserProfile> = {
-      uid: userId,
+      uid: userId, // Include uid for client-side identification
       ...profileUpdateData 
   };
+   // Ensure photoURL is correctly represented for state update
+  if (profileUpdateData.photoURL === '') {
+    updatedProfileForState.photoURL = undefined; // Reflect removal for UI
+  }
 
-  revalidatePath('/blog/profile');
-  revalidatePath(`/blog/profile/${userId}`); 
-  revalidatePath('/blog'); 
+
+  revalidatePath('/blog/profile'); // Revalidates the current user's profile
+  revalidatePath(`/blog/profile/${userId}`); // For potential public view if structure changes
+  revalidatePath('/blog'); // For author cards on blog listing
 
   return { message: 'Profile updated successfully!', success: true, updatedProfile: updatedProfileForState };
 }
@@ -384,7 +398,7 @@ export async function toggleSavePostAction(prevState: FormState, formData: FormD
   }
 
   const userProfileDocRef = doc(db, 'userProfiles', userId);
-  if (!userProfileDocRef) { // Should not happen if userId is valid
+  if (!userProfileDocRef) { 
     console.error('[toggleSavePostAction] Failed: Could not create userProfileDocRef for UserID:', userId);
     return { message: 'Error: User profile context not found.', success: false };
   }
@@ -404,7 +418,7 @@ export async function toggleSavePostAction(prevState: FormState, formData: FormD
       console.log('[toggleSavePostAction] Post is not saved. Saving...');
       await setDoc(savedPostDocRef, {
         savedAt: serverTimestamp(),
-        postId: postId // Storing postId here for clarity, though doc ID is postId
+        postId: postId 
       });
       saved = true;
       console.log('[toggleSavePostAction] Post saved successfully.');
@@ -426,4 +440,3 @@ export async function toggleSavePostAction(prevState: FormState, formData: FormD
     return { message: `Error: Failed to update save status. ${errorMessage}`, success: false };
   }
 }
-

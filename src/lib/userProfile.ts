@@ -44,11 +44,13 @@ const formatProfileTimestamp = (timestamp: any): string | undefined => {
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   if (!userId) return null;
+  console.log(`[getUserProfile] Fetching profile for userId: ${userId}`);
   try {
     const profileDocRef = doc(db, 'userProfiles', userId);
     const docSnap = await getDoc(profileDocRef);
     if (docSnap.exists()) {
       const data = docSnap.data();
+      console.log(`[getUserProfile] Profile found for ${userId}:`, data);
       return {
         uid: userId,
         username: data.username,
@@ -60,10 +62,10 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
         updatedAt: formatProfileTimestamp(data.updatedAt),
       } as UserProfile;
     }
-    console.log(`User profile not found for userId: ${userId}`);
+    console.log(`[getUserProfile] User profile not found in Firestore for userId: ${userId}`);
     return null;
   } catch (error) {
-    console.error(`Error fetching user profile for userId ${userId}:`, error);
+    console.error(`[getUserProfile] Error fetching user profile for userId ${userId}:`, error);
     return null;
   }
 }
@@ -80,6 +82,7 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
     return profilesMap;
   }
   
+  console.log('[getAuthorProfilesForCards] Fetching profiles for UIDs:', uniqueUids);
   try {
     const profilePromises = uniqueUids.map(uid => 
       getDoc(doc(db, 'userProfiles', uid)).then(docSnap => ({ uid, docSnap }))
@@ -91,7 +94,7 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (!data.displayName) {
-          console.warn(`Author profile for UID ${uid} exists but displayName is missing. Defaulting to 'WitWaves User'. Log from getAuthorProfilesForCards.`);
+          console.warn(`[getAuthorProfilesForCards] Author profile for UID ${uid} exists but displayName is missing. Defaulting to 'WitWaves User'.`);
         }
         profilesMap.set(uid, {
           uid: uid,
@@ -99,89 +102,95 @@ export async function getAuthorProfilesForCards(uids: string[]): Promise<Map<str
           photoURL: data.photoURL, 
         });
       } else {
-        console.warn(`Author profile not found in Firestore for UID ${uid}. Defaulting to 'WitWaves User'. Log from getAuthorProfilesForCards.`);
+        console.warn(`[getAuthorProfilesForCards] Author profile not found in Firestore for UID ${uid}. Defaulting to 'WitWaves User'.`);
         profilesMap.set(uid, {
           uid: uid,
-          displayName: "WitWaves User",
+          displayName: "WitWaves User", // Consistent default
           photoURL: undefined,
         });
       }
     }
   } catch (error) {
-    console.error("Error fetching multiple author profiles:", error);
+    console.error("[getAuthorProfilesForCards] Error fetching multiple author profiles:", error);
+    // Fallback for UIDs that might have failed due to a general error but weren't processed
     uniqueUids.forEach(uid => {
       if (!profilesMap.has(uid)) {
-        console.warn(`Fallback: Author profile for UID ${uid} could not be fetched due to overall error. Defaulting to 'WitWaves User'. Log from getAuthorProfilesForCards.`);
+        console.warn(`[getAuthorProfilesForCards] Fallback: Author profile for UID ${uid} could not be fetched due to overall error. Defaulting to 'WitWaves User'.`);
         profilesMap.set(uid, { uid, displayName: "WitWaves User", photoURL: undefined });
       }
     });
   }
-  
+  console.log('[getAuthorProfilesForCards] Resulting profilesMap:', profilesMap);
   return profilesMap;
 }
 
 
 export async function updateUserProfileData(
   userId: string,
-  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> & { displayName?: string; photoURL?: string } 
+  data: Partial<Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>> 
 ): Promise<void> {
   if (!userId) throw new Error("User ID is required to update profile data.");
   const profileDocRef = doc(db, 'userProfiles', userId);
+  
+  const dataToSave: { [key: string]: any } = { ...data }; // Create a mutable copy
+
+  // Clean socialLinks: remove empty string values and use deleteField for the whole map if it becomes empty
+  if (dataToSave.socialLinks && typeof dataToSave.socialLinks === 'object') {
+    const socialLinksCopy = { ...dataToSave.socialLinks };
+    let hasActualLinks = false;
+    for (const key of Object.keys(socialLinksCopy) as Array<keyof SocialLinks>) {
+      if (socialLinksCopy[key] === '' || socialLinksCopy[key] === undefined || socialLinksCopy[key] === null) {
+        delete socialLinksCopy[key]; // Remove empty/null/undefined keys
+      } else {
+        hasActualLinks = true;
+      }
+    }
+    
+    if (hasActualLinks) {
+      dataToSave.socialLinks = socialLinksCopy;
+    } else {
+      // If all social links are empty, we should remove the socialLinks field
+      dataToSave.socialLinks = deleteField();
+    }
+  } else if (dataToSave.socialLinks === undefined) { // Explicitly passed as undefined
+    delete dataToSave.socialLinks; // Don't try to save undefined
+  }
+
+
+  // Handle photoURL: if it's an empty string, use deleteField to remove it
+  if (dataToSave.photoURL === '') {
+    dataToSave.photoURL = deleteField();
+  } else if (dataToSave.photoURL === undefined) {
+     delete dataToSave.photoURL; // Don't save undefined photoURL
+  }
+
+  // Remove any top-level undefined properties to prevent Firestore errors
+  Object.keys(dataToSave).forEach(key => {
+    if (dataToSave[key] === undefined) {
+      delete dataToSave[key];
+    }
+  });
+
+
+  dataToSave.updatedAt = serverTimestamp();
+  console.log(`[updateUserProfileData] Preparing to update profile for ${userId} with:`, dataToSave);
+
   try {
     const docSnap = await getDoc(profileDocRef);
-    
-    const dataToSave: { [key: string]: any } = { ...data };
-
-    if (dataToSave.socialLinks && typeof dataToSave.socialLinks === 'object') {
-      const socialLinksCopy = { ...dataToSave.socialLinks }; 
-      let hasActualLinks = false;
-      for (const key of Object.keys(socialLinksCopy) as Array<keyof SocialLinks>) {
-        if (socialLinksCopy[key] === '' || socialLinksCopy[key] === undefined || socialLinksCopy[key] === null) {
-          delete socialLinksCopy[key]; 
-        } else {
-          hasActualLinks = true;
-        }
-      }
-      
-      if (hasActualLinks) {
-        dataToSave.socialLinks = socialLinksCopy;
-      } else {
-        if (docSnap.exists() && docSnap.data()?.socialLinks) { 
-          dataToSave.socialLinks = deleteField(); 
-        } else {
-          delete dataToSave.socialLinks; 
-        }
-      }
-    }
-
-    if (dataToSave.photoURL === '') {
-        if (docSnap.exists() && docSnap.data()?.photoURL) {
-             dataToSave.photoURL = deleteField();
-        } else {
-            delete dataToSave.photoURL;
-        }
-    } else if (dataToSave.photoURL === undefined) { 
-        delete dataToSave.photoURL;
-    }
-    
-    dataToSave.updatedAt = serverTimestamp();
-
     if (docSnap.exists()) {
       await updateDoc(profileDocRef, dataToSave);
-      console.log(`User profile updated for userId: ${userId} with data:`, dataToSave);
+      console.log(`[updateUserProfileData] User profile updated for userId: ${userId}`);
     } else {
-      dataToSave.uid = userId; 
+      // If document doesn't exist, create it
+      dataToSave.uid = userId; // Ensure uid is part of the initial document if you store it as a field
       dataToSave.createdAt = serverTimestamp();
-      Object.keys(dataToSave).forEach(key => {
-        if (dataToSave[key] === undefined) {
-          delete dataToSave[key];
-        }
-      });
+      // Remove updatedAt if creating, or let it be set by serverTimestamp
+      // delete dataToSave.updatedAt; // Firestore will add it with serverTimestamp on create
       await setDoc(profileDocRef, dataToSave);
-      console.log(`User profile created for userId: ${userId} with data:`, dataToSave);
+      console.log(`[updateUserProfileData] User profile created for userId: ${userId}`);
     }
   } catch (error) {
-    console.error(`Error updating user profile data for userId ${userId} in Firestore:`, error);
+    console.error(`[updateUserProfileData] Error updating/setting user profile data for userId ${userId} in Firestore:`, error);
     throw error; 
   }
 }

@@ -26,7 +26,7 @@ import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getCommentsByUser, type UserActivityComment } from '@/lib/comments';
 import { format } from 'date-fns';
-import { Card } from '@/components/ui/card'; // Import Card
+import { Card } from '@/components/ui/card';
 
 const socialIcons: Record<keyof Required<SocialLinks>, typeof LinkIcon> = {
     twitter: X,
@@ -37,8 +37,8 @@ const socialIcons: Record<keyof Required<SocialLinks>, typeof LinkIcon> = {
 };
 
 const staticProfileStats = {
-    following: 45, // Static for now
-    followers: 45, // Static for now
+    following: 45, 
+    followers: 45, 
 };
 
 const topInterestsStatic = ["Web", "Web Design", "Programming", "Art", "Maths"];
@@ -142,10 +142,11 @@ export default function ProfilePage() {
             if (profileDataFromDb) {
                 setCustomProfile(profileDataFromDb);
             } else {
+                 // Fallback if Firestore profile is somehow deleted post-update
                  setCustomProfile({
                     uid: user.uid,
-                    displayName: auth.currentUser?.displayName || "User",
-                    photoURL: auth.currentUser?.photoURL || undefined,
+                    displayName: auth.currentUser?.displayName || user.displayName || "User",
+                    photoURL: auth.currentUser?.photoURL || user.photoURL || undefined,
                     username: user.email?.split('@')[0] || 'username',
                     bio: "",
                     socialLinks: {},
@@ -200,38 +201,47 @@ export default function ProfilePage() {
   };
 
   const clientSideProfileUpdateAndServerAction = async (formData: FormData) => {
-    if (!auth.currentUser) {
+    if (!auth.currentUser) { // Use auth from Firebase config
         toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
         return;
     }
     const newDisplayName = formData.get('displayName') as string;
-    let newPhotoURL = customProfile?.photoURL || user?.photoURL || null;
+    // Prioritize previewUrl for new photo, then current customProfile, then user's auth photoURL
+    let newPhotoURL = previewUrl || customProfile?.photoURL || user?.photoURL || null;
 
     if (selectedFile) {
       setIsUploading(true);
+      setUploadProgress(0); // Reset progress
       try {
         const imageFileRef = storageRef(storage, `profileImages/${auth.currentUser.uid}/profilePicture-${Date.now()}-${selectedFile.name}`);
         const uploadTask = uploadBytesResumable(imageFileRef, selectedFile);
+        
         await new Promise<void>((resolve, reject) => {
           uploadTask.on('state_changed',
-            (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+            },
             (error) => {
               console.error("Upload failed:", error);
               toast({ title: "Upload Error", description: `Failed to upload image. ${error.message}`, variant: "destructive" });
-              reject(error);
+              setIsUploading(false); // Ensure uploading state is reset on error
+              reject(error); // Reject the promise to stop further execution
             },
             async () => {
               newPhotoURL = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log('File available at', newPhotoURL);
               resolve();
             }
           );
         });
       } catch (error) {
-        setIsUploading(false);
-        return;
+        // Error already handled and toasted by the uploadTask's error callback
+        setIsUploading(false); // Ensure uploading state is reset
+        return; // Stop if upload failed
       } finally {
-        setIsUploading(false);
-        setUploadProgress(0);
+        setIsUploading(false); // Reset uploading state if successful or if initial try fails
+        // setUploadProgress(0); // Progress is reset at start of upload
       }
     }
 
@@ -239,22 +249,27 @@ export default function ProfilePage() {
     if (newDisplayName && newDisplayName !== auth.currentUser.displayName) {
       authProfileUpdates.displayName = newDisplayName;
     }
-    if (newPhotoURL && newPhotoURL !== auth.currentUser.photoURL) {
+    // Only update Firebase Auth photoURL if a new one was generated (from upload or explicitly set)
+    if (newPhotoURL && newPhotoURL !== auth.currentUser.photoURL) { 
       authProfileUpdates.photoURL = newPhotoURL;
     }
 
     if (Object.keys(authProfileUpdates).length > 0 && auth.currentUser) {
       try {
         await updateFirebaseAuthProfile(auth.currentUser, authProfileUpdates);
+        console.log("Firebase Auth profile updated with:", authProfileUpdates);
       } catch (error) {
         console.error("Error updating Firebase Auth profile:", error);
         toast({ title: "Auth Update Error", description: `Failed to update Firebase Auth profile. ${ (error as Error).message }`, variant: "destructive" });
+        // Optionally decide if this error should prevent Firestore update. For now, it proceeds.
       }
     }
 
     if (newPhotoURL) {
         formData.set('photoURL', newPhotoURL);
-    } else if (!newPhotoURL && (customProfile?.photoURL || user?.photoURL)) {
+    } else if (newPhotoURL === null && (customProfile?.photoURL || user?.photoURL)) { 
+        // If newPhotoURL became null (e.g. user wants to remove photo, though UI for this isn't present)
+        // and there was an existing photo, set form 'photoURL' to empty string to signal removal in action.
         formData.set('photoURL', '');
     }
     // Proceed to call the server action for Firestore profile data
@@ -324,12 +339,12 @@ export default function ProfilePage() {
                 setIsEditModalOpen(isOpen);
                 if (!isOpen) {
                     setSelectedFile(null);
-                    setPreviewUrl(null);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
+                    setPreviewUrl(null); // Clear preview when dialog closes
+                    if (fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
                 }
             }}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="absolute top-4 right-4 text-xs px-3 py-1.5">
+                <Button variant="link" size="sm" className="absolute top-4 right-4 text-xs px-3 py-1.5 text-primary hover:text-primary/80">
                   Edit profile
                 </Button>
               </DialogTrigger>
@@ -342,12 +357,12 @@ export default function ProfilePage() {
                     <Label>Profile Picture</Label>
                     <div className="flex items-center space-x-4">
                       <Avatar className="h-20 w-20">
-                        <AvatarImage src={previewUrl || customProfile?.photoURL || user?.photoURL || `https://placehold.co/80x80.png?text=${displayName.substring(0,1).toUpperCase()}`} alt="Profile preview" data-ai-hint="person avatar"/>
-                        <AvatarFallback>{displayName.substring(0,2).toUpperCase()}</AvatarFallback>
+                        <AvatarImage src={previewUrl || customProfile?.photoURL || user?.photoURL || `https://placehold.co/80x80.png?text=${(displayName || 'U').substring(0,1).toUpperCase()}`} alt="Profile preview" data-ai-hint="person avatar"/>
+                        <AvatarFallback>{(displayName || 'U').substring(0,2).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <Input
-                        id="photoURLForm"
-                        name="photoFile"
+                        id="photoURLForm" // Not directly used as form field name for file, but good for label association
+                        name="photoFile" // This name isn't used by FormData directly if we handle file separately
                         type="file"
                         accept="image/*"
                         onChange={handleFileChange}
@@ -360,6 +375,9 @@ export default function ProfilePage() {
                         <div className="bg-primary h-2.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
                       </div>
                     )}
+                    {/* Hidden input for photoURL to be set by clientSideProfileUpdateAndServerAction */}
+                    {/* <input type="hidden" name="photoURL" value={previewUrl || customProfile?.photoURL || user?.photoURL || ''} /> */}
+
                   </div>
                   <div>
                     <Label htmlFor="displayNameForm">Display Name</Label>
@@ -402,16 +420,17 @@ export default function ProfilePage() {
                     <Input id="githubForm" name="github" defaultValue={customProfile?.socialLinks?.github || ''} placeholder="https://github.com/yourusername" />
                     {/* No specific error display for github in schema, but can be added if needed */}
                   </div>
-                  {editProfileState?.message && !editProfileState.success && (!editProfileState.errors || Object.keys(editProfileState.errors).length === 0) && (
+                  {editProfileState?.message && !editProfileState.success && (!editProfileState.errors || Object.keys(editProfileState.errors).length === 0 || (Object.keys(editProfileState.errors).length === 1 && editProfileState.errors.photoURL)) && (
                      <p className="text-sm text-destructive mt-1">{editProfileState.message}</p>
                   )}
+                   {editProfileState?.errors?.photoURL && <p className="text-sm text-destructive mt-1">{editProfileState.errors.photoURL.join(', ')}</p>}
                   <DialogFooter>
                       <DialogClose asChild>
                           <Button type="button" variant="outline" onClick={() => {
                               setIsEditModalOpen(false);
                               setSelectedFile(null);
-                              setPreviewUrl(null);
-                              if (fileInputRef.current) fileInputRef.current.value = '';
+                              setPreviewUrl(null); // Clear preview
+                              if (fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
                           }}>Cancel</Button>
                       </DialogClose>
                       <Button type="submit" disabled={isEditPending || isEditPendingTransition || isUploading}>
@@ -426,7 +445,7 @@ export default function ProfilePage() {
             <p className="text-sm text-muted-foreground">{usernameHandle}</p>
             <div className="flex items-center justify-center text-sm text-muted-foreground mt-1">
               <span>{userRole}</span>
-              <LinkIcon className="ml-2 h-4 w-4 text-muted-foreground hover:text-primary cursor-pointer" />
+              {/* <LinkIcon className="ml-2 h-4 w-4 text-muted-foreground hover:text-primary cursor-pointer" /> */}
             </div>
 
             <div className="grid grid-cols-3 gap-2 my-4 text-center">
@@ -481,7 +500,6 @@ export default function ProfilePage() {
           <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1 rounded-lg border">
             <TabsTrigger value="posts" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Posts</TabsTrigger>
             <TabsTrigger value="activity" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Activity</TabsTrigger>
-            {/* <TabsTrigger value="stats" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Stats</TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="posts">
@@ -529,7 +547,7 @@ export default function ProfilePage() {
                 
                 <div className="space-y-8">
                   <section>
-                    {/* Saved Posts Section (already implemented logic) */}
+                    <h3 className="text-md font-medium mb-3 text-muted-foreground">Saved Posts</h3>
                     {isLoadingSavedPosts ? (
                          <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading saved posts...</p></div>
                     ) : savedPosts.length === 0 ? (
@@ -577,19 +595,8 @@ export default function ProfilePage() {
                 </div>
             </Card>
           </TabsContent>
-
-          {/* <TabsContent value="stats">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Your Stats</h3>
-              <p className="text-muted-foreground">Detailed statistics about your engagement and content performance will be shown here. (Coming Soon)</p>
-            </Card>
-          </TabsContent> */}
         </Tabs>
       </main>
     </div>
   );
 }
-
-    
-
-    

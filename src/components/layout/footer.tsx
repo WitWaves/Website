@@ -26,7 +26,7 @@ const otherLinks = [
 
 export default function Footer() {
   return (
-    <footer className="bg-muted/30 border-t border-border/50">
+    <footer className="bg-muted/30 border-t border-border/50 py-12">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 max-w-7xl">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           {/* Column 1: Logo and Copyright */}
@@ -35,9 +35,9 @@ export default function Footer() {
                 <Image
                   src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
                   alt="WitWaves Logo"
-                  width={180} // Increased width
-                  height={43} // Increased height (maintaining aspect ratio)
-                  className="h-auto" // Allow height to adjust based on width
+                  width={180} 
+                  height={43} 
+                  className="h-auto" 
                   data-ai-hint="logo wordmark"
                 />
               </Link>

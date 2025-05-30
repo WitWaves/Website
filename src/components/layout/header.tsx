@@ -1,11 +1,12 @@
 
 'use client';
 import Link from 'next/link';
+import Image from 'next/image'; // Import Image
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Bell, LogOut, UserPlus, LogIn } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/contexts/auth-context'; // Import useAuth
+import { useAuth } from '@/contexts/auth-context';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -14,15 +15,22 @@ const navLinks = [
 ];
 
 export default function Header() {
-  const { user, loading, logout } = useAuth(); // Get auth state and functions
+  const { user, loading, logout } = useAuth();
 
   return (
     <header className="bg-background border-b border-border/50 sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         <div className="flex items-center justify-between h-20">
-          <Link href="/" className="flex flex-col">
-            <span className="text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">WitWaves.</span>
-            <span className="text-xs text-muted-foreground -mt-1">/ Diverse Thoughts, One Ocean</span>
+          <Link href="/">
+            <Image
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
+              alt="WitWaves Logo"
+              width={150} // Adjust width as needed
+              height={36} // Adjust height as needed
+              priority // Good for LCP element
+              className="h-9 w-auto" // Tailwind classes for responsive height and auto width
+              data-ai-hint="logo wordmark"
+            />
           </Link>
           <div className="flex items-center space-x-6">
             <div className="hidden md:flex items-center">
@@ -35,7 +43,6 @@ export default function Header() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
             </div>
-
             <nav className="hidden md:flex items-center space-x-6">
               {navLinks.map((link) => (
                 <Link
@@ -50,7 +57,7 @@ export default function Header() {
             
             <div className="flex items-center space-x-3">
               {loading ? (
-                <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> // Skeleton loader for auth buttons
+                <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> 
               ) : user ? (
                 <>
                   <Button variant="ghost" size="icon" className="rounded-full">

@@ -1,4 +1,6 @@
+
 import Link from 'next/link';
+import Image from 'next/image'; // Import Image
 import { MessageSquare, Instagram, Linkedin, Facebook } from 'lucide-react';
 
 const socials = [
@@ -11,7 +13,7 @@ const socials = [
 const mainLinks = [
   { name: 'Home', href: '/' },
   { name: 'About us', href: '/#about' },
-  { name: 'Blog', href: '/blog' }, // Updated to link to /blog
+  { name: 'Blog', href: '/blog' },
 ];
 
 const otherLinks = [
@@ -24,14 +26,20 @@ const otherLinks = [
 
 export default function Footer() {
   return (
-    <footer className="bg-muted/30 border-t border-border/50"> {/* Removed mt-16 */}
+    <footer className="bg-muted/30 border-t border-border/50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 max-w-7xl">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           {/* Column 1: Logo and Copyright */}
           <div className="lg:col-span-1">
-             <Link href="/" className="flex flex-col mb-4">
-                <span className="text-2xl font-bold tracking-tight text-gray-800 dark:text-gray-100">WitWaves.</span>
-                <span className="text-xs text-muted-foreground -mt-1">/ Diverse Thoughts, One Ocean</span>
+             <Link href="/" className="block mb-4">
+                <Image
+                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
+                  alt="WitWaves Logo"
+                  width={150} // Adjust width as needed
+                  height={36} // Adjust height as needed
+                  className="h-9 w-auto" // Tailwind classes for responsive height and auto width
+                  data-ai-hint="logo wordmark"
+                />
               </Link>
             <p className="text-sm text-muted-foreground mt-4">
               Copyright &copy; {new Date().getFullYear()} WitWaves.in

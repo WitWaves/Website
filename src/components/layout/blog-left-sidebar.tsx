@@ -24,17 +24,17 @@ export default function BlogLeftSidebar() {
       {navItems.map((item) => {
         const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/blog') || (item.href === '/blog' && (pathname === '/blog' || pathname === '/')); // Adjusted active logic
         return (
-          <Link href={item.href} key={item.label} legacyBehavior>
-            <a
-              title={item.label}
-              className={cn(
-                "flex flex-col items-center justify-center p-3 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors w-full",
-                isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground"
-              )}
-            >
-              <item.icon className="h-6 w-6" />
-              {/* <span className="text-xs mt-1 hidden lg:block">{item.label}</span> */}
-            </a>
+          <Link
+            href={item.href}
+            key={item.label}
+            title={item.label}
+            className={cn(
+              "flex flex-col items-center justify-center p-3 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors w-full",
+              isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground"
+            )}
+          >
+            <item.icon className="h-6 w-6" />
+            {/* <span className="text-xs mt-1 hidden lg:block">{item.label}</span> */}
           </Link>
         );
       })}

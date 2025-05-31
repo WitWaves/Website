@@ -3,8 +3,8 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Match the "Website Elements" folder
-    match /"Website Elements"/{allWebSiteElementsPaths=**} {
+    // Match the "WebsiteElements" folder
+    match /WebsiteElements/{allWebSiteElementsPaths=**} {
       allow read: if true;
       allow write: if false; // Explicitly deny writes
     }
@@ -28,10 +28,7 @@ service firebase.storage {
     }
 
     // Fallback for any other paths - explicitly deny if not matched above.
-    // This is good practice to ensure no unintended access.
-    // However, if you have other root-level files/folders that need access,
-    // you'll need specific rules for them before this.
-    // For now, let's comment this out to ensure we fix the primary paths first.
+    // Uncomment this if you want a strict fallback rule.
     // match /{allOtherPaths=**} {
     //   allow read: if false;
     //   allow write: if false;

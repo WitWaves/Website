@@ -3,28 +3,41 @@
 
 import { getPost, type Post } from '@/lib/posts';
 import { getCommentsForPost, type Comment } from '@/lib/comments';
-import { notFound, useParams } from 'next/navigation';
+import { notFound, useParams, useRouter } from 'next/navigation'; // Added useRouter
 import TagBadge from '@/components/posts/tag-badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
 import { format } from 'date-fns';
-import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Share2, UserCircle } from 'lucide-react';
+import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Share2, UserCircle, Trash2 } from 'lucide-react'; // Added Trash2
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useActionState, useTransition, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, addCommentAction, type FormState } from '@/app/actions';
+import { toggleLikePostAction, addCommentAction, deletePostAction, type FormState } from '@/app/actions'; // Added deletePostAction
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"; // Added AlertDialog imports
 
 export default function PostPage() {
   const params = useParams();
+  const router = useRouter(); // Added router
   const postId = params.id as string;
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isLikePendingTransition, startLikeTransition] = useTransition();
   const [isCommentPendingTransition, startCommentTransition] = useTransition();
+  const [isDeletePendingTransition, startDeleteTransition] = useTransition(); // For delete
   const commentFormRef = useRef<HTMLFormElement>(null);
 
   const [post, setPost] = useState<Post | null | undefined>(undefined);
@@ -46,6 +59,12 @@ export default function PostPage() {
     undefined
   );
 
+  const [deleteState, handleDeleteAction, isDeleteActionPending] = useActionState<FormState, FormData>(
+    deletePostAction,
+    undefined
+  );
+
+
   useEffect(() => {
     async function fetchPostData() {
       if (postId) {
@@ -61,6 +80,9 @@ export default function PostPage() {
 
                 const fetchedComments = await getCommentsForPost(postId);
                 setComments(fetchedComments);
+            } else {
+                // Post not found, set to null to trigger notFound() later
+                setPost(null);
             }
         } catch (error) {
             console.error("Error fetching post or comments: ", error);
@@ -81,7 +103,7 @@ export default function PostPage() {
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
     } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === postId) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
-      if (post) {
+      if (post) { // Check if post is loaded before trying to access its properties
         setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
         setOptimisticLikeCount(post.likeCount || 0);
       }
@@ -99,6 +121,15 @@ export default function PostPage() {
       toast({ title: 'Error adding comment', description: commentState.errors?.commentText?.join(', ') || commentState.message, variant: 'destructive' });
     }
   }, [commentState, postId, toast]);
+
+  useEffect(() => {
+    if (deleteState?.success) {
+      toast({ title: 'Post Deleted', description: deleteState.message });
+      router.push('/blog'); // Redirect to blog page after successful deletion
+    } else if (deleteState?.message && !deleteState.success) {
+      toast({ title: 'Error Deleting Post', description: deleteState.message, variant: 'destructive' });
+    }
+  }, [deleteState, router, toast]);
 
 
   const handleLikeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -124,6 +155,18 @@ export default function PostPage() {
     startCommentTransition(() => handleCommentAction(formData));
   };
 
+  const handleDeletePost = () => {
+    if (!user || !post || user.uid !== post.userId) {
+      toast({ title: 'Error', description: 'You are not authorized to delete this post or post is not loaded.', variant: 'destructive' });
+      return;
+    }
+    const formData = new FormData();
+    formData.append('postId', post.id);
+    formData.append('postAuthorId', post.userId);
+    formData.append('currentUserId', user.uid);
+    startDeleteTransition(() => handleDeleteAction(formData));
+  };
+
 
   if (isLoading || authLoading) {
     return (
@@ -134,13 +177,15 @@ export default function PostPage() {
     );
   }
 
-  if (post === null) {
+  if (post === null) { // This means post was not found after fetch attempt
     notFound();
   }
 
-  if (!post) {
-      return <div className="text-center py-10">Post could not be loaded.</div>;
+  if (!post) { // Fallback for any other undefined state, though previous check should catch it
+      return <div className="text-center py-10">Post could not be loaded. Please try again.</div>;
   }
+
+  const isOwner = user && post.userId === user.uid;
 
   return (
     <article className="py-8 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -151,13 +196,44 @@ export default function PostPage() {
             Back to all posts
           </Link>
         </Button>
-        {post.userId === user?.uid && (
-            <Button asChild variant="default">
-                <Link href={`/posts/${post.id}/edit`}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                Edit Post
-                </Link>
-            </Button>
+        {isOwner && (
+            <div className="flex gap-2">
+                <Button asChild variant="default">
+                    <Link href={`/posts/${post.id}/edit`}>
+                    <Edit3 className="mr-2 h-4 w-4" />
+                    Edit Post
+                    </Link>
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Post
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete your post
+                        and remove its data from our servers, including its thumbnail image.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDeletePost}
+                        disabled={isDeleteActionPending || isDeletePendingTransition}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {(isDeleteActionPending || isDeletePendingTransition) ? (
+                          <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Deleting..." width={20} height={20} className="mr-2" />
+                        ) : "Yes, delete post"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+            </div>
         )}
       </div>
 
@@ -284,6 +360,3 @@ export default function PostPage() {
     </article>
   );
 }
-
-
-    

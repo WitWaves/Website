@@ -7,6 +7,8 @@ import { db } from '@/lib/firebase/config';
 import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc } from 'firebase/firestore';
 import type { UserProfile, SocialLinks } from '@/lib/userProfile';
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
+import { storage } from '@/lib/firebase/config'; // Added storage import
+import { ref as storageRef, deleteObject } from 'firebase/storage'; // Added deleteObject
 
 
 const PostFormSchema = z.object({
@@ -66,6 +68,7 @@ export type FormState = {
   };
   success?: boolean;
   newPostId?: string;
+  deletedPostId?: string; // For delete action
   updatedProfile?: Partial<UserProfile>;
   updatedLikeStatus?: { postId: string; liked: boolean; newCount: number };
   newCommentId?: string;
@@ -111,7 +114,6 @@ export async function createPostAction(prevState: FormState, formData: FormData)
 
   const newPostRef = doc(db, 'posts', slug);
 
-  // Initialize with fields that are always present
   const newPostData: Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'imageUrl'> & { createdAt: any; updatedAt: any; imageUrl?: string } = {
     title,
     content,
@@ -124,11 +126,10 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     updatedAt: serverTimestamp(),
   };
 
-  // Conditionally add imageUrl only if uploadedThumbnailUrl is a non-empty string
   if (uploadedThumbnailUrl && uploadedThumbnailUrl.trim() !== '') {
     newPostData.imageUrl = uploadedThumbnailUrl;
   }
-  // If uploadedThumbnailUrl is undefined or an empty string, imageUrl will not be added to newPostData.
+
 
   try {
     console.log('[createPostAction] Attempting to save post to Firestore with data:', newPostData);
@@ -143,7 +144,8 @@ export async function createPostAction(prevState: FormState, formData: FormData)
   revalidatePath(`/posts/${slug}`);
   (tags || []).forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
   revalidatePath('/archive/[year]/[month]', 'page');
-  revalidatePath('/blog/profile');
+  revalidatePath('/blog/profile'); // For user's own profile
+  if (userId) revalidatePath(`/blog/profile/${userId}`); // For public profile if different
 
   return { message: `Post "${title}" created successfully!`, success: true, errors: {}, newPostId: slug };
 }
@@ -153,7 +155,6 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     title: formData.get('title'),
     content: formData.get('content'),
     tags: formData.get('tags'),
-    // Note: userId is not typically updated, so it's not included here from formData for update
     uploadedThumbnailUrl: formData.get('uploadedThumbnailUrl'),
   });
 
@@ -168,6 +169,11 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
   const postDocRef = doc(db, 'posts', id);
   console.log('[updatePostAction] Attempting to update post. ID:', id);
 
+  // Fetch existing post to get userId for revalidation
+  const existingPost = await getPost(id);
+  const userId = existingPost?.userId;
+
+
   const updatedPostData: Partial<Omit<Post, 'id'| 'createdAt'>> & {updatedAt: any, imageUrl?: string | any } = {
     title,
     content,
@@ -177,11 +183,10 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
 
   if (uploadedThumbnailUrl === '') {
     updatedPostData.imageUrl = deleteField();
-  } else if (uploadedThumbnailUrl) { // This checks if uploadedThumbnailUrl is a non-empty string
+  } else if (uploadedThumbnailUrl) { 
     updatedPostData.imageUrl = uploadedThumbnailUrl;
   }
-  // If uploadedThumbnailUrl is undefined (e.g. not in form or optional and not provided), 
-  // imageUrl is not added to updatedPostData, so it won't be changed in Firestore.
+
 
   try {
     await updateDoc(postDocRef, updatedPostData);
@@ -193,9 +198,11 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
 
   revalidatePath('/blog');
   revalidatePath(`/posts/${id}`);
-  revalidatePath('/tags', 'layout');
+  (tags || []).forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
   revalidatePath('/archive/[year]/[month]', 'page');
-  revalidatePath('/blog/profile');
+  revalidatePath('/blog/profile'); // For user's own profile
+  if (userId) revalidatePath(`/blog/profile/${userId}`); // For public profile
+
 
   return { message: `Post "${title}" updated successfully!`, success: true, errors: {} };
 }
@@ -396,3 +403,77 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
   }
 }
 
+export async function deletePostAction(prevState: FormState, formData: FormData): Promise<FormState> {
+  const postId = formData.get('postId') as string;
+  const postAuthorId = formData.get('postAuthorId') as string; // The actual author of the post
+  const currentUserId = formData.get('currentUserId') as string; // The user attempting the deletion
+
+  console.log(`[deletePostAction] Initiated. PostID: ${postId}, AuthorID: ${postAuthorId}, CurrentUserID: ${currentUserId}`);
+
+  if (!postId || !postAuthorId || !currentUserId) {
+    return { message: 'Error: Missing required IDs for deletion.', success: false };
+  }
+
+  if (postAuthorId !== currentUserId) {
+    console.warn(`[deletePostAction] Unauthorized attempt by ${currentUserId} to delete post ${postId} owned by ${postAuthorId}.`);
+    return { message: 'Error: You are not authorized to delete this post.', success: false };
+  }
+
+  const postDocRef = doc(db, 'posts', postId);
+
+  try {
+    const postToDelete = await getPost(postId); // Fetch post details to get imageUrl
+
+    if (!postToDelete) {
+      return { message: 'Error: Post not found.', success: false };
+    }
+
+    // 1. Delete Thumbnail from Firebase Storage (if it exists)
+    if (postToDelete.imageUrl && postToDelete.imageUrl.startsWith('https://firebasestorage.googleapis.com')) {
+      console.log(`[deletePostAction] Attempting to delete thumbnail: ${postToDelete.imageUrl}`);
+      const imageStorageRef = storageRef(storage, postToDelete.imageUrl);
+      try {
+        await deleteObject(imageStorageRef);
+        console.log(`[deletePostAction] Thumbnail ${postToDelete.imageUrl} deleted successfully.`);
+      } catch (storageError: any) {
+        // Log error but don't block post deletion if image deletion fails (e.g., already deleted, permissions issue on a specific file)
+        console.warn(`[deletePostAction] Could not delete thumbnail ${postToDelete.imageUrl} from Storage:`, storageError.code, storageError.message);
+        if (storageError.code === 'storage/object-not-found') {
+            // This is fine, image might have been deleted manually or never existed at that exact URL.
+        } else {
+            // For other errors, we might want to inform the user but still proceed with Firestore deletion.
+        }
+      }
+    }
+    console.log("[deletePostAction] Note: Deletion of images embedded in post content (Quill) is not automatically handled by this action.");
+
+
+    // 2. Delete Post Document from Firestore
+    await deleteDoc(postDocRef);
+    console.log(`[deletePostAction] Post ${postId} deleted successfully from Firestore.`);
+
+    // 3. Revalidate Paths
+    revalidatePath('/blog');
+    revalidatePath(`/posts/${postId}`); // Path will become 404, revalidation clears cache
+    revalidatePath('/blog/profile'); // User's own profile
+    revalidatePath(`/blog/profile/${postAuthorId}`); // Author's public profile
+    // Consider broader revalidation for tags/archives if necessary, or let them update naturally
+    (postToDelete.tags || []).forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
+    if (postToDelete.createdAt) {
+        try {
+            const postDate = new Date(postToDelete.createdAt);
+            revalidatePath(`/archive/${postDate.getFullYear()}/${postDate.getMonth() + 1}`);
+        } catch(e) {
+            console.warn("[deletePostAction] Could not parse post creation date for archive revalidation:", postToDelete.createdAt);
+        }
+    }
+
+
+    return { message: `Post "${postToDelete.title}" deleted successfully.`, success: true, deletedPostId: postId };
+
+  } catch (error) {
+    console.error(`[deletePostAction] Critical error deleting post ${postId}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { message: `Error: Failed to delete post. ${errorMessage}`, success: false };
+  }
+}

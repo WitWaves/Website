@@ -34,7 +34,7 @@ export default async function HomePage() {
               Dive into a sea of diverse content, where every wave
               brings new insights and endless exploration.
             </p>
-            <Button size="lg" variant="destructive" asChild>
+            <Button size="lg" variant="destructive" asChild className="rounded-full">
               <Link href="/#get-started">
                 Get started <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
@@ -51,7 +51,7 @@ export default async function HomePage() {
             <p className="text-lg text-muted-foreground mb-6">
               Welcome to our vibrant community space! Share your thoughts, stories, and creativity with the world.
             </p>
-            <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
+            <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full" asChild>
               <Link href="/blog">
                 Discover Blogs <ArrowRight className="ml-2 h-5 w-5" />
               </Link>

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon, Edit3, Globe, Users, FileCheck2, Minus, ImageUp, Code2 } from 'lucide-react';
+import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, Minus, ImageUp, Code2 } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import PostCard from '@/components/posts/post-card';
 import { getPosts, type Post, getLikedPostsByUser } from '@/lib/posts';
@@ -20,7 +20,7 @@ import type { AuthorProfileForCard, UserProfile, SocialLinks } from '@/lib/userP
 import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { getUserProfile, getSavedPostsDetailsForUser } from '@/lib/userProfile';
+import { getUserProfile } from '@/lib/userProfile';
 import { auth, storage } from '@/lib/firebase/config';
 import { updateProfile as updateFirebaseAuthProfile } from 'firebase/auth';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -64,8 +64,6 @@ export default function ProfilePage() {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
-  const [isLoadingSavedPosts, setIsLoadingSavedPosts] = useState(false);
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
   const [isLoadingLikedPosts, setIsLoadingLikedPosts] = useState(false);
   const [userComments, setUserComments] = useState<UserActivityComment[]>([]);
@@ -180,21 +178,6 @@ export default function ProfilePage() {
   useEffect(() => {
     if (activeActivityTab === 'activity' && user?.uid) {
       console.log('[ProfilePage] Activity tab active for user:', user.uid);
-      
-      // Fetch Saved Posts
-      setIsLoadingSavedPosts(true);
-      console.log('[ProfilePage] Fetching saved posts for user:', user.uid);
-      getSavedPostsDetailsForUser(user.uid)
-        .then(data => {
-          console.log('[ProfilePage] Fetched saved posts data (client-side):', data);
-          setSavedPosts(data);
-        })
-        .catch(err => {
-          console.error("[ProfilePage] Error fetching saved posts (client-side):", err);
-          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
-          setSavedPosts([]);
-        })
-        .finally(() => setIsLoadingSavedPosts(false));
 
       // Fetch Liked Posts
       setIsLoadingLikedPosts(true);
@@ -221,7 +204,7 @@ export default function ProfilePage() {
         })
         .catch(err => {
           console.error("[ProfilePage] Error fetching user comments (client-side):", err);
-          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required or verify Firestore rules. See console for details.", variant: "destructive" });
+          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required or verify Firestore rules. Check console & Firestore rules.", variant: "destructive" });
           setUserComments([]);
         })
         .finally(() => setIsLoadingUserComments(false));
@@ -335,7 +318,12 @@ export default function ProfilePage() {
   };
 
   if (authLoading || (user && (isLoadingProfile || isLoadingPosts))) {
-    return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3">Loading profile...</p></div>;
+    return (
+      <div className="flex flex-col justify-center items-center h-screen">
+        <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading profile..." width={64} height={64} />
+        <p className="ml-3 mt-3">Loading profile...</p>
+      </div>
+    );
   }
 
   if (!user) {
@@ -470,7 +458,9 @@ export default function ProfilePage() {
                           }}>Cancel</Button>
                       </DialogClose>
                       <Button type="submit" disabled={isEditPending || isEditPendingTransition || isUploading}>
-                          {(isEditPending || isEditPendingTransition || isUploading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
+                          {(isEditPending || isEditPendingTransition || isUploading) ? (
+                            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={20} height={20} className="mr-2" />
+                          ) : 'Save Changes'}
                       </Button>
                   </DialogFooter>
                 </form>
@@ -494,7 +484,7 @@ export default function ProfilePage() {
                 <p className="text-xs text-muted-foreground">Followers</p>
               </div>
               <div>
-                <p className="font-semibold text-lg text-foreground">{isLoadingPosts ? <Loader2 className="h-5 w-5 animate-spin inline" /> : userPosts.length}</p>
+                <p className="font-semibold text-lg text-foreground">{isLoadingPosts ? <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading count" width={20} height={20} className="inline" /> : userPosts.length}</p>
                 <p className="text-xs text-muted-foreground">Posts</p>
               </div>
             </div>
@@ -551,7 +541,10 @@ export default function ProfilePage() {
               ))}
             </div>
             {isLoadingPosts ? (
-              <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading posts...</p></div>
+              <div className="flex flex-col justify-center items-center h-40">
+                <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading posts..." width={48} height={48} />
+                 <p className="ml-3 mt-2">Loading posts...</p>
+              </div>
             ) : userPosts.length === 0 ? (
               <p className="text-center text-muted-foreground text-lg py-12">
                 You haven&apos;t published any posts yet. <Link href="/posts/new" className="text-primary hover:underline">Create one!</Link>
@@ -568,7 +561,7 @@ export default function ProfilePage() {
           <TabsContent value="activity">
             <Card className="p-0 border-0 shadow-none">
                 <div className="mb-4 flex space-x-1 border border-border rounded-lg p-1 bg-muted/50 w-fit">
-                  {["Saved", "Liked", "Comments"].map((tab, index) => (
+                  {["Liked", "Comments"].map((tab, index) => (
                     <Button
                       key={tab}
                       variant={index === 0 ? "secondary" : "ghost"}
@@ -582,28 +575,14 @@ export default function ProfilePage() {
 
                 <div className="space-y-8">
                   <section>
-                    <h3 className="text-md font-medium mb-3 text-muted-foreground">Saved Posts</h3>
-                    {isLoadingSavedPosts ? (
-                         <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading saved posts...</p></div>
-                    ) : savedPosts.length === 0 ? (
-                        <p className="text-muted-foreground text-sm py-4">You haven&apos;t saved any posts yet.</p>
-                    ) : (
-                        <div className="space-y-6">
-                            {savedPosts.map(post => (
-                                <PostCard key={post.id} post={post} />
-                            ))}
-                        </div>
-                    )}
-                  </section>
-
-                  <Separator/>
-
-                  <section>
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
                      {isLoadingLikedPosts ? (
-                         <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading liked posts...</p></div>
+                         <div className="flex flex-col justify-center items-center h-40">
+                            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading liked posts..." width={48} height={48} />
+                            <p className="ml-3 mt-2">Loading liked posts...</p>
+                         </div>
                     ) : likedPosts.length === 0 ? (
-                        <p className="text-muted-foreground text-sm py-4">Your liked posts will appear here. (Feature under development)</p>
+                        <p className="text-muted-foreground text-sm py-4">Your liked posts will appear here.</p>
                     ) : (
                         <div className="space-y-6">
                             {likedPosts.map(post => (
@@ -618,7 +597,10 @@ export default function ProfilePage() {
                   <section>
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Your Comments</h3>
                      {isLoadingUserComments ? (
-                        <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading your comments...</p></div>
+                        <div className="flex flex-col justify-center items-center h-40">
+                            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading your comments..." width={48} height={48} />
+                            <p className="ml-3 mt-2">Loading your comments...</p>
+                        </div>
                     ) : userComments.length === 0 ? (
                         <p className="text-muted-foreground text-sm">You haven&apos;t made any comments yet.</p>
                     ) : (
@@ -645,4 +627,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

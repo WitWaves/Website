@@ -1,16 +1,17 @@
 
-'use client'; 
+'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import type { Post } from '@/lib/posts';
 import TagBadge from './tag-badge';
 import { format } from 'date-fns';
-import { CalendarDays, Edit3, Heart, MessageCircle, Bookmark, Share2, Loader2 } from 'lucide-react';
+import { CalendarDays, Edit3, Heart, MessageCircle, Share2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, toggleSavePostAction, type FormState } from '@/app/actions'; // Added toggleSavePostAction
+import { toggleLikePostAction, type FormState } from '@/app/actions';
 import { useActionState, useEffect, useState, useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,21 +23,14 @@ export default function PostCard({ post }: PostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLikePendingTransition, startLikeTransition] = useTransition();
-  const [isSavePendingTransition, startSaveTransition] = useTransition(); // For save action
   const summary = post.content.substring(0, 180) + (post.content.length > 180 ? '...' : '');
 
   const [optimisticLiked, setOptimisticLiked] = useState(post.likedBy?.includes(user?.uid || '') || false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(post.likeCount || 0);
   const [optimisticCommentCount, setOptimisticCommentCount] = useState(post.commentCount || 0);
-  const [optimisticSaved, setOptimisticSaved] = useState(false); // Cannot easily check initial saved state here
 
   const [likeState, handleLikeAction, isLikePending] = useActionState<FormState, FormData>(
     toggleLikePostAction,
-    undefined
-  );
-
-  const [saveState, handleSaveAction, isSavePending] = useActionState<FormState, FormData>(
-    toggleSavePostAction,
     undefined
   );
 
@@ -56,14 +50,6 @@ export default function PostCard({ post }: PostCardProps) {
       setOptimisticLikeCount(post.likeCount || 0);
     }
   }, [likeState, post.id, toast, user?.uid, post.likedBy, post.likeCount]);
-  
-  useEffect(() => {
-    if (saveState?.success && saveState.updatedSaveStatus?.postId === post.id) {
-        setOptimisticSaved(saveState.updatedSaveStatus.saved);
-    } else if (saveState?.message && !saveState.success && saveState?.updatedSaveStatus?.postId === post.id) {
-        toast({ title: 'Error saving post', description: saveState.message, variant: 'destructive' });
-    }
-  }, [saveState, post.id, toast]);
 
 
   const handleLikeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -78,16 +64,6 @@ export default function PostCard({ post }: PostCardProps) {
     startLikeTransition(() => handleLikeAction(formData));
   };
 
-  const handleSaveSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!user) {
-        toast({ title: 'Authentication Required', description: 'Please log in to save posts.', variant: 'destructive'});
-        return;
-    }
-    const formData = new FormData(event.currentTarget);
-    setOptimisticSaved(!optimisticSaved);
-    startSaveTransition(() => handleSaveAction(formData));
-  };
 
   return (
     <Card className="mb-10 shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden flex flex-col">
@@ -117,46 +93,33 @@ export default function PostCard({ post }: PostCardProps) {
                 <form onSubmit={handleLikeSubmit} className="contents">
                     <input type="hidden" name="postId" value={post.id} />
                     {user && <input type="hidden" name="userId" value={user.uid} />}
-                    <Button 
+                    <Button
                         type="submit"
-                        variant="ghost" 
-                        size="sm" 
+                        variant="ghost"
+                        size="sm"
                         className={`px-2 ${optimisticLiked ? 'text-destructive hover:text-destructive/80' : 'hover:text-destructive'}`}
                         title="Like"
                         disabled={isLikePending || isLikePendingTransition || !user}
                     >
-                        {(isLikePending || isLikePendingTransition) ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Heart className={`mr-1 h-4 w-4 ${optimisticLiked ? 'fill-current' : ''}`} />}
+                        {(isLikePending || isLikePendingTransition) ? (
+                           <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={16} height={16} className="mr-1" />
+                        ) : <Heart className={`mr-1 h-4 w-4 ${optimisticLiked ? 'fill-current' : ''}`} />}
                         <span className="hidden sm:inline">Like</span> ({optimisticLikeCount})
                     </Button>
                 </form>
                 <Button asChild variant="ghost" size="sm" className="px-2 hover:text-primary" title="Comment">
                     <Link href={`/posts/${post.id}#comments`}>
-                        <MessageCircle className="mr-1 h-4 w-4" /> 
+                        <MessageCircle className="mr-1 h-4 w-4" />
                         <span className="hidden sm:inline">Comment</span> ({optimisticCommentCount})
                     </Link>
                 </Button>
-                <form onSubmit={handleSaveSubmit} className="contents">
-                    <input type="hidden" name="postId" value={post.id} />
-                    {user && <input type="hidden" name="userId" value={user.uid} />}
-                    <Button 
-                        type="submit"
-                        variant="ghost" 
-                        size="sm" 
-                        className={`px-2 ${optimisticSaved ? 'text-blue-500 hover:text-blue-500/80' : 'hover:text-blue-500'}`}
-                        title={optimisticSaved ? "Unsave" : "Save"}
-                        disabled={isSavePending || isSavePendingTransition || !user}
-                    >
-                        {(isSavePending || isSavePendingTransition) ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Bookmark className={`mr-1 h-4 w-4 ${optimisticSaved ? 'fill-current' : ''}`} />}
-                        <span className="hidden sm:inline">{optimisticSaved ? "Saved" : "Save"}</span>
-                    </Button>
-                </form>
                  <Button variant="ghost" size="sm" className="px-2 hover:text-green-500" title="Share">
-                    <Share2 className="mr-1 h-4 w-4" /> 
+                    <Share2 className="mr-1 h-4 w-4" />
                     <span className="hidden sm:inline">Share</span>
                 </Button>
             </div>
             <div className="flex gap-2 self-start sm:self-center">
-                {post.userId === user?.uid && ( 
+                {post.userId === user?.uid && (
                     <Button asChild variant="outline" size="sm">
                         <Link href={`/posts/${post.id}/edit`}>
                         <Edit3 className="mr-1.5 h-4 w-4" />

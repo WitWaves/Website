@@ -1,19 +1,19 @@
 
-'use client'; 
+'use client';
 
 import { getPost, type Post } from '@/lib/posts';
 import { getCommentsForPost, type Comment } from '@/lib/comments';
-import { isPostSavedByUser } from '@/lib/userProfile'; // Import isPostSavedByUser
-import { notFound, useParams } from 'next/navigation'; 
+import { notFound, useParams } from 'next/navigation';
 import TagBadge from '@/components/posts/tag-badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import Image from 'next/image';
 import { format } from 'date-fns';
-import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Bookmark, Share2, Loader2, UserCircle } from 'lucide-react';
+import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Share2, UserCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useActionState, useTransition, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, addCommentAction, toggleSavePostAction, type FormState } from '@/app/actions';
+import { toggleLikePostAction, addCommentAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -25,10 +25,9 @@ export default function PostPage() {
   const { toast } = useToast();
   const [isLikePendingTransition, startLikeTransition] = useTransition();
   const [isCommentPendingTransition, startCommentTransition] = useTransition();
-  const [isSavePendingTransition, startSaveTransition] = useTransition(); // For save action
   const commentFormRef = useRef<HTMLFormElement>(null);
 
-  const [post, setPost] = useState<Post | null | undefined>(undefined); 
+  const [post, setPost] = useState<Post | null | undefined>(undefined);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
@@ -36,7 +35,6 @@ export default function PostPage() {
   const [optimisticLiked, setOptimisticLiked] = useState(false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(0);
   const [optimisticCommentCount, setOptimisticCommentCount] = useState(0);
-  const [optimisticSaved, setOptimisticSaved] = useState(false); // For save status
 
   const [likeState, handleLikeAction, isLikeActionPending] = useActionState<FormState, FormData>(
     toggleLikePostAction,
@@ -48,11 +46,6 @@ export default function PostPage() {
     undefined
   );
 
-  const [saveState, handleSaveAction, isSaveActionPending] = useActionState<FormState, FormData>(
-    toggleSavePostAction,
-    undefined
-  );
-  
   useEffect(() => {
     async function fetchPostData() {
       if (postId) {
@@ -66,17 +59,12 @@ export default function PostPage() {
                 setOptimisticLikeCount(fetchedPost.likeCount || 0);
                 setOptimisticCommentCount(fetchedPost.commentCount || 0);
 
-                if (user?.uid) {
-                    const saved = await isPostSavedByUser(user.uid, postId);
-                    setOptimisticSaved(saved);
-                }
-
                 const fetchedComments = await getCommentsForPost(postId);
                 setComments(fetchedComments);
             }
         } catch (error) {
             console.error("Error fetching post or comments: ", error);
-            setPost(null); 
+            setPost(null);
         } finally {
             setIsLoading(false);
             setIsLoadingComments(false);
@@ -93,30 +81,20 @@ export default function PostPage() {
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
     } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === postId) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
-      if (post) { 
+      if (post) {
         setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
         setOptimisticLikeCount(post.likeCount || 0);
       }
     }
   }, [likeState, postId, toast, user?.uid, post]);
 
-  useEffect(() => {
-    if (saveState?.success && saveState.updatedSaveStatus?.postId === postId) {
-        setOptimisticSaved(saveState.updatedSaveStatus.saved);
-        toast({ title: saveState.updatedSaveStatus.saved ? 'Post Saved' : 'Post Unsaved', description: saveState.message});
-    } else if (saveState?.message && !saveState.success && saveState?.updatedSaveStatus?.postId === postId) {
-        toast({ title: 'Error saving post', description: saveState.message, variant: 'destructive' });
-        // Optionally revert optimistic update
-        // For simplicity, we might not revert here, or refetch saved status
-    }
-  }, [saveState, postId, toast]);
 
   useEffect(() => {
     if (commentState?.success) {
       toast({ title: 'Success', description: commentState.message });
       getCommentsForPost(postId).then(setComments);
       setOptimisticCommentCount(prev => prev + 1);
-      commentFormRef.current?.reset(); 
+      commentFormRef.current?.reset();
     } else if (commentState?.message && !commentState.success) {
       toast({ title: 'Error adding comment', description: commentState.errors?.commentText?.join(', ') || commentState.message, variant: 'destructive' });
     }
@@ -136,18 +114,6 @@ export default function PostPage() {
     startLikeTransition(() => handleLikeAction(formData));
   };
 
-  const handleSaveSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!user) {
-        toast({ title: 'Authentication Required', description: 'Please log in to save posts.', variant: 'destructive'});
-        return;
-    }
-    if (!post) return;
-    const formData = new FormData(event.currentTarget);
-    setOptimisticSaved(!optimisticSaved); // Optimistic update
-    startSaveTransition(() => handleSaveAction(formData));
-  };
-  
   const handleCommentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
      if (!user) {
@@ -160,14 +126,19 @@ export default function PostPage() {
 
 
   if (isLoading || authLoading) {
-    return <div className="flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading post...</p></div>;
+    return (
+      <div className="flex flex-col justify-center items-center min-h-[calc(100vh-200px)]">
+        <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading post..." width={64} height={64} />
+        <p className="ml-3 mt-3">Loading post...</p>
+      </div>
+    );
   }
 
-  if (post === null) { 
+  if (post === null) {
     notFound();
   }
-  
-  if (!post) { 
+
+  if (!post) {
       return <div className="text-center py-10">Post could not be loaded.</div>;
   }
 
@@ -180,7 +151,7 @@ export default function PostPage() {
             Back to all posts
           </Link>
         </Button>
-        {post.userId === user?.uid && ( 
+        {post.userId === user?.uid && (
             <Button asChild variant="default">
                 <Link href={`/posts/${post.id}/edit`}>
                 <Edit3 className="mr-2 h-4 w-4" />
@@ -204,54 +175,41 @@ export default function PostPage() {
           </div>
         )}
       </header>
-      
+
       <Separator className="my-6" />
 
       <div className="flex items-center space-x-3 sm:space-x-4 my-6 py-3 border-y border-border">
          <form onSubmit={handleLikeSubmit} className="contents">
             <input type="hidden" name="postId" value={post.id} />
             {user && <input type="hidden" name="userId" value={user.uid} />}
-            <Button 
+            <Button
                 type="submit"
-                variant="outline" 
-                size="sm" 
-                className={`flex items-center gap-1.5 text-sm ${optimisticLiked ? 'text-destructive border-destructive hover:bg-destructive/10' : 'hover:text-destructive'}`} 
+                variant="outline"
+                size="sm"
+                className={`flex items-center gap-1.5 text-sm ${optimisticLiked ? 'text-destructive border-destructive hover:bg-destructive/10' : 'hover:text-destructive'}`}
                 title="Like"
                 disabled={isLikeActionPending || isLikePendingTransition || !user}
             >
-                {(isLikeActionPending || isLikePendingTransition) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />} 
+                {(isLikeActionPending || isLikePendingTransition) ? (
+                   <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={16} height={16} />
+                ) : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />}
                 Like <span className="text-xs text-muted-foreground">({optimisticLikeCount})</span>
             </Button>
         </form>
         <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Comment" onClick={() => commentFormRef.current?.querySelector('textarea')?.focus()}>
           <MessageCircle className="h-4 w-4 text-primary" /> Comment <span className="text-xs text-muted-foreground">({optimisticCommentCount})</span>
         </Button>
-        <form onSubmit={handleSaveSubmit} className="contents">
-            <input type="hidden" name="postId" value={post.id} />
-            {user && <input type="hidden" name="userId" value={user.uid} />}
-            <Button 
-                type="submit"
-                variant="outline" 
-                size="sm" 
-                className={`flex items-center gap-1.5 text-sm ${optimisticSaved ? 'text-blue-500 border-blue-500 hover:bg-blue-500/10' : 'hover:text-blue-500'}`}
-                title={optimisticSaved ? "Unsave" : "Save"}
-                disabled={isSaveActionPending || isSavePendingTransition || !user}
-            >
-                {(isSaveActionPending || isSavePendingTransition) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className={`h-4 w-4 ${optimisticSaved ? 'fill-current text-blue-500' : 'text-blue-500'}`} />} 
-                {optimisticSaved ? "Saved" : "Save"}
-            </Button>
-        </form>
         <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-sm" title="Share">
           <Share2 className="h-4 w-4 text-green-500" /> Share
         </Button>
       </div>
-      
+
       <div
         className="prose prose-lg dark:prose-invert max-w-none leading-relaxed selection:bg-primary/20"
-        style={{ fontSize: '1.125rem', lineHeight: '1.85' }} 
+        style={{ fontSize: '1.125rem', lineHeight: '1.85' }}
         dangerouslySetInnerHTML={{ __html: post.content }}
       />
-      
+
       <Separator className="my-10" />
 
       <section className="space-y-8">
@@ -275,7 +233,9 @@ export default function PostPage() {
               )}
             </div>
             <Button type="submit" disabled={isCommentActionPending || isCommentPendingTransition}>
-              {(isCommentActionPending || isCommentPendingTransition) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {(isCommentActionPending || isCommentPendingTransition) ? (
+                 <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={20} height={20} className="mr-2" />
+              ) : null}
               Post Comment
             </Button>
           </form>
@@ -286,9 +246,9 @@ export default function PostPage() {
         )}
 
         {isLoadingComments ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="ml-2 text-muted-foreground">Loading comments...</p>
+          <div className="flex flex-col items-center justify-center py-6">
+            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading comments..." width={48} height={48} />
+            <p className="ml-2 mt-2 text-muted-foreground">Loading comments...</p>
           </div>
         ) : comments.length > 0 ? (
           <div className="space-y-6">

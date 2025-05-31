@@ -6,16 +6,19 @@ import { format, isValid } from 'date-fns';
 import { ArrowLeft, CalendarRange } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { use } from 'react'; // Import use
+import { use } from 'react';
 
-type ArchivePageProps = {
-  params: {
-    year: string;
-    month: string;
-  };
+type ArchivePageParams = {
+  year: string;
+  month: string;
 };
 
-export async function generateMetadata({ params }: ArchivePageProps) {
+type ArchivePageProps = {
+  params: ArchivePageParams;
+  searchParams?: { [key: string]: string | string[] | undefined };
+};
+
+export async function generateMetadata({ params }: { params: ArchivePageParams }) {
   const year = parseInt(params.year, 10);
   const month = parseInt(params.month, 10) -1; // Adjust for 0-indexed month
   
@@ -34,8 +37,13 @@ export async function generateMetadata({ params }: ArchivePageProps) {
 }
 
 
-export default async function ArchivePage({ params }: ArchivePageProps) {
-  const resolvedParams = use(params); // Use React.use to unwrap params
+export default async function ArchivePage({ params, searchParams }: ArchivePageProps) {
+  const resolvedParams = use(params);
+  if (searchParams) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const resolvedSearchParams = use(searchParams);
+    // You can use resolvedSearchParams if needed in the future
+  }
 
   const year = parseInt(resolvedParams.year, 10);
   const month = parseInt(resolvedParams.month, 10); // URL month is 1-12
@@ -55,7 +63,7 @@ export default async function ArchivePage({ params }: ArchivePageProps) {
   return (
     <div className="py-8">
       <Button variant="outline" asChild className="mb-8">
-        <Link href="/blog"> {/* Updated link to /blog */}
+        <Link href="/blog">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to all posts
         </Link>

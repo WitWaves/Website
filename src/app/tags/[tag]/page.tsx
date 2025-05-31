@@ -4,15 +4,18 @@ import PostCard from '@/components/posts/post-card';
 import { ArrowLeft, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { use } from 'react'; // Import use
+import { use } from 'react';
 
-type TagPageProps = {
-  params: {
-    tag: string;
-  };
+type TagPageParams = {
+  tag: string;
 };
 
-export async function generateMetadata({ params }: TagPageProps) {
+type TagPageProps = {
+  params: TagPageParams;
+  searchParams?: { [key: string]: string | string[] | undefined };
+};
+
+export async function generateMetadata({ params }: { params: TagPageParams }) {
   const tagName = decodeURIComponent(params.tag);
   return {
     title: `Posts tagged with "${tagName}" | WitWaves`,
@@ -20,15 +23,21 @@ export async function generateMetadata({ params }: TagPageProps) {
   };
 }
 
-export default async function TagPage({ params }: TagPageProps) {
-  const resolvedParams = use(params); // Use React.use to unwrap params
+export default async function TagPage({ params, searchParams }: TagPageProps) {
+  const resolvedParams = use(params);
+  if (searchParams) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const resolvedSearchParams = use(searchParams);
+    // You can use resolvedSearchParams if needed in the future
+  }
+  
   const tagName = decodeURIComponent(resolvedParams.tag);
   const posts = await getPostsByTag(tagName);
 
   return (
     <div className="py-8">
       <Button variant="outline" asChild className="mb-8">
-        <Link href="/blog"> {/* Updated link to /blog */}
+        <Link href="/blog">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to all posts
         </Link>

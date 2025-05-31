@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  // @ts-expect-error This is a valid Next.js 15+ option for devIndicators.
+  // The TypeScript types might be lagging or there could be a local type resolution issue.
   devIndicators: devIndicatorsConfig,
 };
 

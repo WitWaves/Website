@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getPost, generateSlug, isSlugUnique, type Post } from '@/lib/posts';
 import { db } from '@/lib/firebase/config';
-import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc, getDocs } from 'firebase/firestore';
 import type { UserProfile, SocialLinks } from '@/lib/userProfile';
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
 import { storage } from '@/lib/firebase/config'; // Added storage import
@@ -31,6 +31,9 @@ const UserProfileSchema = z.object({
   instagram: z.string().url('Invalid Instagram URL.').optional().or(z.literal('')),
   portfolio: z.string().url('Invalid Portfolio URL.').optional().or(z.literal('')),
   github: z.string().url('Invalid GitHub URL.').optional().or(z.literal('')),
+  interests: z.string().optional().transform(val =>
+    val ? val.split(',').map(interest => interest.trim().toLowerCase()).filter(interest => interest.length > 0) : []
+  ),
 });
 
 const AddCommentSchema = z.object({
@@ -61,6 +64,7 @@ export type FormState = {
     instagram?: string[];
     portfolio?: string[];
     github?: string[];
+    interests?: string[];
     // Like/Save action specific
     postId?: string[];
     // Comment action specific
@@ -234,6 +238,7 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
     instagram: formData.get('instagram') || undefined,
     portfolio: formData.get('portfolio') || undefined,
     github: formData.get('github') || undefined,
+    interests: formData.get('interests') || undefined,
   });
 
   if (!validatedFields.success) {
@@ -244,7 +249,7 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
     };
   }
 
-  const { displayName, username, bio, photoURL, ...socialLinksInput } = validatedFields.data;
+  const { displayName, username, bio, photoURL, interests, ...socialLinksInput } = validatedFields.data;
 
   const profileUpdateData: Partial<UserProfile> = {
     username: username,
@@ -252,6 +257,7 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
     bio: bio,
     photoURL: photoURL,
     socialLinks: socialLinksInput as SocialLinks,
+    interests: interests,
   };
 
   try {
@@ -272,6 +278,9 @@ export async function updateUserProfileAction(userId: string, prevState: FormSta
   };
   if (profileUpdateData.photoURL === '') {
     updatedProfileForState.photoURL = undefined;
+  }
+  if (profileUpdateData.interests === undefined) {
+    updatedProfileForState.interests = [];
   }
 
 
@@ -422,7 +431,7 @@ export async function deletePostAction(prevState: FormState, formData: FormData)
   const postDocRef = doc(db, 'posts', postId);
 
   try {
-    const postToDelete = await getPost(postId); // Fetch post details to get imageUrl
+    const postToDelete = await getPost(postId); 
 
     if (!postToDelete) {
       return { message: 'Error: Post not found.', success: false };
@@ -436,28 +445,38 @@ export async function deletePostAction(prevState: FormState, formData: FormData)
         await deleteObject(imageStorageRef);
         console.log(`[deletePostAction] Thumbnail ${postToDelete.imageUrl} deleted successfully.`);
       } catch (storageError: any) {
-        // Log error but don't block post deletion if image deletion fails (e.g., already deleted, permissions issue on a specific file)
         console.warn(`[deletePostAction] Could not delete thumbnail ${postToDelete.imageUrl} from Storage:`, storageError.code, storageError.message);
-        if (storageError.code === 'storage/object-not-found') {
-            // This is fine, image might have been deleted manually or never existed at that exact URL.
-        } else {
-            // For other errors, we might want to inform the user but still proceed with Firestore deletion.
-        }
       }
     }
     console.log("[deletePostAction] Note: Deletion of images embedded in post content (Quill) is not automatically handled by this action.");
 
+    // 2. Delete Comments from the subcollection
+    const commentsColRef = collection(db, 'posts', postId, 'comments');
+    try {
+      const commentsSnapshot = await getDocs(commentsColRef);
+      if (!commentsSnapshot.empty) {
+        console.log(`[deletePostAction] Found ${commentsSnapshot.size} comments for post ${postId}. Deleting...`);
+        const deletePromises = commentsSnapshot.docs.map(commentDoc => deleteDoc(commentDoc.ref));
+        await Promise.all(deletePromises);
+        console.log(`[deletePostAction] Successfully deleted ${commentsSnapshot.size} comments for post ${postId}.`);
+      } else {
+        console.log(`[deletePostAction] No comments found for post ${postId}. Skipping comment deletion.`);
+      }
+    } catch (commentsError: any) {
+      console.warn(`[deletePostAction] Could not delete comments for post ${postId}:`, commentsError.message);
+      // Decide if this should be a critical error that stops post deletion.
+      // For now, log and proceed. If strict transactional deletion is needed, this might need to return an error.
+    }
 
-    // 2. Delete Post Document from Firestore
+    // 3. Delete Post Document from Firestore
     await deleteDoc(postDocRef);
     console.log(`[deletePostAction] Post ${postId} deleted successfully from Firestore.`);
 
-    // 3. Revalidate Paths
+    // 4. Revalidate Paths
     revalidatePath('/blog');
-    revalidatePath(`/posts/${postId}`); // Path will become 404, revalidation clears cache
-    revalidatePath('/blog/profile'); // User's own profile
-    revalidatePath(`/blog/profile/${postAuthorId}`); // Author's public profile
-    // Consider broader revalidation for tags/archives if necessary, or let them update naturally
+    revalidatePath(`/posts/${postId}`); 
+    revalidatePath('/blog/profile'); 
+    revalidatePath(`/blog/profile/${postAuthorId}`); 
     (postToDelete.tags || []).forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
     if (postToDelete.createdAt) {
         try {
@@ -477,3 +496,4 @@ export async function deletePostAction(prevState: FormState, formData: FormData)
     return { message: `Error: Failed to delete post. ${errorMessage}`, success: false };
   }
 }
+

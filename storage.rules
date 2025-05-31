@@ -1,36 +1,40 @@
 rules_version = '2';
 
 service firebase.storage {
-  match /b/{bucket}/o { // This matches all objects in the bucket
+  match /b/{bucket}/o {
 
-    // Rule for files within the "Website Elements" folder.
-    // Example: gs://<bucket>/Website Elements/font.woff
-    match "Website Elements/{filePath=**}" { // Path segment directly, quoted
+    // Match the "Website Elements" folder
+    match /"Website Elements"/{allWebSiteElementsPaths=**} {
       allow read: if true;
-      allow write: if false; // Explicitly deny writes to these public assets
+      allow write: if false; // Explicitly deny writes
     }
 
-    // Profile images:
-    // Example: gs://<bucket>/profileImages/user123/profile.jpg
-    match "profileImages/{userId}/{filePath=**}" { // Path segment directly
+    // Match the "profileImages" folder
+    match /profileImages/{userId}/{allProfileImagePaths=**} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Post thumbnails:
-    // Example: gs://<bucket>/postThumbnails/user123/postABC/thumb.png
-    match "postThumbnails/{userId}/{postId}/{filePath=**}" { // Path segment directly
+    // Match the "postThumbnails" folder
+    match /postThumbnails/{userId}/{postId}/{allPostThumbnailPaths=**} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Images uploaded within post content (Quill):
-    // Example: gs://<bucket>/postContentImages/user123/postABC/image.png
-    match "postContentImages/{userId}/{postId}/{filePath=**}" { // Path segment directly
+    // Match the "postContentImages" folder
+    match /postContentImages/{userId}/{postId}/{allPostContentImagePaths=**} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Access is denied by default if no rule matches a path.
+    // Fallback for any other paths - explicitly deny if not matched above.
+    // This is good practice to ensure no unintended access.
+    // However, if you have other root-level files/folders that need access,
+    // you'll need specific rules for them before this.
+    // For now, let's comment this out to ensure we fix the primary paths first.
+    // match /{allOtherPaths=**} {
+    //   allow read: if false;
+    //   allow write: if false;
+    // }
   }
 }

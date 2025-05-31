@@ -1,7 +1,7 @@
 
-import type {NextConfig, DevIndicators} from 'next';
+import type {NextConfig} from 'next';
 
-const devIndicatorsConfig: DevIndicators = {
+const devIndicatorsConfig = {
   allowedDevOrigins: ['https://3000-firebase-studio-1748108769403.cluster-sumfw3zmzzhzkx4mpvz3ogth4y.cloudworkstations.dev'],
   // buildActivity: true, // Default: true. Explicitly adding might help TS in some cases.
   // appIsrStatus: true,  // Default: true.

@@ -11,7 +11,15 @@ CUSTOM SATOSHI FONT FACES
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Regular.otf?alt=media&token=a57890c1-54f2-427d-8e65-4d103b062147') format('opentype');
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FFonts%2FSatoshiVariable%2FSatoshi-Light.otf?alt=media&token=3fda2648-1551-45b0-8b89-96b333abf845') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Satoshi';
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FFonts%2FSatoshiVariable%2FSatoshi-Regular.otf?alt=media&token=61b1258a-12ed-4b9f-901e-cf391cf80985') format('opentype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -19,7 +27,7 @@ CUSTOM SATOSHI FONT FACES
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Medium.otf?alt=media&token=322492f4-0d6e-4df9-9463-e622e077788c') format('opentype');
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FFonts%2FSatoshiVariable%2FSatoshi-Medium.otf?alt=media&token=da16d43a-f6e8-4af4-ac69-59f5818d8893') format('opentype');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -27,7 +35,7 @@ CUSTOM SATOSHI FONT FACES
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Bold.otf?alt=media&token=ae441d29-8d4e-4a63-a110-6b1f0e7ca370') format('opentype');
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FFonts%2FSatoshiVariable%2FSatoshi-Bold.otf?alt=media&token=fb2cdee6-6a01-4612-b04d-417023bc0aef') format('opentype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -35,7 +43,7 @@ CUSTOM SATOSHI FONT FACES
 
 @font-face {
   font-family: 'Satoshi';
-  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FFonts%2FSatoshi%20Variable%2FSatoshi-Black.otf?alt=media&token=33498b73-c5f4-4134-a1f0-a6f21dbc7c9b') format('opentype');
+  src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FFonts%2FSatoshiVariable%2FSatoshi-Black.otf?alt=media&token=3f528a72-abdb-4849-bb85-02d86fe2f3c2') format('opentype');
   font-weight: 900;
   font-style: normal;
   font-display: swap;
@@ -47,119 +55,124 @@ CUSTOM SATOSHI FONT FACES
     scroll-behavior: smooth;
   }
   :root {
-    --background: 0 0% 100%; /* White */
-    --foreground: 220 9% 23%; /* Dark Gray */
+    --background: 240 10% 3.9%; /* #09090b - Nearly black */
+    --foreground: 0 0% 98%; /* #fafafa - Nearly white */
 
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 220 9% 23%; /* Dark Gray */
+    --card: 240 10% 3.9%; /* #09090b */
+    --card-foreground: 0 0% 98%; /* #fafafa */
 
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 220 9% 23%; /* Dark Gray */
+    --popover: 240 10% 3.9%; /* #09090b */
+    --popover-foreground: 0 0% 98%; /* #fafafa */
 
-    /* Brand Colors from Image */
-    --brand-pink-red: 350 79% 60%;
-    --brand-pink-red-foreground: 0 0% 100%;
+    /* Brand Colors from PRD */
+    --brand-deep-indigo: 231 48% 48%; /* #3F51B5 */
+    --brand-deep-indigo-foreground: 0 0% 100%; /* White text on indigo */
 
-    --brand-green: 150 58% 42%;
-    --brand-green-foreground: 0 0% 100%;
+    --brand-warm-orange: 33 100% 63%; /* #FFAB40 */
+    --brand-warm-orange-foreground: 240 10% 3.9%; /* Dark text on orange for contrast */
+    
+    --brand-light-gray-bg: 0 0% 94.1%; /* #F0F0F0 */
+    --brand-light-gray-bg-foreground: 240 10% 3.9%; /* Dark text on light gray */
 
-    --brand-yellow-orange: 38 96% 54%;
-    --brand-yellow-orange-foreground: 220 9% 23%; /* Dark text for contrast */
+    /* ShadCN UI Mapping based on PRD Style Guidelines */
+    --background: var(--brand-light-gray-bg); /* Light gray bg */
+    --foreground: 231 48% 10%; /* Darker shade of indigo for body text, for readability on light gray */
 
-    /* ShadCN UI Mapping */
-    --primary: var(--brand-green); /* Green for primary actions */
-    --primary-foreground: var(--brand-green-foreground);
+    --primary: var(--brand-deep-indigo);
+    --primary-foreground: var(--brand-deep-indigo-foreground);
 
-    --secondary: 220 10% 96%; /* Lighter gray for secondary backgrounds */
-    --secondary-foreground: 220 9% 33%; /* Darker gray for text on secondary */
+    --secondary: 231 40% 90%; /* Lighter shade of indigo for secondary elements */
+    --secondary-foreground: 231 48% 15%; /* Darker indigo text on lighter indigo bg */
 
-    --muted: 220 10% 97%; /* Very light gray */
-    --muted-foreground: 220 9% 45%; /* Medium gray */
+    --muted: 0 0% 85%; /* Slightly darker gray for muted elements */
+    --muted-foreground: 0 0% 40%; /* Medium gray text on muted bg */
 
-    --accent: var(--brand-yellow-orange); /* Yellow/Orange for accents */
-    --accent-foreground: var(--brand-yellow-orange-foreground);
+    --accent: var(--brand-warm-orange);
+    --accent-foreground: var(--brand-warm-orange-foreground);
 
-    --destructive: var(--brand-pink-red); /* Pink/Red for destructive or highlighted actions */
-    --destructive-foreground: var(--brand-pink-red-foreground);
+    --destructive: 350 79% 60%; /* A generic red for destructive actions, can be tweaked */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 10% 88%; /* Light gray border */
-    --input: 220 20% 96%; /* Slightly off-white for inputs */
-    --ring: var(--brand-green); /* Green for focus rings */
+    --border: 0 0% 80%; /* Gray border */
+    --input: 0 0% 90%; /* Light gray for inputs */
+    --ring: var(--brand-warm-orange); /* Orange for focus rings, to match accent */
 
     --radius: 0.5rem;
 
-    --chart-1: var(--brand-green);
-    --chart-2: var(--brand-yellow-orange);
-    --chart-3: var(--brand-pink-red);
-    --chart-4: 30 80% 60%;  /* Keeping an orange variant */
+    /* Chart colors can be derived or kept generic */
+    --chart-1: var(--brand-deep-indigo);
+    --chart-2: var(--brand-warm-orange);
+    --chart-3: 150 58% 42%; /* A green for variety */
+    --chart-4: 300 60% 50%; /* A purple for variety */
     --chart-5: 0 0% 50%;   /* Gray variant */
 
-    --sidebar-background: 220 10% 98%;
-    --sidebar-foreground: 220 9% 23%;
-    --sidebar-primary: var(--brand-green);
-    --sidebar-primary-foreground: var(--brand-green-foreground);
-    --sidebar-accent: var(--brand-yellow-orange);
-    --sidebar-accent-foreground: var(--brand-yellow-orange-foreground);
-    --sidebar-border: 220 10% 90%;
-    --sidebar-ring: var(--brand-green);
+    --sidebar-background: 0 0% 98%; /* Very light gray, almost white */
+    --sidebar-foreground: 231 48% 10%;
+    --sidebar-primary: var(--brand-deep-indigo);
+    --sidebar-primary-foreground: var(--brand-deep-indigo-foreground);
+    --sidebar-accent: var(--brand-warm-orange);
+    --sidebar-accent-foreground: var(--brand-warm-orange-foreground);
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: var(--brand-warm-orange);
 
     /* Font Variable */
-    --font-satoshi: "Satoshi", sans-serif;
+    --font-satoshi: "Satoshi", "Times New Roman", serif; /* Fallback to serif as per PRD */
   }
 
   .dark {
-    /* Basic Dark Theme - can be refined later */
-    --background: 220 10% 12%;
-    --foreground: 220 10% 90%;
+    /* Dark Theme - Inverted and adjusted from light theme for WitWaves */
+    --background: 231 20% 12%; /* Dark indigo variant */
+    --foreground: 0 0% 95%; /* Light gray text */
 
-    --card: 220 10% 18%;
-    --card-foreground: 220 10% 90%;
+    --card: 231 20% 18%; /* Slightly lighter dark indigo for cards */
+    --card-foreground: 0 0% 95%;
 
-    --popover: 220 10% 12%;
-    --popover-foreground: 220 10% 90%;
+    --popover: 231 20% 10%; /* Even darker for popovers */
+    --popover-foreground: 0 0% 95%;
 
-    --brand-pink-red: 350 70% 65%;
-    --brand-pink-red-foreground: 0 0% 100%;
+    --brand-deep-indigo: 231 48% 55%; /* Slightly lighter indigo for dark mode primary */
+    --brand-deep-indigo-foreground: 0 0% 100%;
 
-    --brand-green: 150 50% 50%;
-    --brand-green-foreground: 0 0% 100%;
+    --brand-warm-orange: 33 100% 68%; /* Slightly lighter orange for dark mode accent */
+    --brand-warm-orange-foreground: 240 10% 3.9%;
+    
+    --brand-light-gray-bg: 231 20% 12%; /* This is now dark, replacing light gray */
+    --brand-light-gray-bg-foreground: 0 0% 95%;
 
-    --brand-yellow-orange: 38 80% 60%;
-    --brand-yellow-orange-foreground: 220 10% 15%;
+    --primary: var(--brand-deep-indigo);
+    --primary-foreground: var(--brand-deep-indigo-foreground);
 
-    --primary: var(--brand-green);
-    --primary-foreground: var(--brand-green-foreground);
+    --secondary: 231 25% 30%; /* Darker, muted indigo for secondary */
+    --secondary-foreground: 0 0% 85%;
 
-    --secondary: 220 10% 25%;
-    --secondary-foreground: 220 10% 85%;
+    --muted: 231 20% 25%; /* Dark muted */
+    --muted-foreground: 0 0% 60%;
 
-    --muted: 220 10% 22%;
-    --muted-foreground: 220 10% 60%;
+    --accent: var(--brand-warm-orange);
+    --accent-foreground: var(--brand-warm-orange-foreground);
 
-    --accent: var(--brand-yellow-orange);
-    --accent-foreground: var(--brand-yellow-orange-foreground);
+    --destructive: 0 70% 60%; /* A suitable red for dark mode */
+    --destructive-foreground: 0 0% 100%;
 
-    --destructive: var(--brand-pink-red);
-    --destructive-foreground: var(--brand-pink-red-foreground);
+    --border: 231 15% 35%; /* Darker border */
+    --input: 231 20% 22%; /* Dark input background */
+    --ring: var(--brand-warm-orange);
 
-    --border: 220 10% 30%;
-    --input: 220 10% 25%;
-    --ring: var(--brand-green);
-
-    --chart-1: var(--brand-green);
-    --chart-2: var(--brand-yellow-orange);
-    --chart-3: var(--brand-pink-red);
-    --chart-4: 30 70% 70%;
+    /* Chart colors for dark mode */
+    --chart-1: var(--brand-deep-indigo);
+    --chart-2: var(--brand-warm-orange);
+    --chart-3: 150 50% 55%; 
+    --chart-4: 300 55% 60%; 
     --chart-5: 0 0% 70%;
 
-    --sidebar-background: 220 10% 15%;
-    --sidebar-foreground: 220 10% 90%;
-    --sidebar-primary: var(--brand-green);
-    --sidebar-primary-foreground: var(--brand-green-foreground);
-    --sidebar-accent: var(--brand-yellow-orange);
-    --sidebar-accent-foreground: var(--brand-yellow-orange-foreground);
-    --sidebar-border: 220 10% 28%;
-    --sidebar-ring: var(--brand-green);
+    --sidebar-background: 231 20% 15%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: var(--brand-deep-indigo);
+    --sidebar-primary-foreground: var(--brand-deep-indigo-foreground);
+    --sidebar-accent: var(--brand-warm-orange);
+    --sidebar-accent-foreground: var(--brand-warm-orange-foreground);
+    --sidebar-border: 231 15% 30%;
+    --sidebar-ring: var(--brand-warm-orange);
   }
 }
 
@@ -169,11 +182,15 @@ CUSTOM SATOSHI FONT FACES
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-satoshi);
+    font-family: var(--font-satoshi); /* Uses Satoshi with serif fallback */
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-satoshi);
-    @apply font-bold;
+    font-family: var(--font-satoshi); /* Uses Satoshi with serif fallback */
+    @apply font-bold; /* Default to bold for headings, can be overridden */
+  }
+  /* Ensure serif font for body text as per PRD, handled by --font-satoshi */
+  p, span, div, li, blockquote, td, th, label, input, textarea, select, button, a {
+     font-family: var(--font-satoshi);
   }
 }
 
@@ -192,7 +209,12 @@ CUSTOM SATOSHI FONT FACES
   .ql-editor {
     @apply min-h-[250px] text-base leading-relaxed;
     color: hsl(var(--card-foreground)); 
+    font-family: var(--font-satoshi) !important; /* Ensure editor content uses Satoshi */
   }
+  .ql-editor p, .ql-editor li, .ql-editor blockquote, .ql-editor h1, .ql-editor h2, .ql-editor h3 {
+    font-family: var(--font-satoshi) !important; /* Ensure specific elements within editor use Satoshi */
+  }
+
 
   .dark .ql-toolbar.ql-snow .ql-stroke,
   .dark .ql-toolbar.ql-snow .ql-picker-label,

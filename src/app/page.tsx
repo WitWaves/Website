@@ -59,7 +59,7 @@ export default async function HomePage() {
           </div>
           <div className="order-1 md:order-2">
             <Image
-              src="https://placehold.co/600x400.png"
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FBlogImage.png?alt=media&token=fb356ff6-6e0a-41a8-99b6-ff1063d3c5e4"
               alt="Blog preview"
               width={600}
               height={400}

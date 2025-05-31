@@ -306,3 +306,56 @@ export async function isSlugUnique(slug: string): Promise<boolean> {
     return false; 
   }
 }
+
+export async function getLikedPostsByUser(userId: string): Promise<Post[]> {
+  if (!userId) {
+    console.warn('[getLikedPostsByUser] Called without userId');
+    return [];
+  }
+  console.log(`[getLikedPostsByUser] Fetching posts liked by userId: ${userId}`);
+  try {
+    const postsCol = collection(db, 'posts');
+    // Consider ordering by a field related to when the post was liked if available,
+    // otherwise ordering by post creation date is a reasonable default.
+    const q = query(
+      postsCol,
+      where('likedBy', 'array-contains', userId),
+      orderBy('createdAt', 'desc') // Or some other relevant ordering
+    );
+    const postSnapshot = await getDocs(q);
+    const likedPostsList = postSnapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        title: data.title,
+        content: data.content,
+        tags: data.tags || [],
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+        userId: data.userId,
+        imageUrl: data.imageUrl,
+        likedBy: data.likedBy || [],
+        likeCount: data.likeCount || 0,
+        commentCount: data.commentCount || 0,
+      } as Post;
+    });
+    console.log(`[getLikedPostsByUser] Found ${likedPostsList.length} posts liked by userId: ${userId}`);
+    return likedPostsList;
+  } catch (error: any) {
+    if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
+      console.error(
+        `Firestore query in getLikedPostsByUser failed because a composite index is missing. 
+         Please create the index in your Firebase console (collection: 'posts', fields: 'likedBy' (array-contains), 'createdAt' (descending)). 
+         The error message usually provides a direct link to create it. 
+         Error: ${error.message}`
+      );
+      // Example to generate the link manually if needed (replace YOUR_PROJECT_ID):
+      // const manualIndexLink = `https://console.firebase.google.com/project/YOUR_PROJECT_ID/firestore/indexes?create_composite=projects%2FYOUR_PROJECT_ID%2Fdatabases%2F(default)%2FcollectionGroups%2Fposts%2Findexes%2F_EAEaCwoHbGlrZWRCeRgDGg0KCWNyZWF0ZWRBdBACGgwKCF9fbmFtZV9fEAI`;
+      // console.log("Manual index creation link hint:", manualIndexLink);
+    } else {
+      console.error(`Error fetching posts liked by user ${userId} from Firestore:`, error);
+    }
+    return [];
+  }
+}
+

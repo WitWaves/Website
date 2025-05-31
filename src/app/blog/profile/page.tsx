@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Loader2, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Bookmark as BookmarkIcon, Edit3, Globe, Users, FileCheck2, Minus, ImageUp, Code2 } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 import PostCard from '@/components/posts/post-card';
-import { getPosts, type Post } from '@/lib/posts';
+import { getPosts, type Post, getLikedPostsByUser } from '@/lib/posts';
 import type { AuthorProfileForCard, UserProfile, SocialLinks } from '@/lib/userProfile';
 import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
@@ -66,6 +66,8 @@ export default function ProfilePage() {
 
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [isLoadingSavedPosts, setIsLoadingSavedPosts] = useState(false);
+  const [likedPosts, setLikedPosts] = useState<Post[]>([]);
+  const [isLoadingLikedPosts, setIsLoadingLikedPosts] = useState(false);
   const [userComments, setUserComments] = useState<UserActivityComment[]>([]);
   const [isLoadingUserComments, setIsLoadingUserComments] = useState(false);
   const [activeActivityTab, setActiveActivityTab] = useState<string>("posts");
@@ -178,6 +180,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (activeActivityTab === 'activity' && user?.uid) {
       console.log('[ProfilePage] Activity tab active for user:', user.uid);
+      
       // Fetch Saved Posts
       setIsLoadingSavedPosts(true);
       console.log('[ProfilePage] Fetching saved posts for user:', user.uid);
@@ -188,10 +191,25 @@ export default function ProfilePage() {
         })
         .catch(err => {
           console.error("[ProfilePage] Error fetching saved posts:", err);
-          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check console & Firestore rules. This could be a permissions issue.", variant: "destructive" });
+          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check console for Firestore errors (rules or indexes might be needed).", variant: "destructive" });
           setSavedPosts([]);
         })
         .finally(() => setIsLoadingSavedPosts(false));
+
+      // Fetch Liked Posts
+      setIsLoadingLikedPosts(true);
+      console.log('[ProfilePage] Fetching liked posts for user:', user.uid);
+      getLikedPostsByUser(user.uid)
+        .then(data => {
+          console.log('[ProfilePage] Fetched liked posts data:', data);
+          setLikedPosts(data);
+        })
+        .catch(err => {
+          console.error("[ProfilePage] Error fetching liked posts:", err);
+          toast({ title: "Error Loading Liked Posts", description: "Could not load posts you've liked. A Firestore index might be required or check rules.", variant: "destructive" });
+          setLikedPosts([]);
+        })
+        .finally(() => setIsLoadingLikedPosts(false));
 
       // Fetch User Comments
       setIsLoadingUserComments(true);
@@ -582,7 +600,17 @@ export default function ProfilePage() {
 
                   <section>
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
-                     <p className="text-muted-foreground text-sm">Your liked posts will appear here. (Feature under development)</p>
+                     {isLoadingLikedPosts ? (
+                         <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading liked posts...</p></div>
+                    ) : likedPosts.length === 0 ? (
+                        <p className="text-muted-foreground text-sm py-4">You haven&apos;t liked any posts yet.</p>
+                    ) : (
+                        <div className="space-y-6">
+                            {likedPosts.map(post => (
+                                <PostCard key={post.id} post={post} />
+                            ))}
+                        </div>
+                    )}
                   </section>
 
                   <Separator/>
@@ -617,3 +645,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

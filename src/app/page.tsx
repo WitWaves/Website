@@ -16,12 +16,12 @@ export default async function HomePage() {
             <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter">
               <span className="block text-destructive">Dive.</span>
               <span className="block text-primary relative">
-                <Image 
-                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FExploreImage.svg?alt=media&token=def9967b-2824-4cfe-897e-cc749dd082e2" 
-                  alt="Decorative illustration" 
-                  width={100} 
-                  height={100} 
-                  className="inline-block mr-2 relative top-[-0.1em] lg:top-[-0.15em]" 
+                <Image
+                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FExploreImage.svg?alt=media&token=def9967b-2824-4cfe-897e-cc749dd082e2"
+                  alt="Decorative illustration"
+                  width={100}
+                  height={100}
+                  className="inline-block mr-2 relative top-[-0.1em] lg:top-[-0.15em]"
                   data-ai-hint="explore theme"
                 />
                 Explore.
@@ -42,7 +42,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-      
+
       {/* Blogs Section */}
       <section className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 md:py-20"> {/* Reduced padding */}
         <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -72,16 +72,16 @@ export default async function HomePage() {
 
       {/* Large Newsletter Subscription Section */}
       <section className="py-12 md:py-20">
-        <div className="w-full md:w-4/5 mx-auto px-4 md:px-0"> {/* Changed for 80% width on md+ */}
+        <div className="w-full md:w-4/5 mx-auto px-4 md:px-0"> {/* This div is already 80% on md+ */}
           <div className="bg-accent rounded-3xl p-8 md:p-12 lg:p-16 text-center shadow-xl">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Subscribe to our newsletter!
             </h2>
-            <p className="text-lg text-white/90 mb-8 max-w-2xl mx-auto">
+            <p className="text-lg text-white/90 mb-8 w-4/5 mx-auto"> {/* Changed max-w-2xl to w-4/5 */}
               Stay connected and never miss an update! Subscribe to our newsletter for the latest
               news, insights, and exclusive content delivered straight to your inbox.
             </p>
-            <form className="max-w-lg mx-auto">
+            <form className="w-4/5 mx-auto"> {/* Changed max-w-lg to w-4/5 */}
               <div className="flex items-center bg-white rounded-full p-1 shadow-md focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-accent">
                 <Input
                   type="email"
@@ -89,9 +89,9 @@ export default async function HomePage() {
                   className="bg-transparent text-foreground placeholder:text-muted-foreground flex-grow text-base py-3 px-5 border-none focus:ring-0 h-auto"
                   aria-label="Email for newsletter"
                 />
-                <Button 
-                  type="submit" 
-                  size="lg" 
+                <Button
+                  type="submit"
+                  size="lg"
                   className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full py-3 px-6 shrink-0 text-base font-semibold"
                   style={{ backgroundColor: 'hsl(var(--brand-yellow-orange))', color: 'hsl(var(--brand-yellow-orange-foreground))' }}
                 >

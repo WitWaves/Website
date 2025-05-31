@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, LogOut, UserPlus, LogIn, Bell } from 'lucide-react'; // Added Bell
+import { Search, LogOut, UserPlus, LogIn, Bell } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useState, useEffect } from 'react';
@@ -29,7 +29,7 @@ export default function Header() {
         <div className="flex items-center justify-between h-20">
           <Link href="/">
             <Image
-              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FWitWaves.png?alt=media"
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FWitWaves.png?alt=media&token=06288ce8-1eb2-4fb2-b3a8-e4deb9de05ff"
               alt="WitWaves Logo"
               width={180}
               height={43}

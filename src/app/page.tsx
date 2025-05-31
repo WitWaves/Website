@@ -17,7 +17,7 @@ export default async function HomePage() {
               <span className="block text-destructive">Dive.</span>
               <span className="block text-primary relative">
                 <Image 
-                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FBlogImage.png?alt=media" 
+                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FExploreImage.svg?alt=media&token=def9967b-2824-4cfe-897e-cc749dd082e2" 
                   alt="Decorative illustration" 
                   width={100} 
                   height={100} 
@@ -59,7 +59,7 @@ export default async function HomePage() {
           </div>
           <div className="order-1 md:order-2">
             <Image
-              src="https://firebasestorage.googleapis.com/v0/b/witwaves/o/Website%20Elements%2FBlogImage.png?alt=media&token=51accbac-5d7b-491c-9b7e-ec1c5c044f39"
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FBlogImage.png?alt=media&token=202c8670-c370-4aee-bdb8-d2558ea7abeb"
               alt="Blog preview"
               width={600}
               height={400}

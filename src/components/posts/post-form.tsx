@@ -69,7 +69,7 @@ function PublishButton({isUpdate, isUploadingOrProcessing}: {isUpdate: boolean, 
 
 export default function PostForm({ post }: PostFormProps) {
   const router = useRouter();
-  const { toast } = useToast();
+  const { toast: createToast, dismiss } = useToast(); // Correctly destructure toast creation and dismiss functions
   const { user, loading: authLoading } = useAuth();
   const [isAISuggesting, startAITransition] = useTransition();
 
@@ -104,15 +104,14 @@ export default function PostForm({ post }: PostFormProps) {
   useEffect(() => {
     if (isClient && editorRef.current && !quillInstanceRef.current) {
       if (typeof window.Quill !== 'undefined') {
-        // Define imageHandler inside here so it captures the current user/post context at init time
         const localImageHandler = () => {
           console.log('[PostForm Quill ImageHandler] Invoked.');
-          const currentQuill = quillInstanceRef.current; // Use the ref for the current Quill instance
-          const currentUserForUpload = user; // Capture user from the outer scope of this useEffect
+          const currentQuill = quillInstanceRef.current; 
+          const currentUserForUpload = user; 
 
           if (!currentUserForUpload?.uid || !currentQuill) {
             console.error('[PostForm Quill ImageHandler] User not logged in or editor not ready.');
-            toast({ title: "Editor Error", description: "User not logged in or editor is not ready for image uploads.", variant: "destructive" });
+            createToast({ title: "Editor Error", description: "User not logged in or editor is not ready for image uploads.", variant: "destructive" });
             return;
           }
           const input = document.createElement('input');
@@ -126,10 +125,9 @@ export default function PostForm({ post }: PostFormProps) {
               console.log('[PostForm Quill ImageHandler] No file selected.');
               return;
             }
-            // Re-check currentUser as this is an async callback, user state might have changed
             if (!user?.uid) { 
               console.error('[PostForm Quill ImageHandler] User became undefined during operation.');
-              toast({ title: "Auth Error", description: "User session ended. Please re-login.", variant: "destructive" });
+              createToast({ title: "Auth Error", description: "User session ended. Please re-login.", variant: "destructive" });
               return;
             }
 
@@ -138,7 +136,7 @@ export default function PostForm({ post }: PostFormProps) {
             const toastId = `quill-upload-${Date.now()}`;
 
             try {
-              toast({
+              createToast({
                 id: toastId,
                 title: "Processing Image...",
                 description: `Optimizing ${originalFile.name}. Please wait.`,
@@ -154,7 +152,7 @@ export default function PostForm({ post }: PostFormProps) {
               const optimizedFile = await optimizeImageFile(originalFile, optimizationOptions);
               console.log('[PostForm Quill ImageHandler] Image optimized:', optimizedFile.name);
 
-              toast({
+              createToast({
                 id: toastId,
                 title: "Uploading Image to Post...",
                 description: `Starting upload for ${optimizedFile.name}`,
@@ -162,9 +160,7 @@ export default function PostForm({ post }: PostFormProps) {
               });
 
               const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-              // Use 'post' from the outer scope (captured at definition time of this useEffect)
               const postIdForPath = post?.id || `new_${Date.now()}`; 
-              // Use 'user.uid' from the currently authenticated user for the path
               const imageFilePath = `postContentImages/${user.uid}/${postIdForPath}/${uniqueId}-${optimizedFile.name}`; 
               console.log('[PostForm Quill ImageHandler] Upload path:', imageFilePath);
 
@@ -175,7 +171,7 @@ export default function PostForm({ post }: PostFormProps) {
                 (snapshot) => {
                   const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                    if (uploadTask.snapshot.state === 'running') {
-                      toast({
+                      createToast({
                           id: toastId,
                           title: "Uploading Image to Post...",
                           description: `${optimizedFile.name} - ${Math.round(progress)}% done.`,
@@ -185,8 +181,8 @@ export default function PostForm({ post }: PostFormProps) {
                 },
                 (error) => {
                   console.error("[PostForm Quill ImageHandler] Firebase Storage Upload Error:", error.code, error.message, error);
-                  toast.dismiss(toastId);
-                  toast({ title: "Quill Image Upload Failed", description: `Could not upload ${optimizedFile.name}: ${error.message} (Code: ${error.code})`, variant: "destructive" });
+                  dismiss(toastId);
+                  createToast({ title: "Quill Image Upload Failed", description: `Could not upload ${optimizedFile.name}: ${error.message} (Code: ${error.code})`, variant: "destructive" });
                 },
                 async () => {
                   try {
@@ -195,19 +191,19 @@ export default function PostForm({ post }: PostFormProps) {
                     console.log('[PostForm Quill ImageHandler] Download URL obtained:', downloadURL);
                     currentQuill.insertEmbed(range.index, 'image', downloadURL);
                     currentQuill.setSelection(range.index + 1);
-                    toast.dismiss(toastId);
-                    toast({ title: "Image Uploaded to Post", description: `${optimizedFile.name} inserted.`, variant: "default" });
+                    dismiss(toastId);
+                    createToast({ title: "Image Uploaded to Post", description: `${optimizedFile.name} inserted.`, variant: "default" });
                   } catch (getUrlError: any) {
                     console.error("[PostForm Quill ImageHandler] Error getting download URL:", getUrlError.code, getUrlError.message, getUrlError);
-                    toast.dismiss(toastId);
-                    toast({ title: "Quill Image URL Error", description: `Failed to get URL for ${optimizedFile.name}: ${getUrlError.message}`, variant: "destructive" });
+                    dismiss(toastId);
+                    createToast({ title: "Quill Image URL Error", description: `Failed to get URL for ${optimizedFile.name}: ${getUrlError.message}`, variant: "destructive" });
                   }
                 }
               );
             } catch (error: any) {
               console.error("[PostForm Quill ImageHandler] Outer error during image optimization or upload setup:", error.message, error);
-              toast.dismiss(toastId);
-              toast({ title: "Quill Image Processing Error", description: `Could not process image: ${error.message}`, variant: "destructive" });
+              dismiss(toastId);
+              createToast({ title: "Quill Image Processing Error", description: `Could not process image: ${error.message}`, variant: "destructive" });
             }
           };
         };
@@ -231,7 +227,7 @@ export default function PostForm({ post }: PostFormProps) {
                 ['clean']
               ],
               handlers: {
-                'image': localImageHandler // Use the locally defined handler
+                'image': localImageHandler 
               }
             },
           },
@@ -239,17 +235,12 @@ export default function PostForm({ post }: PostFormProps) {
         });
         quillInstanceRef.current = quill;
 
-        // Set initial content
-        const initialContent = post?.content || quillContent || ''; // Use post content, then current state, then empty
+        const initialContent = post?.content || quillContent || ''; 
         if (quill.root.innerHTML !== initialContent && initialContent !== '<p><br></p>') {
-             // Only paste if it's actual content, not just the placeholder paragraph
             if (initialContent || (initialContent === '' && quill.root.innerHTML !== '<p><br></p>')) {
                 quill.clipboard.dangerouslyPasteHTML(0, initialContent);
             }
         }
-        // Ensure React state `quillContent` matches editor's initial state
-        // especially if `post.content` was null/undefined and `quillContent` was also empty string.
-        // Quill's empty state is `<p><br></p>`.
         const editorHTML = quill.root.innerHTML;
         const stateContentToSet = editorHTML === '<p><br></p>' ? '' : editorHTML;
         if (quillContent !== stateContentToSet) {
@@ -261,18 +252,14 @@ export default function PostForm({ post }: PostFormProps) {
           if (source === 'user') {
             const currentHTML = quill.root.innerHTML;
             const newContent = currentHTML === '<p><br></p>' ? '' : currentHTML;
-            setQuillContent(newContent); // Update React state from Quill
+            setQuillContent(newContent); 
           }
         });
       } else {
         console.warn("Quill library not found.");
       }
     }
-    // No explicit cleanup function, relying on Next.js component unmount for general JS cleanup.
-    // If issues persist, a more specific Quill cleanup (quillInstanceRef.current.destroy() or similar) might be needed,
-    // but that can also introduce problems if not handled carefully with re-renders.
-  }, [isClient, post, user, toast]); // Dependencies that might necessitate re-evaluating Quill or its handlers.
-                                     // Note: `quillContent` is NOT a dependency here to avoid re-init on its own change.
+  }, [isClient, post, user, createToast, dismiss]); 
 
 
   useEffect(() => {
@@ -283,11 +270,11 @@ export default function PostForm({ post }: PostFormProps) {
         setAllSystemTags(tags.sort());
       } catch (error) {
         console.error("Error fetching all system tags:", error);
-        toast({ title: "Error", description: "Could not load existing tags.", variant: "destructive" });
+        createToast({ title: "Error", description: "Could not load existing tags.", variant: "destructive" });
       }
     }
     fetchAllSystemTagsData();
-  }, [isClient, toast]);
+  }, [isClient, createToast]);
 
   useEffect(() => {
     if (contentHiddenInputRef.current) {
@@ -302,7 +289,7 @@ export default function PostForm({ post }: PostFormProps) {
   const clientSideFormAction = async (formData: FormData) => {
     console.log('[PostForm] clientSideFormAction started.');
     if (!user?.uid) {
-        toast({ title: "Authentication Error", description: "You must be logged in to submit a post.", variant: "destructive" });
+        createToast({ title: "Authentication Error", description: "You must be logged in to submit a post.", variant: "destructive" });
         console.error('[PostForm] User not logged in for form submission.');
         return;
     }
@@ -312,14 +299,13 @@ export default function PostForm({ post }: PostFormProps) {
     let finalThumbnailUrl = thumbnailPreviewUrl || (post?.imageUrl !== undefined ? post.imageUrl : '');
     console.log('[PostForm] Initial finalThumbnailUrl:', finalThumbnailUrl);
 
-    // selectedThumbnailFile should already be the optimized version if optimization occurred
-    if (selectedThumbnailFile && selectedThumbnailFile.name !== "PLACEHOLDER_FOR_NO_CHANGE") { // Ensure it's a real file to upload
+    if (selectedThumbnailFile && selectedThumbnailFile.name !== "PLACEHOLDER_FOR_NO_CHANGE") { 
         console.log('[PostForm] Selected thumbnail file present, starting upload:', selectedThumbnailFile.name);
-        setIsProcessingThumbnail(true); // Indicate general processing for button state
+        setIsProcessingThumbnail(true); 
         setThumbnailUploadProgress(0);
         const uploadToastId = `thumb-upload-${Date.now()}`;
         try {
-            toast({ id: uploadToastId, title: "Uploading Thumbnail...", description: `Starting upload for ${selectedThumbnailFile.name}`, duration: Infinity });
+            createToast({ id: uploadToastId, title: "Uploading Thumbnail...", description: `Starting upload for ${selectedThumbnailFile.name}`, duration: Infinity });
             const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
             const postIdForPath = post?.id || `new_${Date.now()}`;
             const thumbnailPath = `postThumbnails/${user.uid}/${postIdForPath}/${uniqueId}-${selectedThumbnailFile.name}`;
@@ -334,24 +320,24 @@ export default function PostForm({ post }: PostFormProps) {
                         console.log('[PostForm] Thumbnail upload progress:', progress);
                         setThumbnailUploadProgress(progress);
                          if (uploadTask.snapshot.state === 'running') {
-                            toast({ id: uploadToastId, title: "Uploading Thumbnail...", description: `${selectedThumbnailFile.name} - ${Math.round(progress)}% done.`, duration: Infinity });
+                            createToast({ id: uploadToastId, title: "Uploading Thumbnail...", description: `${selectedThumbnailFile.name} - ${Math.round(progress)}% done.`, duration: Infinity });
                         }
                     },
                     (error) => {
                         console.error("[PostForm] Firebase Storage Thumbnail Upload Error:", error.code, error.message, error);
-                        toast.dismiss(uploadToastId);
+                        dismiss(uploadToastId);
                         reject(error); 
                     },
                     async () => {
                         try {
                             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
                             console.log('[PostForm] Thumbnail download URL obtained:', downloadURL);
-                            toast.dismiss(uploadToastId);
-                            toast({ title: "Thumbnail Uploaded", description: `${selectedThumbnailFile.name} uploaded successfully.`, variant: "default"});
+                            dismiss(uploadToastId);
+                            createToast({ title: "Thumbnail Uploaded", description: `${selectedThumbnailFile.name} uploaded successfully.`, variant: "default"});
                             resolve(downloadURL);
                         } catch (getUrlError: any) {
                             console.error("[PostForm] Error getting thumbnail download URL:", getUrlError.code, getUrlError.message, getUrlError);
-                            toast.dismiss(uploadToastId);
+                            dismiss(uploadToastId);
                             reject(getUrlError);
                         }
                     }
@@ -361,8 +347,8 @@ export default function PostForm({ post }: PostFormProps) {
             setSelectedThumbnailFile(null); 
         } catch (error: any) {
             console.error("[PostForm] Failed to upload thumbnail:", error.code, error.message, error);
-            toast.dismiss(uploadToastId);
-            toast({ title: "Thumbnail Upload Failed", description: `${error.message} (Code: ${error.code})`, variant: "destructive" });
+            dismiss(uploadToastId);
+            createToast({ title: "Thumbnail Upload Failed", description: `${error.message} (Code: ${error.code})`, variant: "destructive" });
             setIsProcessingThumbnail(false);
             setThumbnailUploadProgress(0);
             return; 
@@ -372,9 +358,8 @@ export default function PostForm({ post }: PostFormProps) {
         }
     } else if (thumbnailPreviewUrl === null && post?.imageUrl) {
         console.log('[PostForm] Thumbnail was removed by user (preview is null, post had imageUrl). Setting finalThumbnailUrl to empty.');
-        finalThumbnailUrl = ''; // Signal removal
+        finalThumbnailUrl = ''; 
     } else if (selectedThumbnailFile && selectedThumbnailFile.name === "PLACEHOLDER_FOR_NO_CHANGE"){
-        // This means the user didn't change the thumbnail, keep the existing one.
         finalThumbnailUrl = post?.imageUrl || '';
         console.log('[PostForm] Thumbnail not changed by user, keeping existing URL:', finalThumbnailUrl);
     }
@@ -392,7 +377,7 @@ export default function PostForm({ post }: PostFormProps) {
 
   useEffect(() => {
     if (state?.success) {
-      toast({
+      createToast({
         title: state.message,
         variant: 'default',
         description: post ? `Post "${titleValue}" updated.` : `Post created.`,
@@ -405,23 +390,23 @@ export default function PostForm({ post }: PostFormProps) {
         router.push('/blog');
       }
     } else if (state?.message && !state.success) {
-      toast({
+      createToast({
         title: 'Error',
         description: state.errors ? JSON.stringify(state.errors) : state.message,
         variant: 'destructive',
       });
     }
-  }, [state, router, toast, post, titleValue]);
+  }, [state, router, createToast, post, titleValue]);
 
   const handleSuggestTags = () => {
     if (!isClient || !quillInstanceRef.current) {
-      toast({ title: "Editor Not Ready", variant: "default" });
+      createToast({ title: "Editor Not Ready", variant: "default" });
       return;
     }
     let textContentForAI = quillInstanceRef.current.getText(0, 2000);
     if (titleValue) textContentForAI = titleValue + "\n\n" + textContentForAI;
     if (!textContentForAI.trim()) {
-        toast({ title: "Empty Content", description: "Please write some content or a title before suggesting tags.", variant: "default" });
+        createToast({ title: "Empty Content", description: "Please write some content or a title before suggesting tags.", variant: "default" });
         return;
     }
     startAITransition(async () => {
@@ -430,16 +415,16 @@ export default function PostForm({ post }: PostFormProps) {
         const newAISuggestions = tagsFromAI.filter(tag => !currentTags.includes(tag) && tag.length > 0 && tag !== 'ai-suggestion-error');
         setAISuggestedTags(newAISuggestions);
         if (newAISuggestions.length === 0 && tagsFromAI.includes('ai-suggestion-error')) {
-          toast({ title: 'AI Suggestion Error', description: "Could not get suggestions from AI.", variant: 'destructive' });
+          createToast({ title: 'AI Suggestion Error', description: "Could not get suggestions from AI.", variant: 'destructive' });
         } else if (newAISuggestions.length === 0 && tagsFromAI.length > 0) {
-           toast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
+           createToast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
         } else if (newAISuggestions.length > 0) {
-            toast({ title: 'AI Suggestions', description: 'New tags suggested below!', variant: 'default' });
+            createToast({ title: 'AI Suggestions', description: 'New tags suggested below!', variant: 'default' });
         } else {
-            toast({ title: 'AI Suggestions', description: 'No tags were suggested by the AI for this content.', variant: 'default' });
+            createToast({ title: 'AI Suggestions', description: 'No tags were suggested by the AI for this content.', variant: 'default' });
         }
       } catch (error) {
-        toast({ title: 'AI Error', description: "An error occurred while trying to suggest tags.", variant: 'destructive' });
+        createToast({ title: 'AI Error', description: "An error occurred while trying to suggest tags.", variant: 'destructive' });
         setAISuggestedTags([]);
       }
     });
@@ -462,33 +447,32 @@ export default function PostForm({ post }: PostFormProps) {
     if (event.target.files && event.target.files[0]) {
         const originalFile = event.target.files[0];
         setIsProcessingThumbnail(true);
-        setThumbnailUploadProgress(0); // Not used for optimization progress, but good to reset
+        setThumbnailUploadProgress(0); 
         const optimizeToastId = `thumb-optimize-${Date.now()}`;
-        toast({ id: optimizeToastId, title: "Processing Thumbnail...", description: `Optimizing ${originalFile.name}. Please wait.`, duration: Infinity});
+        createToast({ id: optimizeToastId, title: "Processing Thumbnail...", description: `Optimizing ${originalFile.name}. Please wait.`, duration: Infinity});
         try {
             const optimizationOptions: imageCompression.Options = {
-                maxSizeMB: 0.5, // Target 0.5MB for thumbnails
-                maxWidthOrHeight: 800, // Max width/height for thumbnails
+                maxSizeMB: 0.5, 
+                maxWidthOrHeight: 800, 
                 useWebWorker: true,
                 initialQuality: 0.7,
             };
             const optimizedFile = await optimizeImageFile(originalFile, optimizationOptions);
             setSelectedThumbnailFile(optimizedFile);
             setThumbnailPreviewUrl(URL.createObjectURL(optimizedFile));
-            toast.dismiss(optimizeToastId);
-            toast({ title: "Thumbnail Ready", description: "Optimized thumbnail is ready for upload.", variant: "default"});
+            dismiss(optimizeToastId);
+            createToast({ title: "Thumbnail Ready", description: "Optimized thumbnail is ready for upload.", variant: "default"});
         } catch (error) {
             console.error("Thumbnail optimization failed:", error);
-            toast.dismiss(optimizeToastId);
-            toast({ title: "Optimization Failed", description: "Could not optimize thumbnail. Using original.", variant: "destructive" });
-            setSelectedThumbnailFile(originalFile); // Fallback to original
+            dismiss(optimizeToastId);
+            createToast({ title: "Optimization Failed", description: "Could not optimize thumbnail. Using original.", variant: "destructive" });
+            setSelectedThumbnailFile(originalFile); 
             setThumbnailPreviewUrl(URL.createObjectURL(originalFile));
         } finally {
             setIsProcessingThumbnail(false);
         }
     } else {
-        // If no file selected (e.g., user cancels file dialog), revert to original or null
-        setSelectedThumbnailFile(post?.imageUrl ? new File([], "PLACEHOLDER_FOR_NO_CHANGE") : null); // Special file to indicate no change if post had image
+        setSelectedThumbnailFile(post?.imageUrl ? new File([], "PLACEHOLDER_FOR_NO_CHANGE") : null); 
         setThumbnailPreviewUrl(post?.imageUrl || null);
     }
   };
@@ -501,21 +485,17 @@ export default function PostForm({ post }: PostFormProps) {
       if (selectedThumbnailFile && selectedThumbnailFile.name !== "PLACEHOLDER_FOR_NO_CHANGE") { 
         console.log("[PostForm] Clearing newly selected/optimized file, no storage deletion needed for this specific file yet.");
       } else if (post?.imageUrl && currentUrlToDelete === post.imageUrl && currentUrlToDelete.startsWith('https://firebasestorage.googleapis.com')) {
-          // This was an existing image from storage, and it's still the one being previewed (or was before clearing)
-          // No client-side deletion needed here as the server action handles 'deleteField()' if finalThumbnailUrl is empty.
           console.log("[PostForm] Marking existing Firebase thumbnail for removal on server-side if form is submitted.");
       } else {
         console.log("[PostForm] No Firebase Storage thumbnail to delete immediately on client or was a local blob.");
       }
 
-      setSelectedThumbnailFile(null); // Null indicates to the server action to remove it if it was existing
+      setSelectedThumbnailFile(null); 
       setThumbnailPreviewUrl(null);
       if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
-      // The server action (updatePostAction) will see `uploadedThumbnailUrl` as "" if we set it to null here and submit
-      // It will then use `deleteField()` for `imageUrl`.
       if (uploadedThumbnailUrlHiddenInputRef.current) uploadedThumbnailUrlHiddenInputRef.current.value = ''; 
       console.log("[PostForm] Thumbnail preview and file selection reset. Marked for removal on save.");
-      toast({title: "Thumbnail Marked for Removal", description: "Thumbnail will be removed when you save the post."});
+      createToast({title: "Thumbnail Marked for Removal", description: "Thumbnail will be removed when you save the post."});
   };
 
 
@@ -633,7 +613,7 @@ export default function PostForm({ post }: PostFormProps) {
                     />
                 </label>
             )}
-            {isProcessingThumbnail && thumbnailUploadProgress > 0 && ( // Only show upload progress, not optimization progress here
+            {isProcessingThumbnail && thumbnailUploadProgress > 0 && ( 
                 <Progress value={thumbnailUploadProgress} className="h-2 w-full mt-2" />
             )}
              {isProcessingThumbnail && thumbnailUploadProgress === 0 && (
@@ -751,7 +731,7 @@ export default function PostForm({ post }: PostFormProps) {
                <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
              </p>
            )}
-          <div className="mt-auto"> {/* Ensures button stays at bottom of this sidebar div */}
+          <div className="mt-auto"> 
             <PublishButton isUpdate={!!post} isUploadingOrProcessing={isProcessingThumbnail} />
           </div>
         </div>

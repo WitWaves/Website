@@ -185,43 +185,42 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (activeActivityTab === 'activity' && user?.uid) {
-      console.log('[ProfilePage] Activity tab active for user:', user.uid);
+      console.log('[ProfilePage] Activity tab active, fetching data for user:', user.uid);
 
-      // Fetch Liked Posts
-      if (!likedPosts.length && !isLoadingLikedPosts) { // Only fetch if not already fetched or loading
-        setIsLoadingLikedPosts(true);
-        console.log('[ProfilePage] Fetching liked posts for user:', user.uid);
-        getLikedPostsByUser(user.uid)
-          .then(data => {
-            console.log('[ProfilePage] Fetched liked posts data (client-side):', data);
-            setLikedPosts(data);
-          })
-          .catch(err => {
-            console.error("[ProfilePage] Error fetching liked posts (client-side):", err);
-            toast({ title: "Error Loading Liked Posts", description: "Could not load your liked posts. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
-            setLikedPosts([]);
-          })
-          .finally(() => setIsLoadingLikedPosts(false));
-      }
+      setIsLoadingLikedPosts(true);
+      getLikedPostsByUser(user.uid)
+        .then(data => {
+          console.log('[ProfilePage] Fetched liked posts data (client-side):', data);
+          setLikedPosts(data);
+        })
+        .catch(err => {
+          console.error("[ProfilePage] Error fetching liked posts (client-side):", err);
+          toast({ title: "Error Loading Liked Posts", description: "Could not load your liked posts. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
+          setLikedPosts([]);
+        })
+        .finally(() => {
+          console.log('[ProfilePage] Finished fetching liked posts.');
+          setIsLoadingLikedPosts(false);
+        });
 
-      // Fetch User Comments
-      if (!userComments.length && !isLoadingUserComments) { // Only fetch if not already fetched or loading
-        setIsLoadingUserComments(true);
-        console.log('[ProfilePage] Fetching user comments for user:', user.uid);
-        getCommentsByUser(user.uid)
-          .then(data => {
-            console.log('[ProfilePage] Fetched user comments data (client-side):', data);
-            setUserComments(data);
-          })
-          .catch(err => {
-            console.error("[ProfilePage] Error fetching user comments (client-side):", err);
-            toast({ title: "Error Loading Your Comments", description: "Could not load your comments. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
-            setUserComments([]);
-          })
-          .finally(() => setIsLoadingUserComments(false));
-        }
+      setIsLoadingUserComments(true);
+      getCommentsByUser(user.uid)
+        .then(data => {
+          console.log('[ProfilePage] Fetched user comments data (client-side):', data);
+          setUserComments(data);
+        })
+        .catch(err => {
+          console.error("[ProfilePage] Error fetching user comments (client-side):", err);
+          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
+          setUserComments([]);
+        })
+        .finally(() => {
+          console.log('[ProfilePage] Finished fetching user comments.');
+          setIsLoadingUserComments(false);
+        });
     }
-  }, [activeActivityTab, user?.uid, toast, likedPosts.length, userComments.length, isLoadingLikedPosts, isLoadingUserComments]);
+  }, [activeActivityTab, user?.uid, toast]);
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -656,5 +655,7 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
 
     

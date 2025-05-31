@@ -1,4 +1,3 @@
-
 'use client';
 
 import Image from 'next/image';
@@ -121,6 +120,23 @@ export default function PostForm({ post }: PostFormProps) {
     // currentTags will be initialized to [] by useState, so no specific handling needed here.
   }, [post]);
 
+  // Moved fetchUserImages definition before processAndUploadFile
+  const fetchUserImages = useCallback(async () => {
+    if (user?.uid) {
+        setIsLoadingPreviousUploads(true);
+        try {
+            const images = await getRecentUserImages(user.uid, 12); 
+            setPreviousUploads(images);
+        } catch (error) {
+            console.error("Error fetching user's previous uploads:", error);
+            createToast({title: "Error", description: "Could not load your previous images.", variant: "destructive"});
+            setPreviousUploads([]);
+        } finally {
+            setIsLoadingPreviousUploads(false);
+        }
+    }
+  }, [user?.uid, createToast]);
+
 
   const processAndUploadFile = useCallback(async (file: File, target: 'thumbnail' | 'quill', quillRangeToInsert?: any) => {
     if (!user?.uid) {
@@ -155,9 +171,8 @@ export default function PostForm({ post }: PostFormProps) {
       });
 
       const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const postIdForPath = post?.id || `new_${Date.now()}`;
-      const basePath = target === 'thumbnail' ? 'postThumbnails' : 'postContentImages';
-      const imageFilePath = `${basePath}/${user.uid}/${postIdForPath}/${uniqueId}-${optimizedFile.name}`;
+      // Modified imageFilePath to use the common 'userUploads' folder
+      const imageFilePath = `userUploads/${user.uid}/${uniqueId}-${optimizedFile.name}`;
       
       console.log(`[PostForm ProcessAndUpload] Upload path: ${imageFilePath}`);
       const imageFileRef = storageRef(storage, imageFilePath);
@@ -195,7 +210,7 @@ export default function PostForm({ post }: PostFormProps) {
                 mimeType: optimizedFile.type,
               });
               if (imageDialogState.isOpen) {
-                  fetchUserImages();
+                  fetchUserImages(); // This call is now valid
               }
 
               dismiss(toastId);
@@ -213,7 +228,7 @@ export default function PostForm({ post }: PostFormProps) {
       if (target === 'thumbnail') {
         setThumbnailPreviewUrl(downloadURL);
         if (uploadedThumbnailUrlHiddenInputRef.current) {
-             uploadedThumbnailUrlHiddenInputRef.current.value = downloadURL;
+               uploadedThumbnailUrlHiddenInputRef.current.value = downloadURL;
         }
         createToast({ title: "Thumbnail Set", description: "Thumbnail image uploaded and preview updated.", variant: "default" });
       } else if (target === 'quill' && quillRangeToInsert && quillInstanceRef.current) {
@@ -245,22 +260,6 @@ export default function PostForm({ post }: PostFormProps) {
     }
   };
   
-  const fetchUserImages = useCallback(async () => {
-    if (user?.uid) {
-        setIsLoadingPreviousUploads(true);
-        try {
-            const images = await getRecentUserImages(user.uid, 12); 
-            setPreviousUploads(images);
-        } catch (error) {
-            console.error("Error fetching user's previous uploads:", error);
-            createToast({title: "Error", description: "Could not load your previous images.", variant: "destructive"});
-            setPreviousUploads([]);
-        } finally {
-            setIsLoadingPreviousUploads(false);
-        }
-    }
-  }, [user?.uid, createToast]);
-
   const openImageUploadDialog = (target: 'thumbnail' | 'quill') => {
     if (!user?.uid) {
       createToast({ title: "Authentication Required", description: "Please log in to add images.", variant: "destructive" });
@@ -284,9 +283,9 @@ export default function PostForm({ post }: PostFormProps) {
         }
         createToast({ title: "Thumbnail Set", description: "Selected image set as thumbnail.", variant: "default" });
     } else if (imageDialogState.target === 'quill' && imageDialogState.quillRange && quillInstanceRef.current) {
-        quillInstanceRef.current.insertEmbed(imageDialogState.quillRange.index, 'image', image.downloadURL);
-        quillInstanceRef.current.setSelection(imageDialogState.quillRange.index + 1);
-        createToast({ title: "Image Inserted", description: "Selected image inserted into post.", variant: "default" });
+      quillInstanceRef.current.insertEmbed(imageDialogState.quillRange.index, 'image', image.downloadURL);
+      quillInstanceRef.current.setSelection(imageDialogState.quillRange.index + 1);
+      createToast({ title: "Image Inserted", description: "Selected image inserted into post.", variant: "default" });
     }
     setImageDialogState({ isOpen: false, target: null, quillRange: null }); 
   };
@@ -391,6 +390,8 @@ export default function PostForm({ post }: PostFormProps) {
         return;
     }
     formData.set('content', quillContent);
+    // Explicitly set the tags field with the currentTags state
+    formData.set('tags', currentTags.join(',')); 
     console.log('[PostForm] Content set on formData from Quill state.');
     
     let finalThumbnailUrlForForm = uploadedThumbnailUrlHiddenInputRef.current?.value || '';
@@ -528,7 +529,8 @@ export default function PostForm({ post }: PostFormProps) {
           <input type="hidden" name="userId" value={user.uid} />
         )}
         <input type="hidden" name="content" ref={contentHiddenInputRef} value={quillContent} />
-        <input type="hidden" name="tags" value={currentTags.join(',')} />
+        {/* Keeping this hidden input, but formData.set will take precedence */}
+        <input type="hidden" name="tags" value={currentTags.join(',')} /> 
         <input type="hidden" name="uploadedThumbnailUrl" ref={uploadedThumbnailUrlHiddenInputRef} defaultValue={post?.imageUrl || ""} />
 
 

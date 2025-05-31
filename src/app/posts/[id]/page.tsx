@@ -128,7 +128,7 @@ export default function PostPage() {
   if (isLoading || authLoading) {
     return (
       <div className="flex flex-col justify-center items-center min-h-[calc(100vh-200px)]">
-        <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading post..." width={64} height={64} />
+        <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading post..." width={64} height={64} />
         <p className="ml-3 mt-3">Loading post...</p>
       </div>
     );
@@ -191,7 +191,7 @@ export default function PostPage() {
                 disabled={isLikeActionPending || isLikePendingTransition || !user}
             >
                 {(isLikeActionPending || isLikePendingTransition) ? (
-                   <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={16} height={16} />
+                   <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading..." width={16} height={16} />
                 ) : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />}
                 Like <span className="text-xs text-muted-foreground">({optimisticLikeCount})</span>
             </Button>
@@ -234,7 +234,7 @@ export default function PostPage() {
             </div>
             <Button type="submit" disabled={isCommentActionPending || isCommentPendingTransition}>
               {(isCommentActionPending || isCommentPendingTransition) ? (
-                 <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={20} height={20} className="mr-2" />
+                 <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading..." width={20} height={20} className="mr-2" />
               ) : null}
               Post Comment
             </Button>
@@ -247,7 +247,7 @@ export default function PostPage() {
 
         {isLoadingComments ? (
           <div className="flex flex-col items-center justify-center py-6">
-            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading comments..." width={48} height={48} />
+            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading comments..." width={48} height={48} />
             <p className="ml-2 mt-2 text-muted-foreground">Loading comments...</p>
           </div>
         ) : comments.length > 0 ? (
@@ -284,3 +284,6 @@ export default function PostPage() {
     </article>
   );
 }
+
+
+    

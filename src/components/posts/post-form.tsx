@@ -41,7 +41,7 @@ function PublishButton({isUpdate, isUploading}: {isUpdate: boolean, isUploading:
     <Button type="submit" disabled={pending || isUploading} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 py-3 text-base mt-auto">
       {(pending || isUploading) ? (
         <>
-          <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={20} height={20} className="mr-2" />
+          <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading..." width={20} height={20} className="mr-2" />
           {isUploading ? 'Uploading...' : (isUpdate ? 'Updating...' : 'Publishing...')}
         </>
       ) : (
@@ -85,8 +85,10 @@ export default function PostForm({ post }: PostFormProps) {
   }, []);
 
   const imageHandler = () => {
+    console.log('[PostForm Quill ImageHandler] Invoked.');
     if (!user?.uid || !quillInstanceRef.current) {
-      toast({ title: "Error", description: "User not logged in or editor not ready.", variant: "destructive" });
+      console.error('[PostForm Quill ImageHandler] User not logged in or editor not ready.');
+      toast({ title: "Editor Error", description: "User not logged in or editor is not ready for image uploads.", variant: "destructive" });
       return;
     }
     const quill = quillInstanceRef.current;
@@ -97,51 +99,71 @@ export default function PostForm({ post }: PostFormProps) {
 
     input.onchange = async () => {
       const file = input.files?.[0];
-      if (file && user?.uid) {
-        const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 }; // Fallback range
-        const toastId = `upload-${Date.now()}`;
-        try {
-          toast({
-            id: toastId,
-            title: "Uploading Image...",
-            description: `Starting upload for ${file.name}`,
-            duration: Infinity, // Keep open until dismissed
-          });
+      if (!file) {
+        console.log('[PostForm Quill ImageHandler] No file selected.');
+        return;
+      }
+      if (!user?.uid) { // Double check, though covered above
+        console.error('[PostForm Quill ImageHandler] User became undefined during operation.');
+        return;
+      }
 
-          const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-          const postIdForPath = post?.id || 'newPost'; // Use post ID if available, or a placeholder
-          const imageFilePath = `postContentImages/${user.uid}/${postIdForPath}/${uniqueId}-${file.name}`;
-          const imageFileRef = storageRef(storage, imageFilePath);
-          const uploadTask = uploadBytesResumable(imageFileRef, file);
+      const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+      console.log('[PostForm Quill ImageHandler] File selected:', file.name, 'Quill range:', range);
+      const toastId = `quill-upload-${Date.now()}`;
 
-          uploadTask.on('state_changed',
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-               toast({
-                id: toastId, // Update existing toast
-                title: "Uploading Image...",
-                description: `${file.name} - ${Math.round(progress)}% done.`,
-                duration: Infinity,
-              });
-            },
-            (error) => {
-              console.error("Quill image upload error:", error);
-              toast.dismiss(toastId);
-              toast({ title: "Upload Failed", description: `Could not upload ${file.name}: ${error.message}`, variant: "destructive" });
-            },
-            async () => {
+      try {
+        toast({
+          id: toastId,
+          title: "Uploading Image to Post...",
+          description: `Starting upload for ${file.name}`,
+          duration: Infinity,
+        });
+        console.log('[PostForm Quill ImageHandler] Toast shown for upload start.');
+
+        const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const postIdForPath = post?.id || `new_${Date.now()}`;
+        const imageFilePath = `postContentImages/${user.uid}/${postIdForPath}/${uniqueId}-${file.name}`;
+        console.log('[PostForm Quill ImageHandler] Upload path:', imageFilePath);
+
+        const imageFileRef = storageRef(storage, imageFilePath);
+        const uploadTask = uploadBytesResumable(imageFileRef, file);
+
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            toast({
+              id: toastId,
+              title: "Uploading Image to Post...",
+              description: `${file.name} - ${Math.round(progress)}% done.`,
+              duration: Infinity,
+            });
+          },
+          (error) => {
+            console.error("[PostForm Quill ImageHandler] Firebase Storage Upload Error:", error.code, error.message, error);
+            toast.dismiss(toastId);
+            toast({ title: "Quill Image Upload Failed", description: `Could not upload ${file.name}: ${error.message} (Code: ${error.code})`, variant: "destructive" });
+          },
+          async () => {
+            try {
+              console.log('[PostForm Quill ImageHandler] Upload completed. Getting download URL...');
               const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log('[PostForm Quill ImageHandler] Download URL obtained:', downloadURL);
               quill.insertEmbed(range.index, 'image', downloadURL);
               quill.setSelection(range.index + 1);
               toast.dismiss(toastId);
-              toast({ title: "Image Uploaded", description: `${file.name} inserted into post.`, variant: "default" });
+              toast({ title: "Image Uploaded to Post", description: `${file.name} inserted.`, variant: "default" });
+            } catch (getUrlError: any) {
+              console.error("[PostForm Quill ImageHandler] Error getting download URL:", getUrlError.code, getUrlError.message, getUrlError);
+              toast.dismiss(toastId);
+              toast({ title: "Quill Image URL Error", description: `Failed to get URL for ${file.name}: ${getUrlError.message}`, variant: "destructive" });
             }
-          );
-        } catch (error) {
-          console.error("Error setting up image upload for Quill:", error);
-          toast.dismiss(toastId);
-          toast({ title: "Upload Error", description: "Could not initiate image upload.", variant: "destructive" });
-        }
+          }
+        );
+      } catch (error: any) {
+        console.error("[PostForm Quill ImageHandler] Outer error during image upload setup:", error.message, error);
+        toast.dismiss(toastId); // Ensure initial toast is dismissed
+        toast({ title: "Quill Image Upload Error", description: `Could not initiate image upload: ${error.message}`, variant: "destructive" });
       }
     };
   };
@@ -188,7 +210,7 @@ export default function PostForm({ post }: PostFormProps) {
     return () => {
       // Cleanup if needed, though Quill's standard cleanup is tricky
     };
-  }, [isClient, user?.uid]); // Add user.uid dependency for imageHandler
+  }, [isClient, user?.uid, post?.id]);
 
   useEffect(() => {
     const quill = quillInstanceRef.current;
@@ -229,20 +251,27 @@ export default function PostForm({ post }: PostFormProps) {
   const [state, formAction] = useActionState(actionToRun, undefined);
 
   const clientSideFormAction = async (formData: FormData) => {
+    console.log('[PostForm] clientSideFormAction started.');
     if (!user?.uid) {
-        toast({ title: "Authentication Error", description: "You must be logged in.", variant: "destructive" });
+        toast({ title: "Authentication Error", description: "You must be logged in to submit a post.", variant: "destructive" });
+        console.error('[PostForm] User not logged in for form submission.');
         return;
     }
+    formData.set('content', quillContent); // Ensure latest Quill content is set
+    console.log('[PostForm] Content set on formData from Quill state.');
 
-    let finalThumbnailUrl = post?.imageUrl || ''; 
-    
+    let finalThumbnailUrl = thumbnailPreviewUrl || (post?.imageUrl !== undefined ? post.imageUrl : '');
+    console.log('[PostForm] Initial finalThumbnailUrl:', finalThumbnailUrl);
+
     if (selectedThumbnailFile) {
+        console.log('[PostForm] Selected thumbnail file present, starting upload:', selectedThumbnailFile.name);
         setIsUploadingThumbnail(true);
         setThumbnailUploadProgress(0);
         try {
             const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            const postIdForPath = post?.id || 'newPost'; // Use post ID if available, or a placeholder
+            const postIdForPath = post?.id || `new_${Date.now()}`;
             const thumbnailPath = `postThumbnails/${user.uid}/${postIdForPath}/${uniqueId}-${selectedThumbnailFile.name}`;
+            console.log('[PostForm] Thumbnail upload path:', thumbnailPath);
             const thumbnailImageRef = storageRef(storage, thumbnailPath);
             const uploadTask = uploadBytesResumable(thumbnailImageRef, selectedThumbnailFile);
 
@@ -250,39 +279,49 @@ export default function PostForm({ post }: PostFormProps) {
                 uploadTask.on('state_changed',
                     (snapshot) => {
                         const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        console.log('[PostForm] Thumbnail upload progress:', progress);
                         setThumbnailUploadProgress(progress);
                     },
                     (error) => {
-                        console.error("Thumbnail upload error:", error);
-                        reject(error);
+                        console.error("[PostForm] Firebase Storage Thumbnail Upload Error:", error.code, error.message, error);
+                        reject(error); // Propagate error to catch block
                     },
                     async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        resolve(downloadURL);
+                        try {
+                            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                            console.log('[PostForm] Thumbnail download URL obtained:', downloadURL);
+                            resolve(downloadURL);
+                        } catch (getUrlError: any) {
+                            console.error("[PostForm] Error getting thumbnail download URL:", getUrlError.code, getUrlError.message, getUrlError);
+                            reject(getUrlError);
+                        }
                     }
                 );
             });
-            setSelectedThumbnailFile(null); // Clear after successful upload
-        } catch (error) {
-            console.error("Failed to upload thumbnail:", error);
-            toast({ title: "Thumbnail Upload Failed", description: (error as Error).message, variant: "destructive" });
+            console.log('[PostForm] Thumbnail upload successful. Final URL:', finalThumbnailUrl);
+            setSelectedThumbnailFile(null);
+        } catch (error: any) {
+            console.error("[PostForm] Failed to upload thumbnail:", error.code, error.message, error);
+            toast({ title: "Thumbnail Upload Failed", description: `${error.message} (Code: ${error.code})`, variant: "destructive" });
             setIsUploadingThumbnail(false);
             setThumbnailUploadProgress(0);
-            return; // Stop form submission if thumbnail upload fails
+            return;
+        } finally {
+            setIsUploadingThumbnail(false);
+            setThumbnailUploadProgress(0);
         }
-        setIsUploadingThumbnail(false);
-        setThumbnailUploadProgress(0);
     } else if (thumbnailPreviewUrl === null && post?.imageUrl) {
-        // User cleared an existing thumbnail
-        finalThumbnailUrl = '';
+        console.log('[PostForm] Thumbnail was removed by user (preview is null, post had imageUrl). Setting finalThumbnailUrl to empty.');
+        finalThumbnailUrl = ''; // Signal removal
     }
 
-
+    console.log('[PostForm] Setting uploadedThumbnailUrl on hidden input and formData:', finalThumbnailUrl);
     if (uploadedThumbnailUrlHiddenInputRef.current) {
         uploadedThumbnailUrlHiddenInputRef.current.value = finalThumbnailUrl;
     }
     formData.set('uploadedThumbnailUrl', finalThumbnailUrl);
-    formData.set('content', quillContent);
+
+    console.log('[PostForm] Calling server formAction.');
     formAction(formData);
   };
 
@@ -317,7 +356,7 @@ export default function PostForm({ post }: PostFormProps) {
     let textContentForAI = quillInstanceRef.current.getText(0, 2000);
     if (titleValue) textContentForAI = titleValue + "\n\n" + textContentForAI;
     if (!textContentForAI.trim()) {
-        toast({ title: "Empty Content", variant: "default" });
+        toast({ title: "Empty Content", description: "Please write some content or a title before suggesting tags.", variant: "default" });
         return;
     }
     startAITransition(async () => {
@@ -326,14 +365,16 @@ export default function PostForm({ post }: PostFormProps) {
         const newAISuggestions = tagsFromAI.filter(tag => !currentTags.includes(tag) && tag.length > 0 && tag !== 'ai-suggestion-error');
         setAISuggestedTags(newAISuggestions);
         if (newAISuggestions.length === 0 && tagsFromAI.includes('ai-suggestion-error')) {
-          toast({ title: 'AI Suggestion Error', variant: 'destructive' });
+          toast({ title: 'AI Suggestion Error', description: "Could not get suggestions from AI.", variant: 'destructive' });
         } else if (newAISuggestions.length === 0 && tagsFromAI.length > 0) {
            toast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
         } else if (newAISuggestions.length > 0) {
-            toast({ title: 'AI Suggestions', description: 'New tags suggested!', variant: 'default' });
+            toast({ title: 'AI Suggestions', description: 'New tags suggested below!', variant: 'default' });
+        } else {
+            toast({ title: 'AI Suggestions', description: 'No tags were suggested by the AI for this content.', variant: 'default' });
         }
       } catch (error) {
-        toast({ title: 'AI Error', variant: 'destructive' });
+        toast({ title: 'AI Error', description: "An error occurred while trying to suggest tags.", variant: 'destructive' });
         setAISuggestedTags([]);
       }
     });
@@ -364,33 +405,43 @@ export default function PostForm({ post }: PostFormProps) {
   };
 
   const handleRemoveThumbnail = async () => {
-      const currentUrlToDelete = thumbnailPreviewUrl || post?.imageUrl;
-      if (currentUrlToDelete && currentUrlToDelete.startsWith('https://firebasestorage.googleapis.com')) {
+      const currentUrlToDelete = thumbnailPreviewUrl; // Only consider current preview for deletion from storage
+      console.log("[PostForm] handleRemoveThumbnail called. Current preview URL:", currentUrlToDelete);
+      
+      if (selectedThumbnailFile) { // If a new file was selected but not yet uploaded
+        console.log("[PostForm] Clearing newly selected file, no storage deletion needed yet.");
+      } else if (currentUrlToDelete && currentUrlToDelete.startsWith('https://firebasestorage.googleapis.com')) {
+          // This was an existing image from storage
           try {
               const imageRef = storageRef(storage, currentUrlToDelete);
               await deleteObject(imageRef);
+              console.log("[PostForm] Thumbnail deleted from storage:", currentUrlToDelete);
               toast({title: "Thumbnail Removed", description: "Previous thumbnail deleted from storage."});
           } catch (error: any) {
-              // Non-critical, could be a placeholder or already deleted
-              if (error.code !== 'storage/object-not-found') {
-                console.warn("Could not delete previous thumbnail from storage:", error);
-                // toast({title: "Warning", description: "Could not delete previous thumbnail from storage, it might have already been removed.", variant: "default"});
+              if (error.code === 'storage/object-not-found') {
+                  console.warn("[PostForm] Thumbnail not found in storage (object-not-found), might have been already deleted or was never uploaded under this URL:", currentUrlToDelete);
+              } else {
+                console.error("[PostForm] Could not delete previous thumbnail from storage:", error);
+                toast({title: "Deletion Warning", description: `Could not delete previous thumbnail: ${error.message}`, variant: "destructive"});
               }
           }
+      } else {
+        console.log("[PostForm] No Firebase Storage thumbnail to delete (URL was local blob or already null).");
       }
+
       setSelectedThumbnailFile(null);
       setThumbnailPreviewUrl(null);
-      if (thumbnailInputRef.current) thumbnailInputRef.current.value = ''; // Reset file input
-       // Signal to action to delete from Firestore
-      if (uploadedThumbnailUrlHiddenInputRef.current) uploadedThumbnailUrlHiddenInputRef.current.value = '';
+      if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+      if (uploadedThumbnailUrlHiddenInputRef.current) uploadedThumbnailUrlHiddenInputRef.current.value = ''; // Signal removal for server action
+      console.log("[PostForm] Thumbnail preview and file selection reset.");
   };
 
 
-  if (authLoading && !post) {
-    return <div className="flex justify-center items-center h-64"><Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading form..." width={48} height={48} /> <p className="ml-2">Loading form...</p></div>;
+  if (authLoading && !post) { // Only show full page loader if it's a new post and auth is loading
+    return <div className="flex justify-center items-center h-64"><Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading form..." width={48} height={48} /> <p className="ml-2">Loading form...</p></div>;
   }
 
-  if (!user && !post) {
+  if (!user && !authLoading && !post) { // If done loading and still no user for a new post
     return (
       <div className="text-center py-10">
         <p className="text-lg text-muted-foreground">Please <Link href="/login" className="text-primary hover:underline">log in</Link> to create a post.</p>
@@ -398,7 +449,7 @@ export default function PostForm({ post }: PostFormProps) {
     );
   }
 
-  if (post && post.userId && user && post.userId !== user.uid) {
+  if (post && post.userId && user && post.userId !== user.uid) { // Unauthorized edit attempt
       return (
           <div className="text-center py-10">
               <p className="text-lg text-destructive">You are not authorized to edit this post.</p>
@@ -445,7 +496,7 @@ export default function PostForm({ post }: PostFormProps) {
                <div ref={editorRef} />
             ) : (
               <div className="min-h-[300px] border border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
-                <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading editor..." width={48} height={48} />
+                <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading editor..." width={48} height={48} />
                 <p className="ml-3 text-muted-foreground">Loading editor...</p>
               </div>
             )}
@@ -586,7 +637,7 @@ export default function PostForm({ post }: PostFormProps) {
               disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) || !quillInstanceRef.current}
               className="w-full text-xs py-2"
             >
-              {isAISuggesting ? <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Suggesting..." width={16} height={16} className="mr-1.5" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
+              {isAISuggesting ? <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Suggesting..." width={16} height={16} className="mr-1.5" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>
             {aiSuggestedTags.length > 0 && (
@@ -618,3 +669,6 @@ export default function PostForm({ post }: PostFormProps) {
     </form>
   );
 }
+
+
+    

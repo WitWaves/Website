@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, LogOut, UserPlus, LogIn } from 'lucide-react'; // Removed Bell
+import { Search, LogOut, UserPlus, LogIn } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useState, useEffect } from 'react'; // Import useState and useEffect
@@ -29,7 +29,7 @@ export default function Header() {
         <div className="flex items-center justify-between h-20">
           <Link href="/">
             <Image
-              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves/o/WebsiteElements%2Fwitwaves.png?alt=media"
               alt="WitWaves Logo"
               width={180} 
               height={43} 
@@ -67,7 +67,6 @@ export default function Header() {
                 <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> 
               ) : user ? (
                 <>
-                  {/* Bell icon button removed from here */}
                   <Link href="/blog/profile">
                     <Avatar className="h-9 w-9 cursor-pointer">
                       <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png?text=${(user.displayName || user.email || 'U').substring(0,1).toUpperCase()}`} alt={user.displayName || "User Profile"} data-ai-hint="person face"/>
@@ -96,8 +95,6 @@ export default function Header() {
                 </>
               )
             ) : (
-              // Render a placeholder with the same dimensions as the loading skeleton
-              // to prevent layout shift and ensure SSR/client initial render match.
               <div className="h-9 w-24"></div> 
             )}
           </div>

@@ -100,113 +100,119 @@ export default function PostForm({ post }: PostFormProps) {
     setIsClient(true);
   }, []);
 
-  const imageHandler = () => {
-    console.log('[PostForm Quill ImageHandler] Invoked.');
-    if (!user?.uid || !quillInstanceRef.current) {
-      console.error('[PostForm Quill ImageHandler] User not logged in or editor not ready.');
-      toast({ title: "Editor Error", description: "User not logged in or editor is not ready for image uploads.", variant: "destructive" });
-      return;
-    }
-    const quill = quillInstanceRef.current;
-    const input = document.createElement('input');
-    input.setAttribute('type', 'file');
-    input.setAttribute('accept', 'image/*');
-    input.click();
-
-    input.onchange = async () => {
-      const originalFile = input.files?.[0];
-      if (!originalFile) {
-        console.log('[PostForm Quill ImageHandler] No file selected.');
-        return;
-      }
-      if (!user?.uid) { 
-        console.error('[PostForm Quill ImageHandler] User became undefined during operation.');
-        return;
-      }
-
-      const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
-      console.log('[PostForm Quill ImageHandler] File selected:', originalFile.name, 'Quill range:', range);
-      const toastId = `quill-upload-${Date.now()}`;
-
-      try {
-        toast({
-          id: toastId,
-          title: "Processing Image...",
-          description: `Optimizing ${originalFile.name}. Please wait.`,
-          duration: Infinity, 
-        });
-
-        const optimizationOptions: imageCompression.Options = {
-          maxSizeMB: 1, // Max size in MB
-          maxWidthOrHeight: 1200, // Max width/height for content images
-          useWebWorker: true,
-          initialQuality: 0.75,
-        };
-        const optimizedFile = await optimizeImageFile(originalFile, optimizationOptions);
-        console.log('[PostForm Quill ImageHandler] Image optimized:', optimizedFile.name);
-
-        toast({
-          id: toastId,
-          title: "Uploading Image to Post...",
-          description: `Starting upload for ${optimizedFile.name}`,
-          duration: Infinity,
-        });
-        console.log('[PostForm Quill ImageHandler] Toast shown for upload start.');
-
-        const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        const postIdForPath = post?.id || `new_${Date.now()}`;
-        const imageFilePath = `postContentImages/${user.uid}/${postIdForPath}/${uniqueId}-${optimizedFile.name}`;
-        console.log('[PostForm Quill ImageHandler] Upload path:', imageFilePath);
-
-        const imageFileRef = storageRef(storage, imageFilePath);
-        const uploadTask = uploadBytesResumable(imageFileRef, optimizedFile);
-
-        uploadTask.on('state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            // Update toast with progress only if still uploading, not overwriting optimization messages
-             if (uploadTask.snapshot.state === 'running') {
-                toast({
-                    id: toastId,
-                    title: "Uploading Image to Post...",
-                    description: `${optimizedFile.name} - ${Math.round(progress)}% done.`,
-                    duration: Infinity,
-                });
-            }
-          },
-          (error) => {
-            console.error("[PostForm Quill ImageHandler] Firebase Storage Upload Error:", error.code, error.message, error);
-            toast.dismiss(toastId);
-            toast({ title: "Quill Image Upload Failed", description: `Could not upload ${optimizedFile.name}: ${error.message} (Code: ${error.code})`, variant: "destructive" });
-          },
-          async () => {
-            try {
-              console.log('[PostForm Quill ImageHandler] Upload completed. Getting download URL...');
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              console.log('[PostForm Quill ImageHandler] Download URL obtained:', downloadURL);
-              quill.insertEmbed(range.index, 'image', downloadURL);
-              quill.setSelection(range.index + 1);
-              toast.dismiss(toastId);
-              toast({ title: "Image Uploaded to Post", description: `${optimizedFile.name} inserted.`, variant: "default" });
-            } catch (getUrlError: any) {
-              console.error("[PostForm Quill ImageHandler] Error getting download URL:", getUrlError.code, getUrlError.message, getUrlError);
-              toast.dismiss(toastId);
-              toast({ title: "Quill Image URL Error", description: `Failed to get URL for ${optimizedFile.name}: ${getUrlError.message}`, variant: "destructive" });
-            }
-          }
-        );
-      } catch (error: any) {
-        console.error("[PostForm Quill ImageHandler] Outer error during image optimization or upload setup:", error.message, error);
-        toast.dismiss(toastId);
-        toast({ title: "Quill Image Processing Error", description: `Could not process image: ${error.message}`, variant: "destructive" });
-      }
-    };
-  };
-
 
   useEffect(() => {
     if (isClient && editorRef.current && !quillInstanceRef.current) {
       if (typeof window.Quill !== 'undefined') {
+        // Define imageHandler inside here so it captures the current user/post context at init time
+        const localImageHandler = () => {
+          console.log('[PostForm Quill ImageHandler] Invoked.');
+          const currentQuill = quillInstanceRef.current; // Use the ref for the current Quill instance
+          const currentUserForUpload = user; // Capture user from the outer scope of this useEffect
+
+          if (!currentUserForUpload?.uid || !currentQuill) {
+            console.error('[PostForm Quill ImageHandler] User not logged in or editor not ready.');
+            toast({ title: "Editor Error", description: "User not logged in or editor is not ready for image uploads.", variant: "destructive" });
+            return;
+          }
+          const input = document.createElement('input');
+          input.setAttribute('type', 'file');
+          input.setAttribute('accept', 'image/*');
+          input.click();
+
+          input.onchange = async () => {
+            const originalFile = input.files?.[0];
+            if (!originalFile) {
+              console.log('[PostForm Quill ImageHandler] No file selected.');
+              return;
+            }
+            // Re-check currentUser as this is an async callback, user state might have changed
+            if (!user?.uid) { 
+              console.error('[PostForm Quill ImageHandler] User became undefined during operation.');
+              toast({ title: "Auth Error", description: "User session ended. Please re-login.", variant: "destructive" });
+              return;
+            }
+
+            const range = currentQuill.getSelection(true) || { index: currentQuill.getLength(), length: 0 };
+            console.log('[PostForm Quill ImageHandler] File selected:', originalFile.name, 'Quill range:', range);
+            const toastId = `quill-upload-${Date.now()}`;
+
+            try {
+              toast({
+                id: toastId,
+                title: "Processing Image...",
+                description: `Optimizing ${originalFile.name}. Please wait.`,
+                duration: Infinity, 
+              });
+
+              const optimizationOptions: imageCompression.Options = {
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1200,
+                useWebWorker: true,
+                initialQuality: 0.75,
+              };
+              const optimizedFile = await optimizeImageFile(originalFile, optimizationOptions);
+              console.log('[PostForm Quill ImageHandler] Image optimized:', optimizedFile.name);
+
+              toast({
+                id: toastId,
+                title: "Uploading Image to Post...",
+                description: `Starting upload for ${optimizedFile.name}`,
+                duration: Infinity,
+              });
+
+              const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+              // Use 'post' from the outer scope (captured at definition time of this useEffect)
+              const postIdForPath = post?.id || `new_${Date.now()}`; 
+              // Use 'user.uid' from the currently authenticated user for the path
+              const imageFilePath = `postContentImages/${user.uid}/${postIdForPath}/${uniqueId}-${optimizedFile.name}`; 
+              console.log('[PostForm Quill ImageHandler] Upload path:', imageFilePath);
+
+              const imageFileRef = storageRef(storage, imageFilePath);
+              const uploadTask = uploadBytesResumable(imageFileRef, optimizedFile);
+
+              uploadTask.on('state_changed',
+                (snapshot) => {
+                  const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                   if (uploadTask.snapshot.state === 'running') {
+                      toast({
+                          id: toastId,
+                          title: "Uploading Image to Post...",
+                          description: `${optimizedFile.name} - ${Math.round(progress)}% done.`,
+                          duration: Infinity,
+                      });
+                  }
+                },
+                (error) => {
+                  console.error("[PostForm Quill ImageHandler] Firebase Storage Upload Error:", error.code, error.message, error);
+                  toast.dismiss(toastId);
+                  toast({ title: "Quill Image Upload Failed", description: `Could not upload ${optimizedFile.name}: ${error.message} (Code: ${error.code})`, variant: "destructive" });
+                },
+                async () => {
+                  try {
+                    console.log('[PostForm Quill ImageHandler] Upload completed. Getting download URL...');
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    console.log('[PostForm Quill ImageHandler] Download URL obtained:', downloadURL);
+                    currentQuill.insertEmbed(range.index, 'image', downloadURL);
+                    currentQuill.setSelection(range.index + 1);
+                    toast.dismiss(toastId);
+                    toast({ title: "Image Uploaded to Post", description: `${optimizedFile.name} inserted.`, variant: "default" });
+                  } catch (getUrlError: any) {
+                    console.error("[PostForm Quill ImageHandler] Error getting download URL:", getUrlError.code, getUrlError.message, getUrlError);
+                    toast.dismiss(toastId);
+                    toast({ title: "Quill Image URL Error", description: `Failed to get URL for ${optimizedFile.name}: ${getUrlError.message}`, variant: "destructive" });
+                  }
+                }
+              );
+            } catch (error: any) {
+              console.error("[PostForm Quill ImageHandler] Outer error during image optimization or upload setup:", error.message, error);
+              toast.dismiss(toastId);
+              toast({ title: "Quill Image Processing Error", description: `Could not process image: ${error.message}`, variant: "destructive" });
+            }
+          };
+        };
+
+
         const quill = new window.Quill(editorRef.current, {
           theme: 'snow',
           modules: {
@@ -225,41 +231,49 @@ export default function PostForm({ post }: PostFormProps) {
                 ['clean']
               ],
               handlers: {
-                'image': imageHandler
+                'image': localImageHandler // Use the locally defined handler
               }
             },
           },
           placeholder: "Start writing your stunning piece here...",
         });
         quillInstanceRef.current = quill;
+
+        // Set initial content
+        const initialContent = post?.content || quillContent || ''; // Use post content, then current state, then empty
+        if (quill.root.innerHTML !== initialContent && initialContent !== '<p><br></p>') {
+             // Only paste if it's actual content, not just the placeholder paragraph
+            if (initialContent || (initialContent === '' && quill.root.innerHTML !== '<p><br></p>')) {
+                quill.clipboard.dangerouslyPasteHTML(0, initialContent);
+            }
+        }
+        // Ensure React state `quillContent` matches editor's initial state
+        // especially if `post.content` was null/undefined and `quillContent` was also empty string.
+        // Quill's empty state is `<p><br></p>`.
+        const editorHTML = quill.root.innerHTML;
+        const stateContentToSet = editorHTML === '<p><br></p>' ? '' : editorHTML;
+        if (quillContent !== stateContentToSet) {
+            setQuillContent(stateContentToSet);
+        }
+
+
         quill.on('text-change', (_delta: any, _oldDelta: any, source: string) => {
           if (source === 'user') {
             const currentHTML = quill.root.innerHTML;
-            setQuillContent(currentHTML === '<p><br></p>' ? '' : currentHTML);
+            const newContent = currentHTML === '<p><br></p>' ? '' : currentHTML;
+            setQuillContent(newContent); // Update React state from Quill
           }
         });
       } else {
         console.warn("Quill library not found.");
       }
     }
-    return () => {
-      // Cleanup if needed
-    };
-  }, [isClient, user?.uid, post?.id]); // Added dependencies
+    // No explicit cleanup function, relying on Next.js component unmount for general JS cleanup.
+    // If issues persist, a more specific Quill cleanup (quillInstanceRef.current.destroy() or similar) might be needed,
+    // but that can also introduce problems if not handled carefully with re-renders.
+  }, [isClient, post, user, toast]); // Dependencies that might necessitate re-evaluating Quill or its handlers.
+                                     // Note: `quillContent` is NOT a dependency here to avoid re-init on its own change.
 
-  useEffect(() => {
-    const quill = quillInstanceRef.current;
-    if (isClient && quill) {
-      const currentEditorHTML = quill.root.innerHTML;
-      if (post?.content && post.content !== currentEditorHTML) {
-        quill.clipboard.dangerouslyPasteHTML(0, post.content);
-        if(quillContent !== post.content) setQuillContent(post.content);
-      } else if (!post?.content && (currentEditorHTML !== '<p><br></p>' && currentEditorHTML !== '')) {
-        quill.setText('');
-        setQuillContent('');
-      }
-    }
-  }, [post?.content, isClient, quillContent]); // Added quillContent to dependencies
 
   useEffect(() => {
     async function fetchAllSystemTagsData() {
@@ -746,4 +760,3 @@ export default function PostForm({ post }: PostFormProps) {
   );
 }
 
-    

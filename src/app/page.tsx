@@ -72,7 +72,7 @@ export default async function HomePage() {
 
       {/* Large Newsletter Subscription Section */}
       <section className="py-12 md:py-20">
-        <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="bg-accent rounded-3xl p-8 md:p-12 lg:p-16 text-center shadow-xl">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Subscribe to our newsletter!

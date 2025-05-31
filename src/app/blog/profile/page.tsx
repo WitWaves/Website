@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, ImageUp } from 'lucide-react';
+import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, ImageUp, TagsIcon } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 // import PostCard from '@/components/posts/post-card'; // No longer used directly for liked posts here
 import { getPosts, type Post, getLikedPostsByUser } from '@/lib/posts';
@@ -27,6 +27,8 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebas
 import { getCommentsByUser, type UserActivityComment } from '@/lib/comments';
 import { format } from 'date-fns';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+
 
 const socialIcons: Record<keyof Required<SocialLinks>, typeof LinkIcon> = {
     twitter: X,
@@ -41,7 +43,7 @@ const staticProfileStats = {
     followers: 45,
 };
 
-const topInterestsStatic = ["Web", "Web Design", "Programming", "Art", "Maths"];
+// const topInterestsStatic = ["Web", "Web Design", "Programming", "Art", "Maths"]; // Removed, will be dynamic
 const activitySubTabs = [{id: "liked", label: "Liked"}, {id: "comments", label: "Comments"}];
 
 
@@ -120,6 +122,7 @@ export default function ProfilePage() {
               username: user.email?.split('@')[0] || 'username',
               bio: "",
               socialLinks: {},
+              interests: [],
             });
           }
         } catch (error) {
@@ -131,6 +134,7 @@ export default function ProfilePage() {
               username: user.email?.split('@')[0] || 'username',
               bio: "Error loading profile details.",
               socialLinks: {},
+              interests: [],
             });
         } finally {
             setIsLoadingProfile(false);
@@ -165,6 +169,7 @@ export default function ProfilePage() {
                     username: user.email?.split('@')[0] || 'username',
                     bio: "",
                     socialLinks: {},
+                    interests: [],
                 });
             }
         });
@@ -305,7 +310,7 @@ export default function ProfilePage() {
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
   const bio = customProfile?.bio || "No bio set. Click 'Edit Profile' to add one.";
-  const userRole = "Blog Author"; 
+  // const userRole = "Blog Author"; // Removed as requested
 
   const profileSocialLinksArray = customProfile?.socialLinks ?
     Object.entries(customProfile.socialLinks)
@@ -424,6 +429,16 @@ export default function ProfilePage() {
                     />
                     {editProfileState?.errors?.bio && <p className="text-sm text-destructive mt-1">{editProfileState.errors.bio.join(', ')}</p>}
                   </div>
+                  <div>
+                    <Label htmlFor="interestsForm">Top Interests (comma-separated)</Label>
+                    <Input 
+                      id="interestsForm" 
+                      name="interests" 
+                      defaultValue={customProfile?.interests?.join(', ') || ''} 
+                      placeholder="e.g., web development, ai, music" 
+                    />
+                    {editProfileState?.errors?.interests && <p className="text-sm text-destructive mt-1">{editProfileState.errors.interests.join(', ')}</p>}
+                  </div>
                   <h3 className="text-md font-medium pt-2">Social Links</h3>
                   <div>
                     <Label htmlFor="twitterForm">Twitter URL</Label>
@@ -475,10 +490,10 @@ export default function ProfilePage() {
 
             <h1 className="text-xl font-semibold text-foreground mt-2">{displayName}</h1>
             <p className="text-sm text-muted-foreground">{usernameHandle}</p>
-            <div className="flex items-center justify-center text-sm text-muted-foreground mt-1">
-              <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
+            {/* <div className="flex items-center justify-center text-sm text-muted-foreground mt-1">
+              <LinkIcon className="h-3.5 w-3.5 mr-1.5" /> Removed userRole line
               <span>{userRole}</span>
-            </div>
+            </div> */}
 
             <div className="grid grid-cols-3 gap-2 my-4 text-center">
               <div>
@@ -499,16 +514,21 @@ export default function ProfilePage() {
               {bio}
             </p>
 
-            <div className="text-left mb-4">
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">Top interests</h3>
-              <div className="flex flex-wrap gap-2">
-                {topInterestsStatic.map(interest => (
-                  <Button key={interest} variant="outline" size="sm" className="text-xs px-3 py-1.5 bg-muted/50 hover:bg-muted">
-                    {interest}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            {customProfile?.interests && customProfile.interests.length > 0 && (
+                <div className="text-left mb-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center">
+                    <TagsIcon className="h-4 w-4 mr-1.5" />
+                    Top interests
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                    {customProfile.interests.map(interest => (
+                    <Badge key={interest} variant="secondary" className="text-xs px-2 py-1 bg-muted/70">
+                        {interest}
+                    </Badge>
+                    ))}
+                </div>
+                </div>
+            )}
 
             {profileSocialLinksArray.length > 0 && (
               <div className="flex justify-center space-x-4 py-2 border-t border-border">
@@ -641,7 +661,5 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
 
     

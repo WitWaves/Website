@@ -33,8 +33,6 @@ export default function Header() {
               alt="WitWaves Logo"
               width={180}
               height={43}
-              // priority prop removed to address hydration issue
-              className="h-auto"
               data-ai-hint="logo wordmark"
             />
           </Link>

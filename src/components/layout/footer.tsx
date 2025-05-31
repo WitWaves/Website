@@ -37,7 +37,6 @@ export default function Footer() {
                   alt="WitWaves Logo"
                   width={180}
                   height={43}
-                  className="h-auto"
                   data-ai-hint="logo wordmark"
                 />
               </Link>

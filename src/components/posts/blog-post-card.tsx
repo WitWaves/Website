@@ -6,7 +6,7 @@ import Image from 'next/image';
 import type { Post } from '@/lib/posts';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Heart, MessageCircle, MoreHorizontal, Share2, Loader2, Edit3, Archive, Trash2 } from 'lucide-react'; // Added Edit3, Archive, Trash2
+import { Heart, MessageCircle, MoreHorizontal, Share2, Loader2, Edit3, Archive, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useState, useEffect, useActionState, useTransition } from 'react';
@@ -165,8 +165,8 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
             {isOwner ? (
               <>
                 <Link href={`/posts/${post.id}/edit`} passHref>
-                  <Button asChild variant="outline" size="icon" className="h-7 w-7 text-secondary border-secondary hover:bg-secondary hover:text-secondary-foreground focus-visible:ring-ring" title="Edit Post">
-                    <a><Edit3 className="h-4 w-4" /></a>
+                  <Button variant="outline" size="icon" className="h-7 w-7 text-secondary border-secondary hover:bg-secondary hover:text-secondary-foreground focus-visible:ring-ring" title="Edit Post">
+                    <Edit3 className="h-4 w-4" />
                   </Button>
                 </Link>
                 <Button variant="outline" size="icon" className="h-7 w-7 text-accent border-accent hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring" title="Archive Post" onClick={handleArchive}>
@@ -188,5 +188,3 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     </article>
   );
 }
-
-    

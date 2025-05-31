@@ -24,6 +24,14 @@ import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, Command
 import { storage } from '@/lib/firebase/config';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
 
 
 declare global {
@@ -36,7 +44,6 @@ interface PostFormProps {
   post?: Post;
 }
 
-// Helper function to optimize images
 async function optimizeImageFile(file: File, options: imageCompression.Options): Promise<File> {
   try {
     console.log(`Optimizing image: ${file.name}, original size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
@@ -45,7 +52,6 @@ async function optimizeImageFile(file: File, options: imageCompression.Options):
     return compressedFile;
   } catch (error) {
     console.error('Error compressing image:', error);
-    // Fallback to original file if compression fails, or rethrow to handle upstream
     throw error;
   }
 }
@@ -69,7 +75,7 @@ function PublishButton({isUpdate, isUploadingOrProcessing}: {isUpdate: boolean, 
 
 export default function PostForm({ post }: PostFormProps) {
   const router = useRouter();
-  const { toast: createToast, dismiss } = useToast(); // Correctly destructure toast creation and dismiss functions
+  const { toast: createToast, dismiss } = useToast();
   const { user, loading: authLoading } = useAuth();
   const [isAISuggesting, startAITransition] = useTransition();
 
@@ -89,11 +95,19 @@ export default function PostForm({ post }: PostFormProps) {
   const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
   const [aiSuggestedTags, setAISuggestedTags] = useState<string[]>([]);
 
-  const [selectedThumbnailFile, setSelectedThumbnailFile] = useState<File | null>(null);
+  // Consolidated image upload states
+  const [selectedImageFileForUpload, setSelectedImageFileForUpload] = useState<File | null>(null); // Temp store for file from dialog before processing
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(post?.imageUrl || null);
-  const [isProcessingThumbnail, setIsProcessingThumbnail] = useState<boolean>(false); // Renamed from isUploadingThumbnail
-  const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState<number>(0);
-  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState<boolean>(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState<number>(0);
+  
+  const [imageDialogState, setImageDialogState] = useState<{
+    isOpen: boolean;
+    target: 'thumbnail' | 'quill' | null;
+    quillRange: any | null;
+  }>({ isOpen: false, target: null, quillRange: null });
+  
+  const genericFileInputRef = useRef<HTMLInputElement>(null);
 
 
   useEffect(() => {
@@ -101,114 +115,135 @@ export default function PostForm({ post }: PostFormProps) {
   }, []);
 
 
+  const processAndUploadFile = async (file: File, target: 'thumbnail' | 'quill', quillRangeToInsert?: any) => {
+    if (!user?.uid || !quillInstanceRef.current) {
+      createToast({ title: "Error", description: "User not logged in or editor not ready.", variant: "destructive" });
+      return;
+    }
+    
+    setIsProcessingImage(true);
+    setImageUploadProgress(0);
+    const toastId = `image-process-${Date.now()}`;
+
+    try {
+      createToast({
+        id: toastId,
+        title: "Processing Image...",
+        description: `Optimizing ${file.name}. Please wait.`,
+        duration: Infinity,
+      });
+
+      const optimizationOptions: imageCompression.Options = target === 'thumbnail'
+        ? { maxSizeMB: 0.5, maxWidthOrHeight: 800, useWebWorker: true, initialQuality: 0.7 }
+        : { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: true, initialQuality: 0.75 };
+      
+      const optimizedFile = await optimizeImageFile(file, optimizationOptions);
+      console.log(`[PostForm ProcessAndUpload] Image optimized for ${target}:`, optimizedFile.name);
+
+      createToast({
+        id: toastId,
+        title: "Uploading Image...",
+        description: `Starting upload for ${optimizedFile.name}`,
+        duration: Infinity,
+      });
+
+      const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const postIdForPath = post?.id || `new_${Date.now()}`;
+      const basePath = target === 'thumbnail' ? 'postThumbnails' : 'postContentImages';
+      const imageFilePath = `${basePath}/${user.uid}/${postIdForPath}/${uniqueId}-${optimizedFile.name}`;
+      
+      console.log(`[PostForm ProcessAndUpload] Upload path: ${imageFilePath}`);
+      const imageFileRef = storageRef(storage, imageFilePath);
+      const uploadTask = uploadBytesResumable(imageFileRef, optimizedFile);
+
+      const downloadURL = await new Promise<string>((resolve, reject) => {
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setImageUploadProgress(progress);
+            if (uploadTask.snapshot.state === 'running') {
+              createToast({
+                id: toastId,
+                title: "Uploading Image...",
+                description: `${optimizedFile.name} - ${Math.round(progress)}% done.`,
+                duration: Infinity,
+              });
+            }
+          },
+          (error) => {
+            console.error(`[PostForm ProcessAndUpload] Firebase Storage Upload Error for ${target}:`, error);
+            dismiss(toastId);
+            reject(error);
+          },
+          async () => {
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log(`[PostForm ProcessAndUpload] Download URL for ${target} obtained:`, url);
+              dismiss(toastId);
+              resolve(url);
+            } catch (getUrlError: any) {
+              console.error(`[PostForm ProcessAndUpload] Error getting download URL for ${target}:`, getUrlError);
+              dismiss(toastId);
+              reject(getUrlError);
+            }
+          }
+        );
+      });
+
+      if (target === 'thumbnail') {
+        setThumbnailPreviewUrl(downloadURL);
+        // The actual URL for the form is set during form submission preparation
+        if (uploadedThumbnailUrlHiddenInputRef.current) {
+             uploadedThumbnailUrlHiddenInputRef.current.value = downloadURL; // Keep this for direct form submission
+        }
+        setSelectedImageFileForUpload(null); // Clear the temp file state
+         createToast({ title: "Thumbnail Set", description: "Thumbnail image uploaded and preview updated.", variant: "default" });
+      } else if (target === 'quill' && quillRangeToInsert) {
+        quillInstanceRef.current.insertEmbed(quillRangeToInsert.index, 'image', downloadURL);
+        quillInstanceRef.current.setSelection(quillRangeToInsert.index + 1);
+        createToast({ title: "Image Inserted", description: `${optimizedFile.name} inserted into post.`, variant: "default" });
+      }
+
+    } catch (error: any) {
+      console.error(`[PostForm ProcessAndUpload] Error during image processing/upload for ${target}:`, error);
+      dismiss(toastId);
+      createToast({ title: "Image Operation Failed", description: `Could not process or upload image: ${error.message}`, variant: "destructive" });
+    } finally {
+      setIsProcessingImage(false);
+      setImageUploadProgress(0);
+      setImageDialogState({ isOpen: false, target: null, quillRange: null });
+       if (genericFileInputRef.current) genericFileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileSelectedViaDialog = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && imageDialogState.target) {
+      // Now `processAndUploadFile` handles everything including closing the dialog
+      await processAndUploadFile(file, imageDialogState.target, imageDialogState.quillRange);
+    } else {
+      // If no file or target, just close dialog, reset input
+      setImageDialogState({ isOpen: false, target: null, quillRange: null });
+      if (genericFileInputRef.current) genericFileInputRef.current.value = '';
+    }
+  };
+  
+  const openImageUploadDialog = (target: 'thumbnail' | 'quill') => {
+    if (!user?.uid) {
+      createToast({ title: "Authentication Required", description: "Please log in to add images.", variant: "destructive" });
+      return;
+    }
+    let quillRange = null;
+    if (target === 'quill' && quillInstanceRef.current) {
+      quillRange = quillInstanceRef.current.getSelection(true) || { index: quillInstanceRef.current.getLength(), length: 0 };
+    }
+    setImageDialogState({ isOpen: true, target, quillRange });
+  };
+
+
   useEffect(() => {
     if (isClient && editorRef.current && !quillInstanceRef.current) {
       if (typeof window.Quill !== 'undefined') {
-        const localImageHandler = () => {
-          console.log('[PostForm Quill ImageHandler] Invoked.');
-          const currentQuill = quillInstanceRef.current; 
-          const currentUserForUpload = user; 
-
-          if (!currentUserForUpload?.uid || !currentQuill) {
-            console.error('[PostForm Quill ImageHandler] User not logged in or editor not ready.');
-            createToast({ title: "Editor Error", description: "User not logged in or editor is not ready for image uploads.", variant: "destructive" });
-            return;
-          }
-          const input = document.createElement('input');
-          input.setAttribute('type', 'file');
-          input.setAttribute('accept', 'image/*');
-          input.click();
-
-          input.onchange = async () => {
-            const originalFile = input.files?.[0];
-            if (!originalFile) {
-              console.log('[PostForm Quill ImageHandler] No file selected.');
-              return;
-            }
-            if (!user?.uid) { 
-              console.error('[PostForm Quill ImageHandler] User became undefined during operation.');
-              createToast({ title: "Auth Error", description: "User session ended. Please re-login.", variant: "destructive" });
-              return;
-            }
-
-            const range = currentQuill.getSelection(true) || { index: currentQuill.getLength(), length: 0 };
-            console.log('[PostForm Quill ImageHandler] File selected:', originalFile.name, 'Quill range:', range);
-            const toastId = `quill-upload-${Date.now()}`;
-
-            try {
-              createToast({
-                id: toastId,
-                title: "Processing Image...",
-                description: `Optimizing ${originalFile.name}. Please wait.`,
-                duration: Infinity, 
-              });
-
-              const optimizationOptions: imageCompression.Options = {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 1200,
-                useWebWorker: true,
-                initialQuality: 0.75,
-              };
-              const optimizedFile = await optimizeImageFile(originalFile, optimizationOptions);
-              console.log('[PostForm Quill ImageHandler] Image optimized:', optimizedFile.name);
-
-              createToast({
-                id: toastId,
-                title: "Uploading Image to Post...",
-                description: `Starting upload for ${optimizedFile.name}`,
-                duration: Infinity,
-              });
-
-              const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-              const postIdForPath = post?.id || `new_${Date.now()}`; 
-              const imageFilePath = `postContentImages/${user.uid}/${postIdForPath}/${uniqueId}-${optimizedFile.name}`; 
-              console.log('[PostForm Quill ImageHandler] Upload path:', imageFilePath);
-
-              const imageFileRef = storageRef(storage, imageFilePath);
-              const uploadTask = uploadBytesResumable(imageFileRef, optimizedFile);
-
-              uploadTask.on('state_changed',
-                (snapshot) => {
-                  const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                   if (uploadTask.snapshot.state === 'running') {
-                      createToast({
-                          id: toastId,
-                          title: "Uploading Image to Post...",
-                          description: `${optimizedFile.name} - ${Math.round(progress)}% done.`,
-                          duration: Infinity,
-                      });
-                  }
-                },
-                (error) => {
-                  console.error("[PostForm Quill ImageHandler] Firebase Storage Upload Error:", error.code, error.message, error);
-                  dismiss(toastId);
-                  createToast({ title: "Quill Image Upload Failed", description: `Could not upload ${optimizedFile.name}: ${error.message} (Code: ${error.code})`, variant: "destructive" });
-                },
-                async () => {
-                  try {
-                    console.log('[PostForm Quill ImageHandler] Upload completed. Getting download URL...');
-                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                    console.log('[PostForm Quill ImageHandler] Download URL obtained:', downloadURL);
-                    currentQuill.insertEmbed(range.index, 'image', downloadURL);
-                    currentQuill.setSelection(range.index + 1);
-                    dismiss(toastId);
-                    createToast({ title: "Image Uploaded to Post", description: `${optimizedFile.name} inserted.`, variant: "default" });
-                  } catch (getUrlError: any) {
-                    console.error("[PostForm Quill ImageHandler] Error getting download URL:", getUrlError.code, getUrlError.message, getUrlError);
-                    dismiss(toastId);
-                    createToast({ title: "Quill Image URL Error", description: `Failed to get URL for ${optimizedFile.name}: ${getUrlError.message}`, variant: "destructive" });
-                  }
-                }
-              );
-            } catch (error: any) {
-              console.error("[PostForm Quill ImageHandler] Outer error during image optimization or upload setup:", error.message, error);
-              dismiss(toastId);
-              createToast({ title: "Quill Image Processing Error", description: `Could not process image: ${error.message}`, variant: "destructive" });
-            }
-          };
-        };
-
-
         const quill = new window.Quill(editorRef.current, {
           theme: 'snow',
           modules: {
@@ -227,7 +262,9 @@ export default function PostForm({ post }: PostFormProps) {
                 ['clean']
               ],
               handlers: {
-                'image': localImageHandler 
+                'image': () => { // Modified Quill image handler
+                  openImageUploadDialog('quill');
+                }
               }
             },
           },
@@ -235,7 +272,7 @@ export default function PostForm({ post }: PostFormProps) {
         });
         quillInstanceRef.current = quill;
 
-        const initialContent = post?.content || quillContent || ''; 
+        const initialContent = post?.content || quillContent || '';
         if (quill.root.innerHTML !== initialContent && initialContent !== '<p><br></p>') {
             if (initialContent || (initialContent === '' && quill.root.innerHTML !== '<p><br></p>')) {
                 quill.clipboard.dangerouslyPasteHTML(0, initialContent);
@@ -247,19 +284,18 @@ export default function PostForm({ post }: PostFormProps) {
             setQuillContent(stateContentToSet);
         }
 
-
         quill.on('text-change', (_delta: any, _oldDelta: any, source: string) => {
           if (source === 'user') {
             const currentHTML = quill.root.innerHTML;
             const newContent = currentHTML === '<p><br></p>' ? '' : currentHTML;
-            setQuillContent(newContent); 
+            setQuillContent(newContent);
           }
         });
       } else {
         console.warn("Quill library not found.");
       }
     }
-  }, [isClient, post, user, createToast, dismiss]); 
+  }, [isClient, post, user, createToast, dismiss, quillContent]);
 
 
   useEffect(() => {
@@ -296,80 +332,34 @@ export default function PostForm({ post }: PostFormProps) {
     formData.set('content', quillContent);
     console.log('[PostForm] Content set on formData from Quill state.');
 
-    let finalThumbnailUrl = thumbnailPreviewUrl || (post?.imageUrl !== undefined ? post.imageUrl : '');
-    console.log('[PostForm] Initial finalThumbnailUrl:', finalThumbnailUrl);
+    // Thumbnail URL is now directly set in uploadedThumbnailUrlHiddenInputRef.current.value
+    // by processAndUploadFile if a new thumbnail was uploaded.
+    // If thumbnailPreviewUrl is null, it means user removed it.
+    // If thumbnailPreviewUrl exists and matches post.imageUrl, no change.
+    
+    let finalThumbnailUrlForForm = uploadedThumbnailUrlHiddenInputRef.current?.value || '';
 
-    if (selectedThumbnailFile && selectedThumbnailFile.name !== "PLACEHOLDER_FOR_NO_CHANGE") { 
-        console.log('[PostForm] Selected thumbnail file present, starting upload:', selectedThumbnailFile.name);
-        setIsProcessingThumbnail(true); 
-        setThumbnailUploadProgress(0);
-        const uploadToastId = `thumb-upload-${Date.now()}`;
-        try {
-            createToast({ id: uploadToastId, title: "Uploading Thumbnail...", description: `Starting upload for ${selectedThumbnailFile.name}`, duration: Infinity });
-            const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-            const postIdForPath = post?.id || `new_${Date.now()}`;
-            const thumbnailPath = `postThumbnails/${user.uid}/${postIdForPath}/${uniqueId}-${selectedThumbnailFile.name}`;
-            console.log('[PostForm] Thumbnail upload path:', thumbnailPath);
-            const thumbnailImageRef = storageRef(storage, thumbnailPath);
-            const uploadTask = uploadBytesResumable(thumbnailImageRef, selectedThumbnailFile);
-
-            finalThumbnailUrl = await new Promise<string>((resolve, reject) => {
-                uploadTask.on('state_changed',
-                    (snapshot) => {
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        console.log('[PostForm] Thumbnail upload progress:', progress);
-                        setThumbnailUploadProgress(progress);
-                         if (uploadTask.snapshot.state === 'running') {
-                            createToast({ id: uploadToastId, title: "Uploading Thumbnail...", description: `${selectedThumbnailFile.name} - ${Math.round(progress)}% done.`, duration: Infinity });
-                        }
-                    },
-                    (error) => {
-                        console.error("[PostForm] Firebase Storage Thumbnail Upload Error:", error.code, error.message, error);
-                        dismiss(uploadToastId);
-                        reject(error); 
-                    },
-                    async () => {
-                        try {
-                            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                            console.log('[PostForm] Thumbnail download URL obtained:', downloadURL);
-                            dismiss(uploadToastId);
-                            createToast({ title: "Thumbnail Uploaded", description: `${selectedThumbnailFile.name} uploaded successfully.`, variant: "default"});
-                            resolve(downloadURL);
-                        } catch (getUrlError: any) {
-                            console.error("[PostForm] Error getting thumbnail download URL:", getUrlError.code, getUrlError.message, getUrlError);
-                            dismiss(uploadToastId);
-                            reject(getUrlError);
-                        }
-                    }
-                );
-            });
-            console.log('[PostForm] Thumbnail upload successful. Final URL:', finalThumbnailUrl);
-            setSelectedThumbnailFile(null); 
-        } catch (error: any) {
-            console.error("[PostForm] Failed to upload thumbnail:", error.code, error.message, error);
-            dismiss(uploadToastId);
-            createToast({ title: "Thumbnail Upload Failed", description: `${error.message} (Code: ${error.code})`, variant: "destructive" });
-            setIsProcessingThumbnail(false);
-            setThumbnailUploadProgress(0);
-            return; 
-        } finally {
-            setIsProcessingThumbnail(false);
-            setThumbnailUploadProgress(0);
-        }
-    } else if (thumbnailPreviewUrl === null && post?.imageUrl) {
-        console.log('[PostForm] Thumbnail was removed by user (preview is null, post had imageUrl). Setting finalThumbnailUrl to empty.');
-        finalThumbnailUrl = ''; 
-    } else if (selectedThumbnailFile && selectedThumbnailFile.name === "PLACEHOLDER_FOR_NO_CHANGE"){
-        finalThumbnailUrl = post?.imageUrl || '';
-        console.log('[PostForm] Thumbnail not changed by user, keeping existing URL:', finalThumbnailUrl);
+    if (thumbnailPreviewUrl === null && post?.imageUrl) {
+        // User explicitly removed an existing thumbnail
+        finalThumbnailUrlForForm = '';
+    } else if (thumbnailPreviewUrl && thumbnailPreviewUrl !== (post?.imageUrl || '')) {
+        // New thumbnail was set or changed
+        finalThumbnailUrlForForm = thumbnailPreviewUrl;
+    } else if (!thumbnailPreviewUrl && !post?.imageUrl) {
+        // No thumbnail initially, and none added
+        finalThumbnailUrlForForm = '';
+    } else if (thumbnailPreviewUrl && thumbnailPreviewUrl === post?.imageUrl) {
+        // Thumbnail unchanged
+        finalThumbnailUrlForForm = post.imageUrl;
     }
 
 
-    console.log('[PostForm] Setting uploadedThumbnailUrl on hidden input and formData:', finalThumbnailUrl);
-    if (uploadedThumbnailUrlHiddenInputRef.current) {
-        uploadedThumbnailUrlHiddenInputRef.current.value = finalThumbnailUrl;
+    console.log('[PostForm] Setting uploadedThumbnailUrl on formData:', finalThumbnailUrlForForm);
+    formData.set('uploadedThumbnailUrl', finalThumbnailUrlForForm);
+    if(uploadedThumbnailUrlHiddenInputRef.current) {
+        uploadedThumbnailUrlHiddenInputRef.current.value = finalThumbnailUrlForForm;
     }
-    formData.set('uploadedThumbnailUrl', finalThumbnailUrl);
+
 
     console.log('[PostForm] Calling server formAction.');
     formAction(formData);
@@ -443,67 +433,22 @@ export default function PostForm({ post }: PostFormProps) {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
 
-  const handleThumbnailFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-        const originalFile = event.target.files[0];
-        setIsProcessingThumbnail(true);
-        setThumbnailUploadProgress(0); 
-        const optimizeToastId = `thumb-optimize-${Date.now()}`;
-        createToast({ id: optimizeToastId, title: "Processing Thumbnail...", description: `Optimizing ${originalFile.name}. Please wait.`, duration: Infinity});
-        try {
-            const optimizationOptions: imageCompression.Options = {
-                maxSizeMB: 0.5, 
-                maxWidthOrHeight: 800, 
-                useWebWorker: true,
-                initialQuality: 0.7,
-            };
-            const optimizedFile = await optimizeImageFile(originalFile, optimizationOptions);
-            setSelectedThumbnailFile(optimizedFile);
-            setThumbnailPreviewUrl(URL.createObjectURL(optimizedFile));
-            dismiss(optimizeToastId);
-            createToast({ title: "Thumbnail Ready", description: "Optimized thumbnail is ready for upload.", variant: "default"});
-        } catch (error) {
-            console.error("Thumbnail optimization failed:", error);
-            dismiss(optimizeToastId);
-            createToast({ title: "Optimization Failed", description: "Could not optimize thumbnail. Using original.", variant: "destructive" });
-            setSelectedThumbnailFile(originalFile); 
-            setThumbnailPreviewUrl(URL.createObjectURL(originalFile));
-        } finally {
-            setIsProcessingThumbnail(false);
-        }
-    } else {
-        setSelectedThumbnailFile(post?.imageUrl ? new File([], "PLACEHOLDER_FOR_NO_CHANGE") : null); 
-        setThumbnailPreviewUrl(post?.imageUrl || null);
-    }
-  };
-
-
   const handleRemoveThumbnail = async () => {
-      const currentUrlToDelete = thumbnailPreviewUrl; 
-      console.log("[PostForm] handleRemoveThumbnail called. Current preview URL:", currentUrlToDelete);
-      
-      if (selectedThumbnailFile && selectedThumbnailFile.name !== "PLACEHOLDER_FOR_NO_CHANGE") { 
-        console.log("[PostForm] Clearing newly selected/optimized file, no storage deletion needed for this specific file yet.");
-      } else if (post?.imageUrl && currentUrlToDelete === post.imageUrl && currentUrlToDelete.startsWith('https://firebasestorage.googleapis.com')) {
-          console.log("[PostForm] Marking existing Firebase thumbnail for removal on server-side if form is submitted.");
-      } else {
-        console.log("[PostForm] No Firebase Storage thumbnail to delete immediately on client or was a local blob.");
-      }
-
-      setSelectedThumbnailFile(null); 
+      console.log("[PostForm] handleRemoveThumbnail called. Current preview URL:", thumbnailPreviewUrl);
       setThumbnailPreviewUrl(null);
-      if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
-      if (uploadedThumbnailUrlHiddenInputRef.current) uploadedThumbnailUrlHiddenInputRef.current.value = ''; 
-      console.log("[PostForm] Thumbnail preview and file selection reset. Marked for removal on save.");
+      setSelectedImageFileForUpload(null); // Clear any staged file
+      if (uploadedThumbnailUrlHiddenInputRef.current) {
+          uploadedThumbnailUrlHiddenInputRef.current.value = ''; // Ensure form submits empty
+      }
       createToast({title: "Thumbnail Marked for Removal", description: "Thumbnail will be removed when you save the post."});
   };
 
 
-  if (authLoading && !post) { 
+  if (authLoading && !post) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
   }
 
-  if (!user && !authLoading && !post) { 
+  if (!user && !authLoading && !post) {
     return (
       <div className="text-center py-10">
         <p className="text-lg text-muted-foreground">Please <Link href="/login" className="text-primary hover:underline">log in</Link> to create a post.</p>
@@ -511,7 +456,7 @@ export default function PostForm({ post }: PostFormProps) {
     );
   }
 
-  if (post && post.userId && user && post.userId !== user.uid) { 
+  if (post && post.userId && user && post.userId !== user.uid) {
       return (
           <div className="text-center py-10">
               <p className="text-lg text-destructive">You are not authorized to edit this post.</p>
@@ -528,215 +473,253 @@ export default function PostForm({ post }: PostFormProps) {
   );
 
   return (
-    <form action={clientSideFormAction} className="w-full max-w-7xl mx-auto">
-      {user && (
-        <input type="hidden" name="userId" value={user.uid} />
-      )}
-      <input type="hidden" name="content" ref={contentHiddenInputRef} value={quillContent} />
-      <input type="hidden" name="tags" value={currentTags.join(',')} />
-      <input type="hidden" name="uploadedThumbnailUrl" ref={uploadedThumbnailUrlHiddenInputRef} defaultValue={post?.imageUrl || ""} />
+    <>
+      <form action={clientSideFormAction} className="w-full max-w-7xl mx-auto">
+        {user && (
+          <input type="hidden" name="userId" value={user.uid} />
+        )}
+        <input type="hidden" name="content" ref={contentHiddenInputRef} value={quillContent} />
+        <input type="hidden" name="tags" value={currentTags.join(',')} />
+        <input type="hidden" name="uploadedThumbnailUrl" ref={uploadedThumbnailUrlHiddenInputRef} defaultValue={post?.imageUrl || ""} />
 
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        <div className="flex-grow lg:w-3/4 space-y-6">
-          <div className="flex items-start space-x-3">
-            <div className="w-1.5 bg-destructive h-10 mt-1 shrink-0 rounded-full"></div>
-            <Input
-              id="title"
-              name="title"
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              placeholder="Post Title..."
-              className="text-3xl md:text-4xl font-bold border-0 focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent placeholder:text-muted-foreground/50 flex-1 min-w-0"
-              required
-            />
-          </div>
-           {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
+        <div className="flex flex-col lg:flex-row gap-8">
+          <div className="flex-grow lg:w-3/4 space-y-6">
+            <div className="flex items-start space-x-3">
+              <div className="w-1.5 bg-destructive h-10 mt-1 shrink-0 rounded-full"></div>
+              <Input
+                id="title"
+                name="title"
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                placeholder="Post Title..."
+                className="text-3xl md:text-4xl font-bold border-0 focus:ring-0 focus-visible:ring-0 p-0 h-auto shadow-none leading-tight bg-transparent placeholder:text-muted-foreground/50 flex-1 min-w-0"
+                required
+              />
+            </div>
+            {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
 
-          <div className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
-            {isClient ? (
-               <div ref={editorRef} />
-            ) : (
-              <div className="min-h-[300px] border border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="ml-3 text-muted-foreground">Loading editor...</p>
-              </div>
-            )}
-          </div>
-          {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
-        </div>
-
-        <div className="lg:w-1/4 space-y-6 lg:sticky lg:top-24 h-max pt-2 flex flex-col">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Post Thumbnail</label>
-            {thumbnailPreviewUrl ? (
-                <div className="relative group">
-                    <Image
-                        src={thumbnailPreviewUrl}
-                        alt="Thumbnail preview"
-                        width={300}
-                        height={200}
-                        className="w-full h-40 object-cover rounded-lg border border-border"
-                        data-ai-hint="article thumbnail"
-                    />
-                    <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        onClick={handleRemoveThumbnail}
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
-                        title="Remove thumbnail"
-                        disabled={isProcessingThumbnail}
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+            <div className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
+              {isClient ? (
+                <div ref={editorRef} />
+              ) : (
+                <div className="min-h-[300px] border border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <p className="ml-3 text-muted-foreground">Loading editor...</p>
                 </div>
-            ) : (
-                <label
-                    htmlFor="thumbnail-upload"
-                    className={cn(
-                        "flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30",
-                        isProcessingThumbnail && "cursor-not-allowed opacity-70"
-                    )}
-                >
-                    <ImageUp className="mx-auto h-10 w-10 text-muted-foreground" />
-                    <p className="mt-2 text-xs text-muted-foreground">Click to upload thumbnail</p>
-                    <Input
-                        id="thumbnail-upload"
-                        name="thumbnailFile" 
-                        type="file"
-                        accept="image/*"
-                        onChange={handleThumbnailFileChange}
-                        className="sr-only"
-                        ref={thumbnailInputRef}
-                        disabled={isProcessingThumbnail}
-                    />
-                </label>
-            )}
-            {isProcessingThumbnail && thumbnailUploadProgress > 0 && ( 
-                <Progress value={thumbnailUploadProgress} className="h-2 w-full mt-2" />
-            )}
-             {isProcessingThumbnail && thumbnailUploadProgress === 0 && (
-                <p className="text-xs text-muted-foreground text-center mt-1">Processing thumbnail...</p>
-            )}
-            {state?.errors?.uploadedThumbnailUrl && <p className="text-sm text-destructive mt-1">{state.errors.uploadedThumbnailUrl.join(', ')}</p>}
+              )}
+            </div>
+            {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
           </div>
 
-
-          <div className="space-y-3">
-            <div>
-                <label htmlFor="tags-input-label" className="block text-lg font-semibold text-foreground mb-0.5">
-                    Tags<span className="text-destructive">*</span>
-                </label>
-                <p className="text-xs text-muted-foreground mb-1.5">Add or select relevant tags.</p>
+          <div className="lg:w-1/4 space-y-6 lg:sticky lg:top-24 h-max pt-2 flex flex-col">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Post Thumbnail</label>
+              {thumbnailPreviewUrl ? (
+                  <div className="relative group">
+                      <Image
+                          src={thumbnailPreviewUrl}
+                          alt="Thumbnail preview"
+                          width={300}
+                          height={200}
+                          className="w-full h-40 object-cover rounded-lg border border-border"
+                          data-ai-hint="article thumbnail"
+                      />
+                      <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={handleRemoveThumbnail}
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
+                          title="Remove thumbnail"
+                          disabled={isProcessingImage}
+                      >
+                          <Trash2 className="h-4 w-4" />
+                      </Button>
+                  </div>
+              ) : (
+                  <button
+                      type="button"
+                      onClick={() => openImageUploadDialog('thumbnail')}
+                      className={cn(
+                          "flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30",
+                          isProcessingImage && "cursor-not-allowed opacity-70"
+                      )}
+                      disabled={isProcessingImage}
+                      aria-label="Upload post thumbnail"
+                  >
+                      <ImageUp className="mx-auto h-10 w-10 text-muted-foreground" />
+                      <p className="mt-2 text-xs text-muted-foreground">Click to upload thumbnail</p>
+                  </button>
+              )}
+              {isProcessingImage && imageDialogState.target === 'thumbnail' && imageUploadProgress > 0 && (
+                  <Progress value={imageUploadProgress} className="h-2 w-full mt-2" />
+              )}
+              {isProcessingImage && imageDialogState.target === 'thumbnail' && imageUploadProgress === 0 && (
+                  <p className="text-xs text-muted-foreground text-center mt-1">Processing thumbnail...</p>
+              )}
+              {state?.errors?.uploadedThumbnailUrl && <p className="text-sm text-destructive mt-1">{state.errors.uploadedThumbnailUrl.join(', ')}</p>}
             </div>
 
-            <Popover open={isTagPopoverOpen} onOpenChange={setIsTagPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={isTagPopoverOpen}
-                  className="w-full justify-between text-sm text-muted-foreground hover:text-foreground"
-                >
-                  {currentTags.length > 0 ? `${currentTags.length} tag(s) selected` : "Select or create tags..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                <Command>
-                  <CommandInput
-                    placeholder="Search or create tag..."
-                    value={tagInputValue}
-                    onValueChange={setTagInputValue}
-                  />
-                  <CommandList>
-                    <CommandEmpty>
-                      {tagInputValue.trim().length > 0 ? (
-                        <Button variant="ghost" className="w-full justify-start text-sm" onClick={() => { addTag(tagInputValue); setIsTagPopoverOpen(false); }}>
-                          Create tag: "{tagInputValue}"
-                        </Button>
-                      ) : (isClient && allSystemTags.length > 0 ? "No matching tags found." : "Loading tags or type to create...")}
-                    </CommandEmpty>
-                    {isClient && allSystemTags.length > 0 && (
-                      <CommandGroup>
-                        {filteredSystemTags.map((tag) => (
-                          <CommandItem
-                            key={tag}
-                            value={tag}
-                            onSelect={(currentValue) => {
-                              addTag(currentValue);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                currentTags.includes(tag) ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {tag}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            {currentTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-border">
-                {currentTags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="text-xs group">
-                    {tag}
-                    <button type="button" onClick={() => removeTag(tag)} className="ml-1.5 opacity-50 group-hover:opacity-100 focus:outline-none">
-                      <XIcon className="h-3 w-3" />
-                      <span className="sr-only">Remove {tag}</span>
-                    </button>
-                  </Badge>
-                ))}
+            <div className="space-y-3">
+              <div>
+                  <label htmlFor="tags-input-label" className="block text-lg font-semibold text-foreground mb-0.5">
+                      Tags<span className="text-destructive">*</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-1.5">Add or select relevant tags.</p>
               </div>
-            )}
-             {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleSuggestTags}
-              disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) || !quillInstanceRef.current}
-              className="w-full text-xs py-2"
-            >
-              {isAISuggesting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
-              Suggest Tags with AI
-            </Button>
-            {aiSuggestedTags.length > 0 && (
-              <div className="mt-2 p-2 border rounded-md bg-muted/30 max-h-32 overflow-y-auto">
-                <p className="text-xs font-medium mb-1.5 text-muted-foreground">AI Suggestions (click to add):</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {aiSuggestedTags.map(tag => (
-                     <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-xs" onClick={() => { addTag(tag); }}>
+              <Popover open={isTagPopoverOpen} onOpenChange={setIsTagPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={isTagPopoverOpen}
+                    className="w-full justify-between text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    {currentTags.length > 0 ? `${currentTags.length} tag(s) selected` : "Select or create tags..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput
+                      placeholder="Search or create tag..."
+                      value={tagInputValue}
+                      onValueChange={setTagInputValue}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {tagInputValue.trim().length > 0 ? (
+                          <Button variant="ghost" className="w-full justify-start text-sm" onClick={() => { addTag(tagInputValue); setIsTagPopoverOpen(false); }}>
+                            Create tag: "{tagInputValue}"
+                          </Button>
+                        ) : (isClient && allSystemTags.length > 0 ? "No matching tags found." : "Loading tags or type to create...")}
+                      </CommandEmpty>
+                      {isClient && allSystemTags.length > 0 && (
+                        <CommandGroup>
+                          {filteredSystemTags.map((tag) => (
+                            <CommandItem
+                              key={tag}
+                              value={tag}
+                              onSelect={(currentValue) => {
+                                addTag(currentValue);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  currentTags.includes(tag) ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {tag}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {currentTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-border">
+                  {currentTags.map(tag => (
+                    <Badge key={tag} variant="secondary" className="text-xs group">
                       {tag}
+                      <button type="button" onClick={() => removeTag(tag)} className="ml-1.5 opacity-50 group-hover:opacity-100 focus:outline-none">
+                        <XIcon className="h-3 w-3" />
+                        <span className="sr-only">Remove {tag}</span>
+                      </button>
                     </Badge>
                   ))}
                 </div>
-              </div>
-            )}
-             {isAISuggesting && <p className="text-xs text-muted-foreground text-center mt-1">AI is thinking...</p>}
-          </div>
+              )}
+              {state?.errors?.tags && <p className="text-sm text-destructive">{state.errors.tags.join(', ')}</p>}
 
-          {state?.errors?.userId && <p className="text-sm text-destructive mt-1">{state.errors.userId.join(', ')}</p>}
-           {state?.message && !state.success && (!state.errors || Object.keys(state.errors).length === 0) && (
-             <p className="text-sm text-destructive flex items-center gap-1">
-               <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
-             </p>
-           )}
-          <div className="mt-auto"> 
-            <PublishButton isUpdate={!!post} isUploadingOrProcessing={isProcessingThumbnail} />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSuggestTags}
+                disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) || !quillInstanceRef.current}
+                className="w-full text-xs py-2"
+              >
+                {isAISuggesting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
+                Suggest Tags with AI
+              </Button>
+              {aiSuggestedTags.length > 0 && (
+                <div className="mt-2 p-2 border rounded-md bg-muted/30 max-h-32 overflow-y-auto">
+                  <p className="text-xs font-medium mb-1.5 text-muted-foreground">AI Suggestions (click to add):</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiSuggestedTags.map(tag => (
+                      <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-xs" onClick={() => { addTag(tag); }}>
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {isAISuggesting && <p className="text-xs text-muted-foreground text-center mt-1">AI is thinking...</p>}
+            </div>
+
+            {state?.errors?.userId && <p className="text-sm text-destructive mt-1">{state.errors.userId.join(', ')}</p>}
+            {state?.message && !state.success && (!state.errors || Object.keys(state.errors).length === 0) && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-4 w-4" /> {state.message.replace('Validation Error: ', '')}
+              </p>
+            )}
+            <div className="mt-auto">
+              <PublishButton isUpdate={!!post} isUploadingOrProcessing={isProcessingImage} />
+            </div>
           </div>
         </div>
-      </div>
-    </form>
+      </form>
+
+      <Dialog open={imageDialogState.isOpen} onOpenChange={(open) => {
+          if (!open) {
+            setImageDialogState({ isOpen: false, target: null, quillRange: null });
+            if (genericFileInputRef.current) genericFileInputRef.current.value = ''; // Reset file input on close
+          } else {
+             setImageDialogState(prev => ({ ...prev, isOpen: true }));
+          }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add Image</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Your previously uploaded images will appear here. (Feature coming soon)
+            </p>
+            <Button type="button" onClick={() => genericFileInputRef.current?.click()} className="w-full" disabled={isProcessingImage}>
+              {isProcessingImage && imageDialogState.target ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :  <ImageUp className="mr-2 h-4 w-4" />}
+              Upload New Image
+            </Button>
+            <Input
+              type="file"
+              accept="image/*"
+              ref={genericFileInputRef}
+              className="sr-only"
+              onChange={handleFileSelectedViaDialog}
+              disabled={isProcessingImage}
+            />
+            {isProcessingImage && imageDialogState.target && imageUploadProgress > 0 && (
+                <Progress value={imageUploadProgress} className="h-2 w-full mt-2" />
+            )}
+             {isProcessingImage && imageDialogState.target && imageUploadProgress === 0 && (
+                <p className="text-xs text-muted-foreground text-center mt-1">Preparing to upload...</p>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isProcessingImage}>
+                Cancel
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
-

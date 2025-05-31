@@ -4,10 +4,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, LogOut, UserPlus, LogIn } from 'lucide-react';
+import { Search, LogOut, UserPlus, LogIn, Bell } from 'lucide-react'; // Added Bell
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/auth-context';
-import { useState, useEffect } from 'react'; // Import useState and useEffect
+import { useState, useEffect } from 'react';
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -29,16 +29,16 @@ export default function Header() {
         <div className="flex items-center justify-between h-20">
           <Link href="/">
             <Image
-              src="https://firebasestorage.googleapis.com/v0/b/witwaves/o/WebsiteElements%2Fwitwaves.png?alt=media"
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
               alt="WitWaves Logo"
-              width={180} 
-              height={43} 
-              priority 
+              width={180}
+              height={43}
+              priority
               className="h-auto"
               data-ai-hint="logo wordmark"
             />
           </Link>
-          
+
           <div className="flex items-center space-x-3">
             <div className="hidden md:flex items-center">
               <div className="relative max-w-xs">
@@ -61,12 +61,13 @@ export default function Header() {
                 </Link>
               ))}
             </nav>
-            
+
             {isMounted ? (
               loading ? (
-                <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> 
+                <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div>
               ) : user ? (
                 <>
+                  {/* Bell icon removed from here */}
                   <Link href="/blog/profile">
                     <Avatar className="h-9 w-9 cursor-pointer">
                       <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png?text=${(user.displayName || user.email || 'U').substring(0,1).toUpperCase()}`} alt={user.displayName || "User Profile"} data-ai-hint="person face"/>
@@ -95,7 +96,7 @@ export default function Header() {
                 </>
               )
             ) : (
-              <div className="h-9 w-24"></div> 
+              <div className="h-9 w-24"></div>
             )}
           </div>
         </div>

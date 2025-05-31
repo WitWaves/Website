@@ -1,38 +1,42 @@
 rules_version = '2';
 
 service firebase.storage {
-  match /b/{bucket}/o {
+  match /b/{bucket}/o { // Root match for all objects in your bucket
 
-    // Profile images: Allow read by anyone, write only by the authenticated user to their own path
-    match /profileImages/{userId}/{allPaths=**} {
+    // Rule 1: Public read access for "Website Elements" like fonts and images.
+    // Path segments with spaces (like "Website Elements") must be enclosed in quotes.
+    match /"Website Elements"/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Explicitly deny writes to these public assets by users
+    }
+
+    // Rule 2: User profile images.
+    // Authenticated users can write (upload/update/delete) their own profile image.
+    // Anyone can read profile images (e.g., to display on profiles).
+    match /profileImages/{userId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Post thumbnails: Allow read by anyone, write only by the authenticated user to a path prefixed with their userId
-    match /postThumbnails/{userId}/{allPaths=**} {
+    // Rule 3: Post thumbnails.
+    // Authenticated users can write thumbnails for posts they own (assuming userId in path is post author).
+    // Anyone can read post thumbnails.
+    match /postThumbnails/{userId}/{postId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Images within post content: Allow read by anyone, write only by the authenticated user to a path prefixed with their userId
-    match /postContentImages/{userId}/{allPaths=**} {
+    // Rule 4: Images embedded within post content.
+    // Authenticated users can write images for their own post content.
+    // Anyone can read these images.
+    match /postContentImages/{userId}/{postId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Allow public read access for general website elements like fonts, logos etc.
-    // Adjust the "Website Elements" path if your public assets are stored elsewhere.
-    match /Website Elements/{allPaths=**} {
-      allow read: if true;
-    }
-
-    // Default: Deny all other reads and writes if no other rule matches.
-    // This is implicitly handled if the paths above are exhaustive for allowed operations.
-    // Explicitly, you could add:
-    // match /{allPaths=**} {
-    //   allow read, write: if false;
-    // }
-    // However, it's often better to rely on the principle that if no rule grants access, access is denied.
+    // Note: Firebase Storage rules have an implicit deny.
+    // If none of the above rules match and explicitly grant permission for a specific path and operation,
+    // the operation will be denied. An explicit "deny all" rule (e.g., match /{allPaths=**} { allow read, write: if false; })
+    // at the end is generally not necessary if your allow rules are comprehensive.
   }
 }

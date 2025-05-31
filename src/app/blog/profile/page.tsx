@@ -12,9 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, UploadCloud, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, Minus, ImageUp, Code2 } from 'lucide-react';
+import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, ImageUp } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
-import PostCard from '@/components/posts/post-card';
+// import PostCard from '@/components/posts/post-card'; // No longer used directly for liked posts here
 import { getPosts, type Post, getLikedPostsByUser } from '@/lib/posts';
 import type { AuthorProfileForCard, UserProfile, SocialLinks } from '@/lib/userProfile';
 import { useAuth } from '@/contexts/auth-context';
@@ -42,6 +42,8 @@ const staticProfileStats = {
 };
 
 const topInterestsStatic = ["Web", "Web Design", "Programming", "Art", "Maths"];
+const activitySubTabs = [{id: "liked", label: "Liked"}, {id: "comments", label: "Comments"}];
+
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -69,6 +71,7 @@ export default function ProfilePage() {
   const [userComments, setUserComments] = useState<UserActivityComment[]>([]);
   const [isLoadingUserComments, setIsLoadingUserComments] = useState(false);
   const [activeActivityTab, setActiveActivityTab] = useState<string>("posts");
+  const [activeActivitySubTab, setActiveActivitySubTab] = useState<string>(activitySubTabs[0].id);
 
 
   useEffect(() => {
@@ -180,36 +183,40 @@ export default function ProfilePage() {
       console.log('[ProfilePage] Activity tab active for user:', user.uid);
 
       // Fetch Liked Posts
-      setIsLoadingLikedPosts(true);
-      console.log('[ProfilePage] Fetching liked posts for user:', user.uid);
-      getLikedPostsByUser(user.uid)
-        .then(data => {
-          console.log('[ProfilePage] Fetched liked posts data (client-side):', data);
-          setLikedPosts(data);
-        })
-        .catch(err => {
-          console.error("[ProfilePage] Error fetching liked posts (client-side):", err);
-          toast({ title: "Error Loading Liked Posts", description: "Could not load posts you've liked. A Firestore index might be required or check rules. See console for details.", variant: "destructive" });
-          setLikedPosts([]);
-        })
-        .finally(() => setIsLoadingLikedPosts(false));
+      if (!likedPosts.length && !isLoadingLikedPosts) { // Only fetch if not already fetched or loading
+        setIsLoadingLikedPosts(true);
+        console.log('[ProfilePage] Fetching liked posts for user:', user.uid);
+        getLikedPostsByUser(user.uid)
+          .then(data => {
+            console.log('[ProfilePage] Fetched liked posts data (client-side):', data);
+            setLikedPosts(data);
+          })
+          .catch(err => {
+            console.error("[ProfilePage] Error fetching liked posts (client-side):", err);
+            toast({ title: "Error Loading Liked Posts", description: "Could not load your liked posts. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
+            setLikedPosts([]);
+          })
+          .finally(() => setIsLoadingLikedPosts(false));
+      }
 
       // Fetch User Comments
-      setIsLoadingUserComments(true);
-      console.log('[ProfilePage] Fetching user comments for user:', user.uid);
-      getCommentsByUser(user.uid)
-        .then(data => {
-          console.log('[ProfilePage] Fetched user comments data (client-side):', data);
-          setUserComments(data);
-        })
-        .catch(err => {
-          console.error("[ProfilePage] Error fetching user comments (client-side):", err);
-          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required or verify Firestore rules. Check console & Firestore rules.", variant: "destructive" });
-          setUserComments([]);
-        })
-        .finally(() => setIsLoadingUserComments(false));
+      if (!userComments.length && !isLoadingUserComments) { // Only fetch if not already fetched or loading
+        setIsLoadingUserComments(true);
+        console.log('[ProfilePage] Fetching user comments for user:', user.uid);
+        getCommentsByUser(user.uid)
+          .then(data => {
+            console.log('[ProfilePage] Fetched user comments data (client-side):', data);
+            setUserComments(data);
+          })
+          .catch(err => {
+            console.error("[ProfilePage] Error fetching user comments (client-side):", err);
+            toast({ title: "Error Loading Your Comments", description: "Could not load your comments. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
+            setUserComments([]);
+          })
+          .finally(() => setIsLoadingUserComments(false));
+        }
     }
-  }, [activeActivityTab, user?.uid, toast]);
+  }, [activeActivityTab, user?.uid, toast, likedPosts.length, userComments.length, isLoadingLikedPosts, isLoadingUserComments]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -265,10 +272,9 @@ export default function ProfilePage() {
     if (newDisplayName && newDisplayName !== auth.currentUser.displayName) {
       authProfileUpdates.displayName = newDisplayName;
     }
-    // Handle photoURL: if it's an empty string, use null for Firebase Auth update to remove it
     if (newPhotoURL && newPhotoURL !== auth.currentUser.photoURL) {
       authProfileUpdates.photoURL = newPhotoURL;
-    } else if (newPhotoURL === null && auth.currentUser.photoURL !== null) { // Explicitly removing
+    } else if (newPhotoURL === null && auth.currentUser.photoURL !== null) { 
       authProfileUpdates.photoURL = null;
     }
 
@@ -286,7 +292,7 @@ export default function ProfilePage() {
     if (newPhotoURL) {
         formData.set('photoURL', newPhotoURL);
     } else if (newPhotoURL === null && (customProfile?.photoURL || user?.photoURL)) {
-        formData.set('photoURL', ''); // Server action expects empty string to delete from Firestore
+        formData.set('photoURL', ''); 
     }
 
     startEditTransition(() => {
@@ -299,7 +305,7 @@ export default function ProfilePage() {
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
   const bio = customProfile?.bio || "No bio set. Click 'Edit Profile' to add one.";
-  const userRole = "Blog Author";
+  const userRole = "Blog Author"; 
 
   const profileSocialLinksArray = customProfile?.socialLinks ?
     Object.entries(customProfile.socialLinks)
@@ -561,19 +567,20 @@ export default function ProfilePage() {
           <TabsContent value="activity">
             <Card className="p-0 border-0 shadow-none">
                 <div className="mb-4 flex space-x-1 border border-border rounded-lg p-1 bg-muted/50 w-fit">
-                  {["Liked", "Comments"].map((tab, index) => (
+                  {activitySubTabs.map((subTab) => (
                     <Button
-                      key={tab}
-                      variant={index === 0 ? "secondary" : "ghost"}
+                      key={subTab.id}
+                      variant={activeActivitySubTab === subTab.id ? "secondary" : "ghost"}
                       size="sm"
-                      className={index === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}
+                      onClick={() => setActiveActivitySubTab(subTab.id)}
+                      className={activeActivitySubTab === subTab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}
                     >
-                      {tab}
+                      {subTab.label}
                     </Button>
                   ))}
                 </div>
 
-                <div className="space-y-8">
+                {activeActivitySubTab === 'liked' && (
                   <section>
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
                      {isLoadingLikedPosts ? (
@@ -584,16 +591,23 @@ export default function ProfilePage() {
                     ) : likedPosts.length === 0 ? (
                         <p className="text-muted-foreground text-sm py-4">Your liked posts will appear here.</p>
                     ) : (
-                        <div className="space-y-6">
+                        <div className="space-y-3">
                             {likedPosts.map(post => (
-                                <PostCard key={post.id} post={post} />
+                                <div key={post.id} className="p-3 border rounded-md bg-muted/50 text-sm">
+                                    <p className="mb-1 text-foreground/80">
+                                        You liked <Link href={`/posts/${post.id}`} className="text-primary hover:underline font-medium">{post.title}</Link>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Originally published on: {format(new Date(post.createdAt), 'MMM d, yyyy')}
+                                    </p>
+                                </div>
                             ))}
                         </div>
                     )}
                   </section>
+                )}
 
-                  <Separator/>
-
+                {activeActivitySubTab === 'comments' && (
                   <section>
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Your Comments</h3>
                      {isLoadingUserComments ? (
@@ -602,7 +616,7 @@ export default function ProfilePage() {
                             <p className="ml-3 mt-2">Loading your comments...</p>
                         </div>
                     ) : userComments.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">You haven&apos;t made any comments yet.</p>
+                        <p className="text-muted-foreground text-sm py-4">You haven&apos;t made any comments yet.</p>
                     ) : (
                         <div className="space-y-4">
                             {userComments.map(comment => (
@@ -619,7 +633,7 @@ export default function ProfilePage() {
                         </div>
                     )}
                   </section>
-                </div>
+                )}
             </Card>
           </TabsContent>
         </Tabs>
@@ -627,3 +641,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

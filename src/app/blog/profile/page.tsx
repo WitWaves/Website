@@ -186,12 +186,12 @@ export default function ProfilePage() {
       console.log('[ProfilePage] Fetching saved posts for user:', user.uid);
       getSavedPostsDetailsForUser(user.uid)
         .then(data => {
-          console.log('[ProfilePage] Fetched saved posts data:', data);
+          console.log('[ProfilePage] Fetched saved posts data (client-side):', data);
           setSavedPosts(data);
         })
         .catch(err => {
-          console.error("[ProfilePage] Error fetching saved posts:", err);
-          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check console for Firestore errors (rules or indexes might be needed).", variant: "destructive" });
+          console.error("[ProfilePage] Error fetching saved posts (client-side):", err);
+          toast({ title: "Error Loading Saved Posts", description: "Could not load your saved posts. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
           setSavedPosts([]);
         })
         .finally(() => setIsLoadingSavedPosts(false));
@@ -201,12 +201,12 @@ export default function ProfilePage() {
       console.log('[ProfilePage] Fetching liked posts for user:', user.uid);
       getLikedPostsByUser(user.uid)
         .then(data => {
-          console.log('[ProfilePage] Fetched liked posts data:', data);
+          console.log('[ProfilePage] Fetched liked posts data (client-side):', data);
           setLikedPosts(data);
         })
         .catch(err => {
-          console.error("[ProfilePage] Error fetching liked posts:", err);
-          toast({ title: "Error Loading Liked Posts", description: "Could not load posts you've liked. A Firestore index might be required or check rules.", variant: "destructive" });
+          console.error("[ProfilePage] Error fetching liked posts (client-side):", err);
+          toast({ title: "Error Loading Liked Posts", description: "Could not load posts you've liked. A Firestore index might be required or check rules. See console for details.", variant: "destructive" });
           setLikedPosts([]);
         })
         .finally(() => setIsLoadingLikedPosts(false));
@@ -216,12 +216,12 @@ export default function ProfilePage() {
       console.log('[ProfilePage] Fetching user comments for user:', user.uid);
       getCommentsByUser(user.uid)
         .then(data => {
-          console.log('[ProfilePage] Fetched user comments data:', data);
+          console.log('[ProfilePage] Fetched user comments data (client-side):', data);
           setUserComments(data);
         })
         .catch(err => {
-          console.error("[ProfilePage] Error fetching user comments:", err);
-          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required (check console) or verify Firestore rules.", variant: "destructive" });
+          console.error("[ProfilePage] Error fetching user comments (client-side):", err);
+          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. A Firestore index might be required or verify Firestore rules. See console for details.", variant: "destructive" });
           setUserComments([]);
         })
         .finally(() => setIsLoadingUserComments(false));
@@ -603,7 +603,7 @@ export default function ProfilePage() {
                      {isLoadingLikedPosts ? (
                          <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-3">Loading liked posts...</p></div>
                     ) : likedPosts.length === 0 ? (
-                        <p className="text-muted-foreground text-sm py-4">You haven&apos;t liked any posts yet.</p>
+                        <p className="text-muted-foreground text-sm py-4">Your liked posts will appear here. (Feature under development)</p>
                     ) : (
                         <div className="space-y-6">
                             {likedPosts.map(post => (

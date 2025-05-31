@@ -199,36 +199,65 @@ export async function isPostSavedByUser(userId: string, postId: string): Promise
 
 export async function getSavedPostsDetailsForUser(userId: string): Promise<Post[]> {
   if (!userId) {
-    console.log('[getSavedPostsDetailsForUser] No userId provided.');
+    console.log('[getSavedPostsDetailsForUser] No userId provided. Returning empty array.');
     return [];
   }
-  console.log(`[getSavedPostsDetailsForUser] Fetching saved posts for userId: ${userId}`);
+  console.log(`[getSavedPostsDetailsForUser] Attempting to fetch saved post references for userId: ${userId}`);
   try {
     const savedPostsColRef = collection(db, 'userProfiles', userId, 'savedPosts');
     const q = query(savedPostsColRef, orderBy('savedAt', 'desc'));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      console.log(`[getSavedPostsDetailsForUser] No saved post documents found for userId: ${userId}`);
+      console.log(`[getSavedPostsDetailsForUser] No saved post references found for userId: ${userId}. Returning empty array.`);
       return [];
     }
     console.log(`[getSavedPostsDetailsForUser] Found ${snapshot.docs.length} saved post references for userId: ${userId}.`);
 
-    const postIdsToFetch = snapshot.docs.map(docSnap => docSnap.id);
-    console.log(`[getSavedPostsDetailsForUser] Post IDs to fetch details for:`, postIdsToFetch);
+    const postFetchPromises = snapshot.docs.map(async (docSnap) => {
+      const postId = docSnap.id;
+      const savedPostData = docSnap.data();
+      console.log(`[getSavedPostsDetailsForUser] Processing saved post reference: ID = ${postId}, Data =`, savedPostData);
+      if (!postId) {
+          console.warn(`[getSavedPostsDetailsForUser] Found a saved post document without an ID (or ID is the post ID itself). This is expected if docSnap.id is the postId.`);
+      }
+      try {
+        const post = await getPost(postId);
+        if (post) {
+          console.log(`[getSavedPostsDetailsForUser] Successfully fetched full details for postId: ${postId}`);
+          return post;
+        } else {
+          console.warn(`[getSavedPostsDetailsForUser] Full details for postId ${postId} not found (getPost returned undefined). It might have been deleted or rules prevent access.`);
+          return undefined;
+        }
+      } catch (err) {
+        console.error(`[getSavedPostsDetailsForUser] Error fetching full details for postId ${postId}:`, err);
+        return undefined;
+      }
+    });
+    
+    const postsWithDetails = (await Promise.all(postFetchPromises)).filter(post => post !== undefined) as Post[];
+    
+    console.log(`[getSavedPostsDetailsForUser] Successfully fetched full details for ${postsWithDetails.length} out of ${snapshot.docs.length} saved posts for userId: ${userId}`);
+    return postsWithDetails;
 
-    const postPromises = postIdsToFetch.map(postId =>
-      getPost(postId).catch(err => {
-        console.error(`[getSavedPostsDetailsForUser] Error fetching details for postId ${postId}:`, err);
-        return undefined; // Return undefined if a single post fetch fails
-      })
-    );
-    const posts = (await Promise.all(postPromises)).filter(post => post !== undefined) as Post[];
-
-    console.log(`[getSavedPostsDetailsForUser] Successfully fetched details for ${posts.length} saved posts for userId: ${userId}`);
-    return posts;
-  } catch (error) {
-    console.error(`[getSavedPostsDetailsForUser] Error fetching saved post references for user ${userId}:`, error);
-    return [];
+  } catch (error: any) {
+    console.error(`[getSavedPostsDetailsForUser] CRITICAL ERROR fetching saved post references for user ${userId}:`, error);
+    if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
+        console.error(
+          `[getSavedPostsDetailsForUser] Firestore query failed because a composite index is missing. 
+           The query was orderBy('savedAt', 'desc') on collection 'userProfiles/${userId}/savedPosts'.
+           Firestore usually provides a link in the error to create the index. If not, you'll need:
+           Collection ID: savedPosts (as a subcollection of userProfiles)
+           Fields: savedAt (Descending).
+           Error details: ${error.message}`
+        );
+    } else if (error.code === 'permission-denied') {
+        console.error(
+          `[getSavedPostsDetailsForUser] Firestore permission denied. Check security rules for 'userProfiles/${userId}/savedPosts'.
+           User ${userId} needs read access to their own savedPosts subcollection.`
+        );
+    }
+    return []; // Return empty array on any error to prevent page crash
   }
 }

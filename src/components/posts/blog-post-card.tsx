@@ -6,7 +6,7 @@ import Image from 'next/image';
 import type { Post } from '@/lib/posts';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Heart, MessageCircle, MoreHorizontal, Share2 } from 'lucide-react';
+import { Heart, MessageCircle, MoreHorizontal, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useState, useEffect, useActionState, useTransition } from 'react';
@@ -119,7 +119,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                     disabled={isLikePending || isLikePendingTransition || !user}
                 >
                     {(isLikePending || isLikePendingTransition) ? (
-                        <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={16} height={16} className="mr-1" />
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                     ) : <Heart className={`h-4 w-4 mr-1 ${optimisticLiked ? 'fill-current' : ''}`} />}
                     {optimisticLikeCount}
                 </Button>
@@ -160,3 +160,5 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     </article>
   );
 }
+
+    

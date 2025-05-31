@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import type { Post } from '@/lib/posts';
 import TagBadge from './tag-badge';
 import { format } from 'date-fns';
-import { CalendarDays, Edit3, Heart, MessageCircle, Share2 } from 'lucide-react';
+import { CalendarDays, Edit3, Heart, MessageCircle, Share2, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { useAuth } from '@/contexts/auth-context';
@@ -102,7 +102,7 @@ export default function PostCard({ post }: PostCardProps) {
                         disabled={isLikePending || isLikePendingTransition || !user}
                     >
                         {(isLikePending || isLikePendingTransition) ? (
-                           <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={16} height={16} className="mr-1" />
+                           <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                         ) : <Heart className={`mr-1 h-4 w-4 ${optimisticLiked ? 'fill-current' : ''}`} />}
                         <span className="hidden sm:inline">Like</span> ({optimisticLikeCount})
                     </Button>
@@ -138,3 +138,5 @@ export default function PostCard({ post }: PostCardProps) {
     </Card>
   );
 }
+
+    

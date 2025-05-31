@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
 import { format } from 'date-fns';
-import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Share2, UserCircle, Trash2 } from 'lucide-react'; // Added Trash2
+import { CalendarDays, Edit3, ArrowLeft, Heart, MessageCircle, Share2, UserCircle, Trash2, Loader2 } from 'lucide-react'; // Added Trash2 & Loader2
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useActionState, useTransition, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
@@ -171,7 +171,7 @@ export default function PostPage() {
   if (isLoading || authLoading) {
     return (
       <div className="flex flex-col justify-center items-center min-h-[calc(100vh-200px)]">
-        <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading post..." width={64} height={64} />
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
         <p className="ml-3 mt-3">Loading post...</p>
       </div>
     );
@@ -227,7 +227,7 @@ export default function PostPage() {
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
                         {(isDeleteActionPending || isDeletePendingTransition) ? (
-                          <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Deleting..." width={20} height={20} className="mr-2" />
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         ) : "Yes, delete post"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
@@ -267,7 +267,7 @@ export default function PostPage() {
                 disabled={isLikeActionPending || isLikePendingTransition || !user}
             >
                 {(isLikeActionPending || isLikePendingTransition) ? (
-                   <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading..." width={16} height={16} />
+                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : <Heart className={`h-4 w-4 ${optimisticLiked ? 'fill-current text-destructive' : 'text-destructive'}`} />}
                 Like <span className="text-xs text-muted-foreground">({optimisticLikeCount})</span>
             </Button>
@@ -310,7 +310,7 @@ export default function PostPage() {
             </div>
             <Button type="submit" disabled={isCommentActionPending || isCommentPendingTransition}>
               {(isCommentActionPending || isCommentPendingTransition) ? (
-                 <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading..." width={20} height={20} className="mr-2" />
+                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               ) : null}
               Post Comment
             </Button>
@@ -323,7 +323,7 @@ export default function PostPage() {
 
         {isLoadingComments ? (
           <div className="flex flex-col items-center justify-center py-6">
-            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading comments..." width={48} height={48} />
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
             <p className="ml-2 mt-2 text-muted-foreground">Loading comments...</p>
           </div>
         ) : comments.length > 0 ? (
@@ -360,3 +360,5 @@ export default function PostPage() {
     </article>
   );
 }
+
+    

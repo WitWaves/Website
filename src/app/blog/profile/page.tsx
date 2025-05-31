@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, ImageUp, TagsIcon } from 'lucide-react';
+import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, ImageUp, TagsIcon, Loader2 } from 'lucide-react';
 import BlogPostCard from '@/components/posts/blog-post-card';
 // import PostCard from '@/components/posts/post-card'; // No longer used directly for liked posts here
 import { getPosts, type Post, getLikedPostsByUser } from '@/lib/posts';
@@ -310,7 +310,6 @@ export default function ProfilePage() {
   const fallbackAvatar = displayName?.substring(0, 2).toUpperCase() || 'U';
   const usernameHandle = customProfile?.username ? `@${customProfile.username}` : (user?.email ? `@${user.email.split('@')[0]}` : '@username');
   const bio = customProfile?.bio || "No bio set. Click 'Edit Profile' to add one.";
-  // const userRole = "Blog Author"; // Removed as requested
 
   const profileSocialLinksArray = customProfile?.socialLinks ?
     Object.entries(customProfile.socialLinks)
@@ -331,7 +330,7 @@ export default function ProfilePage() {
   if (authLoading || (user && (isLoadingProfile || isLoadingPosts))) {
     return (
       <div className="flex flex-col justify-center items-center h-screen">
-        <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading profile..." width={64} height={64} />
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
         <p className="ml-3 mt-3">Loading profile...</p>
       </div>
     );
@@ -480,7 +479,7 @@ export default function ProfilePage() {
                       </DialogClose>
                       <Button type="submit" disabled={isEditPending || isEditPendingTransition || isUploading}>
                           {(isEditPending || isEditPendingTransition || isUploading) ? (
-                            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading..." width={20} height={20} className="mr-2" />
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                           ) : 'Save Changes'}
                       </Button>
                   </DialogFooter>
@@ -490,10 +489,6 @@ export default function ProfilePage() {
 
             <h1 className="text-xl font-semibold text-foreground mt-2">{displayName}</h1>
             <p className="text-sm text-muted-foreground">{usernameHandle}</p>
-            {/* <div className="flex items-center justify-center text-sm text-muted-foreground mt-1">
-              <LinkIcon className="h-3.5 w-3.5 mr-1.5" /> Removed userRole line
-              <span>{userRole}</span>
-            </div> */}
 
             <div className="grid grid-cols-3 gap-2 my-4 text-center">
               <div>
@@ -505,7 +500,7 @@ export default function ProfilePage() {
                 <p className="text-xs text-muted-foreground">Followers</p>
               </div>
               <div>
-                <p className="font-semibold text-lg text-foreground">{isLoadingPosts ? <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading count" width={20} height={20} className="inline" /> : userPosts.length}</p>
+                <p className="font-semibold text-lg text-foreground">{isLoadingPosts ? <Loader2 className="h-5 w-5 animate-spin inline text-primary" /> : userPosts.length}</p>
                 <p className="text-xs text-muted-foreground">Posts</p>
               </div>
             </div>
@@ -568,7 +563,7 @@ export default function ProfilePage() {
             </div>
             {isLoadingPosts ? (
               <div className="flex flex-col justify-center items-center h-40">
-                <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading posts..." width={48} height={48} />
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
                  <p className="ml-3 mt-2">Loading posts...</p>
               </div>
             ) : userPosts.length === 0 ? (
@@ -605,7 +600,7 @@ export default function ProfilePage() {
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
                      {isLoadingLikedPosts ? (
                          <div className="flex flex-col justify-center items-center h-40">
-                            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading liked posts..." width={48} height={48} />
+                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
                             <p className="ml-3 mt-2">Loading liked posts...</p>
                          </div>
                     ) : likedPosts.length === 0 ? (
@@ -632,7 +627,7 @@ export default function ProfilePage() {
                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Your Comments</h3>
                      {isLoadingUserComments ? (
                         <div className="flex flex-col justify-center items-center h-40">
-                            <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading your comments..." width={48} height={48} />
+                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
                             <p className="ml-3 mt-2">Loading your comments...</p>
                         </div>
                     ) : userComments.length === 0 ? (

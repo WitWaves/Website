@@ -57,7 +57,7 @@ function PublishButton({isUpdate, isUploadingOrProcessing}: {isUpdate: boolean, 
     <Button type="submit" disabled={pending || isUploadingOrProcessing} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 py-3 text-base mt-auto">
       {(pending || isUploadingOrProcessing) ? (
         <>
-          <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading..." width={20} height={20} className="mr-2" />
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           {isUploadingOrProcessing ? 'Processing...' : (isUpdate ? 'Updating...' : 'Publishing...')}
         </>
       ) : (
@@ -506,7 +506,7 @@ export default function PostForm({ post }: PostFormProps) {
 
 
   if (authLoading && !post) { 
-    return <div className="flex justify-center items-center h-64"><Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading form..." width={48} height={48} /> <p className="ml-2">Loading form...</p></div>;
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-10 w-10 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
   }
 
   if (!user && !authLoading && !post) { 
@@ -564,7 +564,7 @@ export default function PostForm({ post }: PostFormProps) {
                <div ref={editorRef} />
             ) : (
               <div className="min-h-[300px] border border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
-                <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Loading editor..." width={48} height={48} />
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="ml-3 text-muted-foreground">Loading editor...</p>
               </div>
             )}
@@ -713,7 +713,7 @@ export default function PostForm({ post }: PostFormProps) {
               disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) || !quillInstanceRef.current}
               className="w-full text-xs py-2"
             >
-              {isAISuggesting ? <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20White%20-%20Transparent.gif?alt=media&token=a8218960-4f9c-4a45-99f8-d6f070f9e16a" alt="Suggesting..." width={16} height={16} className="mr-1.5" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
+              {isAISuggesting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>
             {aiSuggestedTags.length > 0 && (
@@ -745,3 +745,5 @@ export default function PostForm({ post }: PostFormProps) {
     </form>
   );
 }
+
+    

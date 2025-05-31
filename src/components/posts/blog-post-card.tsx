@@ -6,7 +6,7 @@ import Image from 'next/image';
 import type { Post } from '@/lib/posts';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Heart, MessageCircle, MoreHorizontal, Share2, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, MoreHorizontal, Share2, Loader2, Edit3, Archive, Trash2 } from 'lucide-react'; // Added Edit3, Archive, Trash2
 import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useState, useEffect, useActionState, useTransition } from 'react';
@@ -83,6 +83,18 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const authorDisplayName = author?.displayName || 'WitWaves User';
   const authorAvatarUrl = author?.photoURL;
   const authorFallback = authorDisplayName.substring(0, 1).toUpperCase();
+  const isOwner = user && post.userId && user.uid === post.userId;
+
+  const handleArchive = () => {
+    toast({ title: 'Archive Clicked (Not Implemented)', description: `Archive action for post "${post.title}"`});
+    console.log('Archive clicked for post:', post.id);
+  };
+
+  const handleDelete = () => {
+    // In a real app, this would trigger a confirmation dialog then a server action
+    toast({ title: 'Delete Clicked (Not Implemented)', description: `Delete action for post "${post.title}" - Confirmation needed.`});
+    console.log('Delete clicked for post:', post.id);
+  };
 
   return (
     <article className="flex flex-col md:flex-row gap-6 p-4 border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow bg-card">
@@ -146,14 +158,30 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                 </div>
             </Link>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2"> {/* Adjusted space for potentially more buttons */}
             <p className="text-xs text-muted-foreground">
               {formattedDateDisplay}
             </p>
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="More options">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">More options</span>
-            </Button>
+            {isOwner ? (
+              <>
+                <Link href={`/posts/${post.id}/edit`} passHref>
+                  <Button asChild variant="outline" size="icon" className="h-7 w-7 text-secondary border-secondary hover:bg-secondary hover:text-secondary-foreground focus-visible:ring-ring" title="Edit Post">
+                    <a><Edit3 className="h-4 w-4" /></a>
+                  </Button>
+                </Link>
+                <Button variant="outline" size="icon" className="h-7 w-7 text-accent border-accent hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring" title="Archive Post" onClick={handleArchive}>
+                  <Archive className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-7 w-7 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-ring" title="Delete Post" onClick={handleDelete}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="More options">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">More options</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>

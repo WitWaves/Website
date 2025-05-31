@@ -1,4 +1,3 @@
-
 'use server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -181,7 +180,7 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
   const updatedPostData: Partial<Omit<Post, 'id'| 'createdAt'>> & {updatedAt: any, imageUrl?: string | any } = {
     title,
     content,
-    tags: tags || [],
+    tags: tags || [], // This is the parsed array
     updatedAt: serverTimestamp(),
   };
 
@@ -190,6 +189,10 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
   } else if (uploadedThumbnailUrl) { 
     updatedPostData.imageUrl = uploadedThumbnailUrl;
   }
+
+  // --- ADDED LOG FOR DEBUGGING TAGS IN UPDATE ---
+  console.log('[updatePostAction] Data prepared for Firestore update (including tags):', updatedPostData.tags);
+  // --- END ADDED LOG ---
 
 
   try {
@@ -496,4 +499,3 @@ export async function deletePostAction(prevState: FormState, formData: FormData)
     return { message: `Error: Failed to delete post. ${errorMessage}`, success: false };
   }
 }
-

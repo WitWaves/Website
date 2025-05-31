@@ -390,8 +390,13 @@ export default function PostForm({ post }: PostFormProps) {
         return;
     }
     formData.set('content', quillContent);
-    // Explicitly set the tags field with the currentTags state
+    
+    // --- START: ADDED LOGS FOR DEBUGGING TAGS ---
+    console.log('[PostForm] currentTags state before formData.set:', currentTags);
     formData.set('tags', currentTags.join(',')); 
+    console.log('[PostForm] Value of "tags" in FormData after setting:', formData.get('tags'));
+    // --- END: ADDED LOGS FOR DEBUGGING TAGS ---
+
     console.log('[PostForm] Content set on formData from Quill state.');
     
     let finalThumbnailUrlForForm = uploadedThumbnailUrlHiddenInputRef.current?.value || '';

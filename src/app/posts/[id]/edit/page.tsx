@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { use } from 'react';
+// Removed 'use' import as it's not needed for params/searchParams here
 
 type EditPostPageParams = {
   id: string;
@@ -29,14 +29,13 @@ export async function generateMetadata({ params }: { params: EditPostPageParams 
 
 
 export default async function EditPostPage({ params, searchParams }: EditPostPageProps) {
-  const resolvedParams = use(params);
-  if (searchParams) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const resolvedSearchParams = use(searchParams);
-    // You can use resolvedSearchParams if needed in the future
-  }
+  // Directly use params and searchParams without the 'use()' hook
+  // const resolvedParams = use(params); // Removed
+  // if (searchParams) {
+  //   const resolvedSearchParams = use(searchParams); // Removed
+  // }
   
-  const post = await getPost(resolvedParams.id);
+  const post = await getPost(params.id); // Use params.id directly
 
   if (!post) {
     notFound();

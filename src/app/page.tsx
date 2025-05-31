@@ -17,7 +17,7 @@ export default async function HomePage() {
               <span className="block text-destructive">Dive.</span>
               <span className="block text-primary relative">
                 <Image 
-                  src="https://firebasestorage.googleapis.com/v0/b/witwaves/o/Website%20Elements%2FExploreImage.svg?alt=media&token=890067db-a271-4c58-9f8f-09802a7fb7c3" 
+                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FBlogImage.png?alt=media" 
                   alt="Decorative illustration" 
                   width={100} 
                   height={100} 

@@ -71,31 +71,40 @@ export default async function HomePage() {
       </section>
 
       {/* Large Newsletter Subscription Section */}
-      <section className="bg-accent py-12 md:py-20"> {/* Reduced padding */}
-        <div className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold text-accent-foreground mb-4">
-            Subscribe to our newsletter!
-          </h2>
-          <p className="text-lg text-accent-foreground/90 mb-8">
-            Stay connected and never miss an update! Subscribe to our newsletter for the latest
-            news, insights, and exclusive content delivered straight to your inbox.
-          </p>
-          <form className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-            <Input
-              type="email"
-              placeholder="jhon@gmail.com"
-              className="bg-background/90 text-foreground placeholder:text-muted-foreground flex-grow text-base"
-              aria-label="Email for newsletter"
-            />
-            <Button type="submit" size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto w-full">
-              Discover
-            </Button>
-          </form>
-          <div className="mt-8 flex justify-center items-center space-x-6">
-            <Link href="#" aria-label="Whatsapp" className="text-accent-foreground/80 hover:text-accent-foreground"><MessageSquare size={28} /></Link>
-            <Link href="#" aria-label="Instagram" className="text-accent-foreground/80 hover:text-accent-foreground"><Instagram size={28} /></Link>
-            <Link href="#" aria-label="LinkedIn" className="text-accent-foreground/80 hover:text-accent-foreground"><Linkedin size={28} /></Link>
-            <Link href="#" aria-label="Facebook" className="text-accent-foreground/80 hover:text-accent-foreground"><Facebook size={28} /></Link>
+      <section className="py-12 md:py-20">
+        <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <div className="bg-accent rounded-3xl p-8 md:p-12 lg:p-16 text-center shadow-xl">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              Subscribe to our newsletter!
+            </h2>
+            <p className="text-lg text-white/90 mb-8 max-w-2xl mx-auto">
+              Stay connected and never miss an update! Subscribe to our newsletter for the latest
+              news, insights, and exclusive content delivered straight to your inbox.
+            </p>
+            <form className="max-w-lg mx-auto">
+              <div className="flex items-center bg-white rounded-full p-1 shadow-md focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-accent">
+                <Input
+                  type="email"
+                  placeholder="jhon@gmail.com"
+                  className="bg-transparent text-foreground placeholder:text-muted-foreground flex-grow text-base py-3 px-5 border-none focus:ring-0 h-auto"
+                  aria-label="Email for newsletter"
+                />
+                <Button 
+                  type="submit" 
+                  size="lg" 
+                  className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full py-3 px-6 shrink-0 text-base font-semibold"
+                  style={{ backgroundColor: 'hsl(var(--brand-yellow-orange))', color: 'hsl(var(--brand-yellow-orange-foreground))' }}
+                >
+                  Discover
+                </Button>
+              </div>
+            </form>
+          </div>
+          <div className="mt-10 flex justify-center items-center space-x-6">
+            <Link href="#" aria-label="Whatsapp" className="text-muted-foreground hover:text-primary"><MessageSquare size={28} /></Link>
+            <Link href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary"><Instagram size={28} /></Link>
+            <Link href="#" aria-label="LinkedIn" className="text-muted-foreground hover:text-primary"><Linkedin size={28} /></Link>
+            <Link href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary"><Facebook size={28} /></Link>
           </div>
         </div>
       </section>

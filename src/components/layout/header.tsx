@@ -33,7 +33,7 @@ export default function Header() {
               alt="WitWaves Logo"
               width={180}
               height={43}
-              priority
+              // priority prop removed to address hydration issue
               className="h-auto"
               data-ai-hint="logo wordmark"
             />
@@ -67,7 +67,7 @@ export default function Header() {
                 <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div>
               ) : user ? (
                 <>
-                  {/* Bell icon removed from here */}
+                  {/* Bell icon moved to blog sidebar */}
                   <Link href="/blog/profile">
                     <Avatar className="h-9 w-9 cursor-pointer">
                       <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png?text=${(user.displayName || user.email || 'U').substring(0,1).toUpperCase()}`} alt={user.displayName || "User Profile"} data-ai-hint="person face"/>
@@ -96,7 +96,7 @@ export default function Header() {
                 </>
               )
             ) : (
-              <div className="h-9 w-24"></div>
+              <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> // Placeholder for non-mounted state
             )}
           </div>
         </div>

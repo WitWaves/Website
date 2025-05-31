@@ -111,6 +111,16 @@ export default function PostForm({ post }: PostFormProps) {
   const [previousUploads, setPreviousUploads] = useState<UserUploadedImage[]>([]);
   const [isLoadingPreviousUploads, setIsLoadingPreviousUploads] = useState(false);
 
+  useEffect(() => {
+    if (post?.tags) {
+      setCurrentTags(post.tags);
+    } else if (!post) { 
+      setCurrentTags([]);
+    }
+    // If post is defined but post.tags is empty or undefined,
+    // currentTags will be initialized to [] by useState, so no specific handling needed here.
+  }, [post]);
+
 
   const processAndUploadFile = useCallback(async (file: File, target: 'thumbnail' | 'quill', quillRangeToInsert?: any) => {
     if (!user?.uid) {
@@ -177,7 +187,6 @@ export default function PostForm({ post }: PostFormProps) {
               const url = await getDownloadURL(uploadTask.snapshot.ref);
               console.log(`[PostForm ProcessAndUpload] Download URL for ${target} obtained:`, url);
               
-              // Record image metadata to Firestore
               await recordUserImageUpload({
                 userId: user.uid,
                 storagePath: imageFilePath,
@@ -185,7 +194,6 @@ export default function PostForm({ post }: PostFormProps) {
                 fileName: optimizedFile.name,
                 mimeType: optimizedFile.type,
               });
-              // Refresh previous uploads if dialog is still open conceptually
               if (imageDialogState.isOpen) {
                   fetchUserImages();
               }
@@ -194,10 +202,9 @@ export default function PostForm({ post }: PostFormProps) {
               resolve(url);
             } catch (recordError: any) {
               console.error(`[PostForm ProcessAndUpload] Error recording image metadata for ${target}:`, recordError);
-              dismiss(toastId); // Dismiss processing toast
-              // Don't reject the promise here, as upload itself was successful. Log error & maybe show separate toast.
+              dismiss(toastId); 
               createToast({ title: "Metadata Error", description: `Image uploaded, but failed to record metadata: ${recordError.message}`, variant: "destructive" });
-              resolve(await getDownloadURL(uploadTask.snapshot.ref)); // Still resolve with URL
+              resolve(await getDownloadURL(uploadTask.snapshot.ref)); 
             }
           }
         );
@@ -214,20 +221,18 @@ export default function PostForm({ post }: PostFormProps) {
         quillInstanceRef.current.setSelection(quillRangeToInsert.index + 1);
         createToast({ title: "Image Inserted", description: `${optimizedFile.name} inserted into post.`, variant: "default" });
       }
-      setImageDialogState({ isOpen: false, target: null, quillRange: null }); // Close dialog on success
+      setImageDialogState({ isOpen: false, target: null, quillRange: null }); 
 
     } catch (error: any) {
       console.error(`[PostForm ProcessAndUpload] Error during image processing/upload for ${target}:`, error);
       dismiss(toastId);
       createToast({ title: "Image Operation Failed", description: `Could not process or upload image: ${error.message}`, variant: "destructive" });
-      // Don't close dialog on error, let user retry or cancel
     } finally {
       setIsProcessingImage(false);
       setImageUploadProgress(0);
-      // setImageDialogState({ isOpen: false, target: null, quillRange: null }); // Moved to success/failure specific handling
       if (genericFileInputRef.current) genericFileInputRef.current.value = '';
     }
-  }, [user, post?.id, createToast, dismiss, imageDialogState.isOpen]);
+  }, [user, post?.id, createToast, dismiss, imageDialogState.isOpen, fetchUserImages]);
 
 
   const handleFileSelectedViaDialog = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -244,7 +249,7 @@ export default function PostForm({ post }: PostFormProps) {
     if (user?.uid) {
         setIsLoadingPreviousUploads(true);
         try {
-            const images = await getRecentUserImages(user.uid, 12); // Fetch e.g., 12 recent images
+            const images = await getRecentUserImages(user.uid, 12); 
             setPreviousUploads(images);
         } catch (error) {
             console.error("Error fetching user's previous uploads:", error);
@@ -266,7 +271,7 @@ export default function PostForm({ post }: PostFormProps) {
       quillRange = quillInstanceRef.current.getSelection(true) || { index: quillInstanceRef.current.getLength(), length: 0 };
     }
     setImageDialogState({ isOpen: true, target, quillRange });
-    fetchUserImages(); // Fetch images when dialog opens
+    fetchUserImages(); 
   };
 
   const handlePreviousImageSelect = (image: UserUploadedImage) => {
@@ -283,11 +288,11 @@ export default function PostForm({ post }: PostFormProps) {
         quillInstanceRef.current.setSelection(imageDialogState.quillRange.index + 1);
         createToast({ title: "Image Inserted", description: "Selected image inserted into post.", variant: "default" });
     }
-    setImageDialogState({ isOpen: false, target: null, quillRange: null }); // Close dialog
+    setImageDialogState({ isOpen: false, target: null, quillRange: null }); 
   };
 
 
-  const localImageHandler = useCallback(() => { // Quill image handler
+  const localImageHandler = useCallback(() => { 
     if (!user?.uid) {
       createToast({ title: "Authentication Required", description: "Please log in to add images.", variant: "destructive" });
       return;
@@ -317,11 +322,11 @@ export default function PostForm({ post }: PostFormProps) {
                 [{ 'direction': 'rtl' }],
                 [{ 'color': [] }, { 'background': [] }],
                 [{ 'align': [] }],
-                ['link', 'image', 'video'], // Standard image button will trigger our handler
+                ['link', 'image', 'video'], 
                 ['clean']
               ],
               handlers: {
-                'image': localImageHandler // Use the memoized handler
+                'image': localImageHandler 
               }
             },
           },

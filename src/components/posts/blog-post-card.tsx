@@ -13,6 +13,7 @@ import { useState, useEffect, useActionState, useTransition } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { toggleLikePostAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
+import TagBadge from './tag-badge'; // Import TagBadge
 
 type BlogPostCardProps = {
   post: Post;
@@ -91,7 +92,6 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   };
 
   const handleDelete = () => {
-    // In a real app, this would trigger a confirmation dialog then a server action
     toast({ title: 'Delete Clicked (Not Implemented)', description: `Delete action for post "${post.title}" - Confirmation needed.`});
     console.log('Delete clicked for post:', post.id);
   };
@@ -117,6 +117,13 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
           </Link>
           {postSummary && (
             <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{postSummary}</p>
+          )}
+          {post.tags && post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {post.tags.map(tag => (
+                <TagBadge key={tag} tag={tag} className="text-xs px-2 py-0.5" />
+              ))}
+            </div>
           )}
            <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-1 mb-3">
             <form onSubmit={handleLikeSubmit} className="contents">
@@ -158,7 +165,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                 </div>
             </Link>
           </div>
-          <div className="flex items-center space-x-2"> {/* Adjusted space for potentially more buttons */}
+          <div className="flex items-center space-x-2"> 
             <p className="text-xs text-muted-foreground">
               {formattedDateDisplay}
             </p>

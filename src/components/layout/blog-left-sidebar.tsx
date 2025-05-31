@@ -3,14 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, User } from 'lucide-react'; // Removed Bookmark, Settings, LayoutList, CalendarDays, Tags
+import { Home, User, Bell } from 'lucide-react'; // Added Bell
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/blog', label: 'Home', icon: Home },
-  // { href: '/blog/bookmarks', label: 'Bookmarks', icon: Bookmark }, // Removed
+  { href: '/blog/notifications', label: 'Notifications', icon: Bell }, // Added Bell item
   { href: '/blog/profile', label: 'Profile', icon: User },
-  // { href: '/blog/settings', label: 'Settings', icon: Settings }, // Removed
 ];
 
 export default function BlogLeftSidebar() {

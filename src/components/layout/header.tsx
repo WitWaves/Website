@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Bell, LogOut, UserPlus, LogIn } from 'lucide-react';
+import { Search, LogOut, UserPlus, LogIn } from 'lucide-react'; // Removed Bell
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useState, useEffect } from 'react'; // Import useState and useEffect
@@ -67,10 +67,7 @@ export default function Header() {
                 <div className="h-9 w-24 bg-muted rounded-md animate-pulse"></div> 
               ) : user ? (
                 <>
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    <Bell className="h-5 w-5" />
-                    <span className="sr-only">Notifications</span>
-                  </Button>
+                  {/* Bell icon button removed from here */}
                   <Link href="/blog/profile">
                     <Avatar className="h-9 w-9 cursor-pointer">
                       <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png?text=${(user.displayName || user.email || 'U').substring(0,1).toUpperCase()}`} alt={user.displayName || "User Profile"} data-ai-hint="person face"/>

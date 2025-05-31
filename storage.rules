@@ -1,12 +1,38 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if false;
+
+    // Profile images: Allow read by anyone, write only by the authenticated user to their own path
+    match /profileImages/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Post thumbnails: Allow read by anyone, write only by the authenticated user to a path prefixed with their userId
+    match /postThumbnails/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Images within post content: Allow read by anyone, write only by the authenticated user to a path prefixed with their userId
+    match /postContentImages/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow public read access for general website elements like fonts, logos etc.
+    // Adjust the "Website Elements" path if your public assets are stored elsewhere.
+    match /Website Elements/{allPaths=**} {
+      allow read: if true;
+    }
+
+    // Default: Deny all other reads and writes if no other rule matches.
+    // This is implicitly handled if the paths above are exhaustive for allowed operations.
+    // Explicitly, you could add:
+    // match /{allPaths=**} {
+    //   allow read, write: if false;
+    // }
+    // However, it's often better to rely on the principle that if no rule grants access, access is denied.
   }
 }

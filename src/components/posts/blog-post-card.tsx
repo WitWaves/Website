@@ -25,6 +25,14 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const [isLikePendingTransition, startLikeTransition] = useTransition();
   const [isSavePendingTransition, startSaveTransition] = useTransition();
 
+  const [formattedDateDisplay, setFormattedDateDisplay] = useState<string>('');
+
+  useEffect(() => {
+    if (post.createdAt) {
+      setFormattedDateDisplay(format(new Date(post.createdAt), 'dd MMM yyyy'));
+    }
+  }, [post.createdAt]);
+
   const generateSummary = (content: string, length: number = 100) => {
     if (!content) return '';
     const strippedContent = content.replace(/<[^>]+>/g, ''); 
@@ -180,7 +188,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
           </div>
           <div className="flex items-center space-x-3">
             <p className="text-xs text-muted-foreground">
-              {format(new Date(post.createdAt), 'dd MMM yyyy')}
+              {formattedDateDisplay || '...'}
             </p>
             <Button variant="ghost" size="icon" className="h-7 w-7" title="More options">
               <MoreHorizontal className="h-4 w-4" />

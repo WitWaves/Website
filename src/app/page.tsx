@@ -15,7 +15,7 @@ export default async function HomePage() {
           <div className="space-y-6">
             <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter">
               <span className="block text-destructive">Dive.</span>
-              <span className="block text-primary relative">
+              <span className="block text-secondary relative"> {/* Changed text-primary to text-secondary for green */}
                 <Image
                   src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FExploreImage.svg?alt=media&token=def9967b-2824-4cfe-897e-cc749dd082e2"
                   alt="Decorative illustration"
@@ -51,7 +51,8 @@ export default async function HomePage() {
             <p className="text-lg text-muted-foreground mb-6">
               Welcome to our vibrant community space! Share your thoughts, stories, and creativity with the world.
             </p>
-            <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full" asChild>
+            {/* Changed from bg-primary to variant="secondary" for green button */}
+            <Button size="lg" variant="secondary" asChild className="rounded-full">
               <Link href="/blog">
                 Discover Blogs <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
@@ -74,15 +75,15 @@ export default async function HomePage() {
       <section className="py-12 md:py-20">
         <div className="w-full md:w-4/5 mx-auto px-4 md:px-0"> {/* This div is already 80% on md+ */}
           <div className="bg-accent rounded-3xl p-8 md:p-12 lg:p-16 text-center shadow-xl">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold text-accent-foreground mb-4">
               Subscribe to our newsletter!
             </h2>
-            <p className="text-lg text-white/90 mb-8 w-4/5 mx-auto"> {/* Changed max-w-2xl to w-4/5 */}
+            <p className="text-lg text-accent-foreground/90 mb-8 w-4/5 mx-auto">
               Stay connected and never miss an update! Subscribe to our newsletter for the latest
               news, insights, and exclusive content delivered straight to your inbox.
             </p>
-            <form className="w-4/5 mx-auto"> {/* Changed max-w-lg to w-4/5 */}
-              <div className="flex items-center bg-white rounded-full p-1 shadow-md focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-accent">
+            <form className="w-4/5 mx-auto">
+              <div className="flex items-center bg-background rounded-full p-1 shadow-md focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-accent">
                 <Input
                   type="email"
                   placeholder="jhon@gmail.com"
@@ -93,7 +94,7 @@ export default async function HomePage() {
                   type="submit"
                   size="lg"
                   className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full py-3 px-6 shrink-0 text-base font-semibold"
-                  style={{ backgroundColor: 'hsl(var(--brand-yellow-orange))', color: 'hsl(var(--brand-yellow-orange-foreground))' }}
+                  // Removed inline style, relying on classes with new accent definition
                 >
                   Discover
                 </Button>

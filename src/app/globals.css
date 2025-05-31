@@ -55,124 +55,122 @@ CUSTOM SATOSHI FONT FACES
     scroll-behavior: smooth;
   }
   :root {
-    --background: 240 10% 3.9%; /* #09090b - Nearly black */
-    --foreground: 0 0% 98%; /* #fafafa - Nearly white */
+    /* Brand Colors based on the provided image */
+    --brand-pink-red: 349 82% 60%; /* Approx #EC486B */
+    --brand-pink-red-foreground: 0 0% 100%; /* White */
 
-    --card: 240 10% 3.9%; /* #09090b */
-    --card-foreground: 0 0% 98%; /* #fafafa */
+    --brand-green: 150 53% 50%; /* Approx #40BF80 */
+    --brand-green-foreground: 0 0% 100%; /* White */
 
-    --popover: 240 10% 3.9%; /* #09090b */
-    --popover-foreground: 0 0% 98%; /* #fafafa */
+    --brand-yellow-orange: 38 100% 60%; /* Approx #FFB333 */
+    --brand-yellow-orange-foreground: 0 0% 20%; /* Dark Gray for text on yellow/orange */
 
-    /* Brand Colors from PRD */
-    --brand-deep-indigo: 231 48% 48%; /* #3F51B5 */
-    --brand-deep-indigo-foreground: 0 0% 100%; /* White text on indigo */
+    /* Main Light Theme Colors */
+    --background: 0 0% 100%; /* White */
+    --foreground: 0 0% 20%; /* Dark Gray */
 
-    --brand-warm-orange: 33 100% 63%; /* #FFAB40 */
-    --brand-warm-orange-foreground: 240 10% 3.9%; /* Dark text on orange for contrast */
-    
-    --brand-light-gray-bg: 0 0% 94.1%; /* #F0F0F0 */
-    --brand-light-gray-bg-foreground: 240 10% 3.9%; /* Dark text on light gray */
+    --card: 0 0% 100%; /* White cards */
+    --card-foreground: 0 0% 20%; /* Dark Gray text on cards */
 
-    /* ShadCN UI Mapping based on PRD Style Guidelines */
-    --background: var(--brand-light-gray-bg); /* Light gray bg */
-    --foreground: 231 48% 10%; /* Darker shade of indigo for body text, for readability on light gray */
+    --popover: 0 0% 100%; /* White popovers */
+    --popover-foreground: 0 0% 20%; /* Dark Gray text on popovers */
 
-    --primary: var(--brand-deep-indigo);
-    --primary-foreground: var(--brand-deep-indigo-foreground);
+    /* ShadCN UI Mapping using new brand colors */
+    --primary: var(--brand-pink-red);
+    --primary-foreground: var(--brand-pink-red-foreground);
 
-    --secondary: 231 40% 90%; /* Lighter shade of indigo for secondary elements */
-    --secondary-foreground: 231 48% 15%; /* Darker indigo text on lighter indigo bg */
+    --secondary: var(--brand-green);
+    --secondary-foreground: var(--brand-green-foreground);
 
-    --muted: 0 0% 85%; /* Slightly darker gray for muted elements */
+    --muted: 0 0% 94.1%; /* Light gray for muted elements (e.g., #F0F0F0) */
     --muted-foreground: 0 0% 40%; /* Medium gray text on muted bg */
 
-    --accent: var(--brand-warm-orange);
-    --accent-foreground: var(--brand-warm-orange-foreground);
+    --accent: var(--brand-yellow-orange);
+    --accent-foreground: var(--brand-yellow-orange-foreground);
 
-    --destructive: 350 79% 60%; /* A generic red for destructive actions, can be tweaked */
-    --destructive-foreground: 0 0% 100%;
+    --destructive: var(--brand-pink-red); /* Matches "Get Started" button color */
+    --destructive-foreground: var(--brand-pink-red-foreground);
 
-    --border: 0 0% 80%; /* Gray border */
-    --input: 0 0% 90%; /* Light gray for inputs */
-    --ring: var(--brand-warm-orange); /* Orange for focus rings, to match accent */
+    --border: 0 0% 88%; /* Light Gray border (e.g., #E0E0E0) */
+    --input: 0 0% 96%; /* Very light gray for inputs (e.g., #F5F5F5) */
+    --ring: var(--brand-yellow-orange); /* Focus ring color */
 
     --radius: 0.5rem;
 
-    /* Chart colors can be derived or kept generic */
-    --chart-1: var(--brand-deep-indigo);
-    --chart-2: var(--brand-warm-orange);
-    --chart-3: 150 58% 42%; /* A green for variety */
-    --chart-4: 300 60% 50%; /* A purple for variety */
-    --chart-5: 0 0% 50%;   /* Gray variant */
+    /* Chart colors */
+    --chart-1: var(--brand-pink-red);
+    --chart-2: var(--brand-green);
+    --chart-3: var(--brand-yellow-orange);
+    --chart-4: 210 70% 55%; /* A complementary blue */
+    --chart-5: 0 0% 60%;   /* Medium Gray variant */
 
-    --sidebar-background: 0 0% 98%; /* Very light gray, almost white */
-    --sidebar-foreground: 231 48% 10%;
-    --sidebar-primary: var(--brand-deep-indigo);
-    --sidebar-primary-foreground: var(--brand-deep-indigo-foreground);
-    --sidebar-accent: var(--brand-warm-orange);
-    --sidebar-accent-foreground: var(--brand-warm-orange-foreground);
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%; /* Very light gray, almost white for sidebar */
+    --sidebar-foreground: 0 0% 20%; /* Dark text for sidebar */
+    --sidebar-primary: var(--brand-pink-red);
+    --sidebar-primary-foreground: var(--brand-pink-red-foreground);
+    --sidebar-accent: var(--brand-yellow-orange);
+    --sidebar-accent-foreground: var(--brand-yellow-orange-foreground);
     --sidebar-border: 0 0% 88%;
-    --sidebar-ring: var(--brand-warm-orange);
+    --sidebar-ring: var(--brand-yellow-orange);
 
     /* Font Variable */
     --font-satoshi: "Satoshi", "Times New Roman", serif; /* Fallback to serif as per PRD */
   }
 
   .dark {
-    /* Dark Theme - Inverted and adjusted from light theme for WitWaves */
-    --background: 231 20% 12%; /* Dark indigo variant */
-    --foreground: 0 0% 95%; /* Light gray text */
+    /* Dark Theme - Complementary to the new light theme */
+    --brand-pink-red-dark: 349 78% 68%;
+    --brand-pink-red-foreground-dark: 0 0% 100%;
+    --brand-green-dark: 150 48% 58%;
+    --brand-green-foreground-dark: 0 0% 100%;
+    --brand-yellow-orange-dark: 38 95% 65%;
+    --brand-yellow-orange-foreground-dark: 0 0% 10%;
 
-    --card: 231 20% 18%; /* Slightly lighter dark indigo for cards */
-    --card-foreground: 0 0% 95%;
+    --background: 0 0% 12%; /* Dark Gray, e.g. #1F1F1F */
+    --foreground: 0 0% 90%; /* Off-white text, e.g. #E6E6E6 */
 
-    --popover: 231 20% 10%; /* Even darker for popovers */
-    --popover-foreground: 0 0% 95%;
+    --card: 0 0% 16%; /* Slightly lighter dark gray for cards, e.g. #292929 */
+    --card-foreground: 0 0% 90%;
 
-    --brand-deep-indigo: 231 48% 55%; /* Slightly lighter indigo for dark mode primary */
-    --brand-deep-indigo-foreground: 0 0% 100%;
+    --popover: 0 0% 10%; /* Even darker for popovers, e.g. #1A1A1A */
+    --popover-foreground: 0 0% 90%;
 
-    --brand-warm-orange: 33 100% 68%; /* Slightly lighter orange for dark mode accent */
-    --brand-warm-orange-foreground: 240 10% 3.9%;
-    
-    --brand-light-gray-bg: 231 20% 12%; /* This is now dark, replacing light gray */
-    --brand-light-gray-bg-foreground: 0 0% 95%;
+    --primary: var(--brand-pink-red-dark);
+    --primary-foreground: var(--brand-pink-red-foreground-dark);
 
-    --primary: var(--brand-deep-indigo);
-    --primary-foreground: var(--brand-deep-indigo-foreground);
+    --secondary: var(--brand-green-dark);
+    --secondary-foreground: var(--brand-green-foreground-dark);
 
-    --secondary: 231 25% 30%; /* Darker, muted indigo for secondary */
-    --secondary-foreground: 0 0% 85%;
+    --muted: 0 0% 22%; /* Darker muted, e.g. #383838 */
+    --muted-foreground: 0 0% 60%; /* Lighter muted text */
 
-    --muted: 231 20% 25%; /* Dark muted */
-    --muted-foreground: 0 0% 60%;
+    --accent: var(--brand-yellow-orange-dark);
+    --accent-foreground: var(--brand-yellow-orange-foreground-dark);
 
-    --accent: var(--brand-warm-orange);
-    --accent-foreground: var(--brand-warm-orange-foreground);
+    --destructive: var(--brand-pink-red-dark);
+    --destructive-foreground: var(--brand-pink-red-foreground-dark);
 
-    --destructive: 0 70% 60%; /* A suitable red for dark mode */
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 231 15% 35%; /* Darker border */
-    --input: 231 20% 22%; /* Dark input background */
-    --ring: var(--brand-warm-orange);
+    --border: 0 0% 28%; /* Darker border, e.g. #474747 */
+    --input: 0 0% 20%; /* Dark input background, e.g. #333333 */
+    --ring: var(--brand-yellow-orange-dark);
 
     /* Chart colors for dark mode */
-    --chart-1: var(--brand-deep-indigo);
-    --chart-2: var(--brand-warm-orange);
-    --chart-3: 150 50% 55%; 
-    --chart-4: 300 55% 60%; 
+    --chart-1: var(--brand-pink-red-dark);
+    --chart-2: var(--brand-green-dark);
+    --chart-3: var(--brand-yellow-orange-dark);
+    --chart-4: 210 65% 60%;
     --chart-5: 0 0% 70%;
 
-    --sidebar-background: 231 20% 15%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: var(--brand-deep-indigo);
-    --sidebar-primary-foreground: var(--brand-deep-indigo-foreground);
-    --sidebar-accent: var(--brand-warm-orange);
-    --sidebar-accent-foreground: var(--brand-warm-orange-foreground);
-    --sidebar-border: 231 15% 30%;
-    --sidebar-ring: var(--brand-warm-orange);
+    /* Sidebar Dark Theme */
+    --sidebar-background: 0 0% 14%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: var(--brand-pink-red-dark);
+    --sidebar-primary-foreground: var(--brand-pink-red-foreground-dark);
+    --sidebar-accent: var(--brand-yellow-orange-dark);
+    --sidebar-accent-foreground: var(--brand-yellow-orange-foreground-dark);
+    --sidebar-border: 0 0% 25%;
+    --sidebar-ring: var(--brand-yellow-orange-dark);
   }
 }
 
@@ -188,7 +186,6 @@ CUSTOM SATOSHI FONT FACES
     font-family: var(--font-satoshi); /* Uses Satoshi with serif fallback */
     @apply font-bold; /* Default to bold for headings, can be overridden */
   }
-  /* Ensure serif font for body text as per PRD, handled by --font-satoshi */
   p, span, div, li, blockquote, td, th, label, input, textarea, select, button, a {
      font-family: var(--font-satoshi);
   }

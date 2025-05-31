@@ -29,7 +29,7 @@ export default function Header() {
         <div className="flex items-center justify-between h-20">
           <Link href="/">
             <Image
-              src="https://firebasestorage.googleapis.com/v0/b/witwaves/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
+              src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FWitWaves.png?alt=media"
               alt="WitWaves Logo"
               width={180}
               height={43}

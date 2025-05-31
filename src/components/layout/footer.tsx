@@ -33,7 +33,7 @@ export default function Footer() {
           <div className="lg:col-span-1">
              <Link href="/" className="block mb-4">
                 <Image
-                  src="https://firebasestorage.googleapis.com/v0/b/witwaves/o/Website%20Elements%2FWitWaves.png?alt=media&token=331e1304-726a-4dd4-ba81-eea93ccbde05"
+                  src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FWitWaves.png?alt=media"
                   alt="WitWaves Logo"
                   width={180}
                   height={43}

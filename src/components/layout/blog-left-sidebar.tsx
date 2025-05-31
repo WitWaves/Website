@@ -3,17 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, Bookmark, User, Settings, LayoutList, CalendarDays, Tags } from 'lucide-react'; // Keep Tags for potential other uses, or clean up if unused
+import { Home, User } from 'lucide-react'; // Removed Bookmark, Settings, LayoutList, CalendarDays, Tags
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/blog', label: 'Home', icon: Home },
-  { href: '/blog/bookmarks', label: 'Bookmarks', icon: Bookmark },
+  // { href: '/blog/bookmarks', label: 'Bookmarks', icon: Bookmark }, // Removed
   { href: '/blog/profile', label: 'Profile', icon: User },
-  // { href: '/blog/tags', label: 'Tags', icon: Tags }, // Removed
-  // { href: '/blog/lists', label: 'My Lists', icon: LayoutList }, // Removed
-  // { href: '/blog/archive', label: 'Archive', icon: CalendarDays }, // Removed
-  { href: '/blog/settings', label: 'Settings', icon: Settings },
+  // { href: '/blog/settings', label: 'Settings', icon: Settings }, // Removed
 ];
 
 export default function BlogLeftSidebar() {

@@ -111,7 +111,8 @@ export async function createPostAction(prevState: FormState, formData: FormData)
 
   const newPostRef = doc(db, 'posts', slug);
 
-  const newPostData: Omit<Post, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any, imageUrl?: string | undefined} = {
+  // Initialize with fields that are always present
+  const newPostData: Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'imageUrl'> & { createdAt: any; updatedAt: any; imageUrl?: string } = {
     title,
     content,
     tags: tags || [],
@@ -121,10 +122,13 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     commentCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-    imageUrl: uploadedThumbnailUrl || undefined,
   };
-  if (newPostData.imageUrl === '') delete newPostData.imageUrl;
 
+  // Conditionally add imageUrl only if uploadedThumbnailUrl is a non-empty string
+  if (uploadedThumbnailUrl && uploadedThumbnailUrl.trim() !== '') {
+    newPostData.imageUrl = uploadedThumbnailUrl;
+  }
+  // If uploadedThumbnailUrl is undefined or an empty string, imageUrl will not be added to newPostData.
 
   try {
     console.log('[createPostAction] Attempting to save post to Firestore with data:', newPostData);
@@ -173,10 +177,11 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
 
   if (uploadedThumbnailUrl === '') {
     updatedPostData.imageUrl = deleteField();
-  } else if (uploadedThumbnailUrl) {
+  } else if (uploadedThumbnailUrl) { // This checks if uploadedThumbnailUrl is a non-empty string
     updatedPostData.imageUrl = uploadedThumbnailUrl;
   }
-  // If uploadedThumbnailUrl is undefined (not passed in form), imageUrl is not touched
+  // If uploadedThumbnailUrl is undefined (e.g. not in form or optional and not provided), 
+  // imageUrl is not added to updatedPostData, so it won't be changed in Firestore.
 
   try {
     await updateDoc(postDocRef, updatedPostData);
@@ -390,3 +395,4 @@ export async function addCommentAction(prevState: FormState, formData: FormData)
     return { message: `Error: Failed to add comment. ${errorMessage}`, success: false };
   }
 }
+

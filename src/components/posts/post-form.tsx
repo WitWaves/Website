@@ -1,17 +1,19 @@
 
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState, useTransition, useRef } from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
 import { getAllTags } from '@/lib/posts';
-import { AlertCircle, Loader2, Wand2, ImageIcon, Code2, PlusCircle, XIcon, ChevronsUpDown, Check, ImageUp, Minus } from 'lucide-react';
+import { AlertCircle, Loader2, Wand2, ImageUp, XIcon, ChevronsUpDown, Check, Trash2 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
@@ -19,9 +21,10 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { storage } from '@/lib/firebase/config';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 
 
-// Quill is loaded via CDN in src/app/layout.tsx
 declare global {
   interface Window {
     Quill: any;
@@ -32,14 +35,14 @@ interface PostFormProps {
   post?: Post;
 }
 
-function PublishButton({isUpdate}: {isUpdate: boolean}) {
+function PublishButton({isUpdate, isUploading}: {isUpdate: boolean, isUploading: boolean}) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 py-3 text-base mt-auto">
-      {pending ? (
+    <Button type="submit" disabled={pending || isUploading} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 py-3 text-base mt-auto">
+      {(pending || isUploading) ? (
         <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          {isUpdate ? 'Updating...' : 'Publishing...'}
+          <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading..." width={20} height={20} className="mr-2" />
+          {isUploading ? 'Uploading...' : (isUpdate ? 'Updating...' : 'Publishing...')}
         </>
       ) : (
         isUpdate ? 'Update Post' : 'Publish'
@@ -57,6 +60,8 @@ export default function PostForm({ post }: PostFormProps) {
   const [quillContent, setQuillContent] = useState(post?.content || '');
   const [titleValue, setTitleValue] = useState(post?.title || '');
   const contentHiddenInputRef = useRef<HTMLInputElement>(null);
+  const uploadedThumbnailUrlHiddenInputRef = useRef<HTMLInputElement>(null);
+
 
   const [isClient, setIsClient] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -68,109 +73,150 @@ export default function PostForm({ post }: PostFormProps) {
   const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
   const [aiSuggestedTags, setAISuggestedTags] = useState<string[]>([]);
 
+  const [selectedThumbnailFile, setSelectedThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(post?.imageUrl || null);
+  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState<boolean>(false);
+  const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState<number>(0);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
-    setIsClient(true); // This effect runs once on mount client-side
+    setIsClient(true);
   }, []);
 
-  // Effect to initialize Quill
+  const imageHandler = () => {
+    if (!user?.uid || !quillInstanceRef.current) {
+      toast({ title: "Error", description: "User not logged in or editor not ready.", variant: "destructive" });
+      return;
+    }
+    const quill = quillInstanceRef.current;
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (file && user?.uid) {
+        const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 }; // Fallback range
+        const toastId = `upload-${Date.now()}`;
+        try {
+          toast({
+            id: toastId,
+            title: "Uploading Image...",
+            description: `Starting upload for ${file.name}`,
+            duration: Infinity, // Keep open until dismissed
+          });
+
+          const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          const postIdForPath = post?.id || 'newPost'; // Use post ID if available, or a placeholder
+          const imageFilePath = `postContentImages/${user.uid}/${postIdForPath}/${uniqueId}-${file.name}`;
+          const imageFileRef = storageRef(storage, imageFilePath);
+          const uploadTask = uploadBytesResumable(imageFileRef, file);
+
+          uploadTask.on('state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+               toast({
+                id: toastId, // Update existing toast
+                title: "Uploading Image...",
+                description: `${file.name} - ${Math.round(progress)}% done.`,
+                duration: Infinity,
+              });
+            },
+            (error) => {
+              console.error("Quill image upload error:", error);
+              toast.dismiss(toastId);
+              toast({ title: "Upload Failed", description: `Could not upload ${file.name}: ${error.message}`, variant: "destructive" });
+            },
+            async () => {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              quill.insertEmbed(range.index, 'image', downloadURL);
+              quill.setSelection(range.index + 1);
+              toast.dismiss(toastId);
+              toast({ title: "Image Uploaded", description: `${file.name} inserted into post.`, variant: "default" });
+            }
+          );
+        } catch (error) {
+          console.error("Error setting up image upload for Quill:", error);
+          toast.dismiss(toastId);
+          toast({ title: "Upload Error", description: "Could not initiate image upload.", variant: "destructive" });
+        }
+      }
+    };
+  };
+
+
   useEffect(() => {
     if (isClient && editorRef.current && !quillInstanceRef.current) {
-      console.log('Attempting to initialize Quill. window.Quill:', typeof window.Quill);
       if (typeof window.Quill !== 'undefined') {
         const quill = new window.Quill(editorRef.current, {
           theme: 'snow',
           modules: {
-            toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
-              ['bold', 'italic', 'underline', 'strike'],
-              ['blockquote', 'code-block'],
-              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-              [{ 'script': 'sub' }, { 'script': 'super' }],
-              [{ 'indent': '-1' }, { 'indent': '+1' }],
-              [{ 'direction': 'rtl' }],
-              [{ 'color': [] }, { 'background': [] }],
-              [{ 'align': [] }],
-              ['link', 'image', 'video'],
-              ['clean']
-            ],
+            toolbar: {
+              container: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                ['blockquote', 'code-block'],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                [{ 'script': 'sub' }, { 'script': 'super' }],
+                [{ 'indent': '-1' }, { 'indent': '+1' }],
+                [{ 'direction': 'rtl' }],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'align': [] }],
+                ['link', 'image', 'video'],
+                ['clean']
+              ],
+              handlers: {
+                'image': imageHandler
+              }
+            },
           },
           placeholder: "Start writing your stunning piece here...",
         });
         quillInstanceRef.current = quill;
-        console.log("Quill initialized successfully.");
-
         quill.on('text-change', (_delta: any, _oldDelta: any, source: string) => {
           if (source === 'user') {
             const currentHTML = quill.root.innerHTML;
-            if (currentHTML === '<p><br></p>') { // Quill's representation of empty
-              setQuillContent('');
-            } else {
-              setQuillContent(currentHTML);
-            }
+            setQuillContent(currentHTML === '<p><br></p>' ? '' : currentHTML);
           }
         });
-        console.log("Quill 'text-change' listener attached.");
       } else {
-        console.warn("Quill library (window.Quill) not found at initialization time. Editor will not load.");
+        console.warn("Quill library not found.");
       }
     }
-
-    // Cleanup function for the Quill instance
     return () => {
-      if (quillInstanceRef.current && typeof quillInstanceRef.current.off === 'function') {
-        console.log("Cleaning up Quill listeners.");
-        quillInstanceRef.current.off('text-change');
-        // Note: Quill doesn't have a standard .destroy() method.
-        // Removing the editor's container or its content might be needed for full cleanup if issues arise.
-        // For now, just removing the listener.
-      }
+      // Cleanup if needed, though Quill's standard cleanup is tricky
     };
-  }, [isClient]); // Only depends on isClient to run once when client is ready
+  }, [isClient, user?.uid]); // Add user.uid dependency for imageHandler
 
-  // Effect to set/update Quill content when `post.content` changes or Quill instance becomes available
   useEffect(() => {
     const quill = quillInstanceRef.current;
-    if (isClient && quill) { // Ensure client-side and Quill instance exists
+    if (isClient && quill) {
       const currentEditorHTML = quill.root.innerHTML;
-
       if (post?.content && post.content !== currentEditorHTML) {
-        console.log("Setting initial content for existing post in Quill.");
         quill.clipboard.dangerouslyPasteHTML(0, post.content);
-        // Sync React state if it wasn't updated by a 'user' text-change event
-        if(quillContent !== post.content) {
-            setQuillContent(post.content);
-        }
+        if(quillContent !== post.content) setQuillContent(post.content);
       } else if (!post?.content && (currentEditorHTML !== '<p><br></p>' && currentEditorHTML !== '')) {
-        console.log("Clearing Quill editor for new post.");
-        quill.setText(''); // Clears content efficiently
-        setQuillContent(''); // Sync React state
+        quill.setText('');
+        setQuillContent('');
       }
     }
-  }, [post?.content, isClient]); // Re-run if post.content changes or when isClient changes (which signals Quill might be ready)
-
+  }, [post?.content, isClient]);
 
   useEffect(() => {
     async function fetchAllSystemTagsData() {
-      if (!isClient) return; // Only fetch tags on the client
+      if (!isClient) return;
       try {
-        console.log("PostForm: Fetching all system tags.");
         const tags = await getAllTags();
         setAllSystemTags(tags.sort());
-        console.log("PostForm: System tags fetched:", tags);
       } catch (error) {
-        console.error("PostForm: Error fetching all system tags:", error);
-        setAllSystemTags([]);
-        toast({
-          title: "Error",
-          description: "Could not load existing tags for suggestions.",
-          variant: "destructive"
-        });
+        console.error("Error fetching all system tags:", error);
+        toast({ title: "Error", description: "Could not load existing tags.", variant: "destructive" });
       }
     }
     fetchAllSystemTagsData();
   }, [isClient, toast]);
-
 
   useEffect(() => {
     if (contentHiddenInputRef.current) {
@@ -182,7 +228,60 @@ export default function PostForm({ post }: PostFormProps) {
   const actionToRun = post ? updatePostAction.bind(null, post.id) : createPostAction;
   const [state, formAction] = useActionState(actionToRun, undefined);
 
-  const clientSideFormAction = (formData: FormData) => {
+  const clientSideFormAction = async (formData: FormData) => {
+    if (!user?.uid) {
+        toast({ title: "Authentication Error", description: "You must be logged in.", variant: "destructive" });
+        return;
+    }
+
+    let finalThumbnailUrl = post?.imageUrl || ''; 
+    
+    if (selectedThumbnailFile) {
+        setIsUploadingThumbnail(true);
+        setThumbnailUploadProgress(0);
+        try {
+            const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            const postIdForPath = post?.id || 'newPost'; // Use post ID if available, or a placeholder
+            const thumbnailPath = `postThumbnails/${user.uid}/${postIdForPath}/${uniqueId}-${selectedThumbnailFile.name}`;
+            const thumbnailImageRef = storageRef(storage, thumbnailPath);
+            const uploadTask = uploadBytesResumable(thumbnailImageRef, selectedThumbnailFile);
+
+            finalThumbnailUrl = await new Promise<string>((resolve, reject) => {
+                uploadTask.on('state_changed',
+                    (snapshot) => {
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        setThumbnailUploadProgress(progress);
+                    },
+                    (error) => {
+                        console.error("Thumbnail upload error:", error);
+                        reject(error);
+                    },
+                    async () => {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                        resolve(downloadURL);
+                    }
+                );
+            });
+            setSelectedThumbnailFile(null); // Clear after successful upload
+        } catch (error) {
+            console.error("Failed to upload thumbnail:", error);
+            toast({ title: "Thumbnail Upload Failed", description: (error as Error).message, variant: "destructive" });
+            setIsUploadingThumbnail(false);
+            setThumbnailUploadProgress(0);
+            return; // Stop form submission if thumbnail upload fails
+        }
+        setIsUploadingThumbnail(false);
+        setThumbnailUploadProgress(0);
+    } else if (thumbnailPreviewUrl === null && post?.imageUrl) {
+        // User cleared an existing thumbnail
+        finalThumbnailUrl = '';
+    }
+
+
+    if (uploadedThumbnailUrlHiddenInputRef.current) {
+        uploadedThumbnailUrlHiddenInputRef.current.value = finalThumbnailUrl;
+    }
+    formData.set('uploadedThumbnailUrl', finalThumbnailUrl);
     formData.set('content', quillContent);
     formAction(formData);
   };
@@ -212,35 +311,29 @@ export default function PostForm({ post }: PostFormProps) {
 
   const handleSuggestTags = () => {
     if (!isClient || !quillInstanceRef.current) {
-      toast({ title: "Editor Not Ready", description: "The text editor is still loading.", variant: "default" });
+      toast({ title: "Editor Not Ready", variant: "default" });
       return;
     }
-    
-    let textContentForAI = quillInstanceRef.current.getText(0, 2000); 
-    if (titleValue) {
-        textContentForAI = titleValue + "\n\n" + textContentForAI;
-    }
-
+    let textContentForAI = quillInstanceRef.current.getText(0, 2000);
+    if (titleValue) textContentForAI = titleValue + "\n\n" + textContentForAI;
     if (!textContentForAI.trim()) {
-        toast({ title: "Empty Content", description: "Cannot suggest tags for empty title and content.", variant: "default" });
+        toast({ title: "Empty Content", variant: "default" });
         return;
     }
-
     startAITransition(async () => {
       try {
         const tagsFromAI = await getAISuggestedTagsAction(textContentForAI);
         const newAISuggestions = tagsFromAI.filter(tag => !currentTags.includes(tag) && tag.length > 0 && tag !== 'ai-suggestion-error');
         setAISuggestedTags(newAISuggestions);
         if (newAISuggestions.length === 0 && tagsFromAI.includes('ai-suggestion-error')) {
-          toast({ title: 'AI Suggestion Error', description: 'Could not get suggestions from AI.', variant: 'destructive' });
+          toast({ title: 'AI Suggestion Error', variant: 'destructive' });
         } else if (newAISuggestions.length === 0 && tagsFromAI.length > 0) {
            toast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
         } else if (newAISuggestions.length > 0) {
             toast({ title: 'AI Suggestions', description: 'New tags suggested!', variant: 'default' });
         }
       } catch (error) {
-        console.error("Error calling getAISuggestedTagsAction:", error);
-        toast({ title: 'AI Error', description: 'Failed to fetch AI tag suggestions.', variant: 'destructive' });
+        toast({ title: 'AI Error', variant: 'destructive' });
         setAISuggestedTags([]);
       }
     });
@@ -259,8 +352,42 @@ export default function PostForm({ post }: PostFormProps) {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
 
+  const handleThumbnailFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+        const file = event.target.files[0];
+        setSelectedThumbnailFile(file);
+        setThumbnailPreviewUrl(URL.createObjectURL(file));
+    } else {
+        setSelectedThumbnailFile(null);
+        setThumbnailPreviewUrl(post?.imageUrl || null); // Revert to original if selection cancelled
+    }
+  };
+
+  const handleRemoveThumbnail = async () => {
+      const currentUrlToDelete = thumbnailPreviewUrl || post?.imageUrl;
+      if (currentUrlToDelete && currentUrlToDelete.startsWith('https://firebasestorage.googleapis.com')) {
+          try {
+              const imageRef = storageRef(storage, currentUrlToDelete);
+              await deleteObject(imageRef);
+              toast({title: "Thumbnail Removed", description: "Previous thumbnail deleted from storage."});
+          } catch (error: any) {
+              // Non-critical, could be a placeholder or already deleted
+              if (error.code !== 'storage/object-not-found') {
+                console.warn("Could not delete previous thumbnail from storage:", error);
+                // toast({title: "Warning", description: "Could not delete previous thumbnail from storage, it might have already been removed.", variant: "default"});
+              }
+          }
+      }
+      setSelectedThumbnailFile(null);
+      setThumbnailPreviewUrl(null);
+      if (thumbnailInputRef.current) thumbnailInputRef.current.value = ''; // Reset file input
+       // Signal to action to delete from Firestore
+      if (uploadedThumbnailUrlHiddenInputRef.current) uploadedThumbnailUrlHiddenInputRef.current.value = '';
+  };
+
+
   if (authLoading && !post) {
-    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading form...</p></div>;
+    return <div className="flex justify-center items-center h-64"><Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading form..." width={48} height={48} /> <p className="ml-2">Loading form...</p></div>;
   }
 
   if (!user && !post) {
@@ -282,8 +409,8 @@ export default function PostForm({ post }: PostFormProps) {
       );
   }
 
-  const filteredSystemTags = allSystemTags.filter(tag => 
-    !currentTags.includes(tag) && 
+  const filteredSystemTags = allSystemTags.filter(tag =>
+    !currentTags.includes(tag) &&
     tag.toLowerCase().includes(tagInputValue.toLowerCase())
   );
 
@@ -294,9 +421,10 @@ export default function PostForm({ post }: PostFormProps) {
       )}
       <input type="hidden" name="content" ref={contentHiddenInputRef} value={quillContent} />
       <input type="hidden" name="tags" value={currentTags.join(',')} />
+      <input type="hidden" name="uploadedThumbnailUrl" ref={uploadedThumbnailUrlHiddenInputRef} defaultValue={post?.imageUrl || ""} />
+
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Left Column: Main Content Area */}
         <div className="flex-grow lg:w-3/4 space-y-6">
           <div className="flex items-start space-x-3">
             <div className="w-1.5 bg-destructive h-10 mt-1 shrink-0 rounded-full"></div>
@@ -311,13 +439,13 @@ export default function PostForm({ post }: PostFormProps) {
             />
           </div>
            {state?.errors?.title && <p className="text-sm text-destructive mt-1 ml-4">{state.errors.title.join(', ')}</p>}
-          
+
           <div className="min-h-[300px] [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-toolbar]:rounded-t-md [&_.ql-container]:rounded-b-md [&_.ql-toolbar]:border-input [&_.ql-container]:border-input">
             {isClient ? (
-               <div ref={editorRef} /> // Quill will mount here
+               <div ref={editorRef} />
             ) : (
               <div className="min-h-[300px] border border-input rounded-md bg-muted/50 flex items-center justify-center p-4">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Loading editor..." width={48} height={48} />
                 <p className="ml-3 text-muted-foreground">Loading editor...</p>
               </div>
             )}
@@ -325,17 +453,54 @@ export default function PostForm({ post }: PostFormProps) {
           {state?.errors?.content && <p className="text-sm text-destructive mt-1">{state.errors.content.join(', ')}</p>}
         </div>
 
-        {/* Right Column: Sidebar */}
         <div className="lg:w-1/4 space-y-6 lg:sticky lg:top-24 h-max pt-2 flex flex-col">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Upload Thumbnail</label>
-            <div className="flex items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30">
-              <div className="text-center">
-                <ImageIcon className="mx-auto h-10 w-10 text-muted-foreground" />
-                <p className="mt-2 text-xs text-muted-foreground">upload thumbnail</p>
-              </div>
-            </div>
+            <label className="text-sm font-medium text-foreground">Post Thumbnail</label>
+            {thumbnailPreviewUrl ? (
+                <div className="relative group">
+                    <Image
+                        src={thumbnailPreviewUrl}
+                        alt="Thumbnail preview"
+                        width={300}
+                        height={200}
+                        className="w-full h-40 object-cover rounded-lg border border-border"
+                        data-ai-hint="article thumbnail"
+                    />
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        onClick={handleRemoveThumbnail}
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
+                        title="Remove thumbnail"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
+            ) : (
+                <label
+                    htmlFor="thumbnail-upload"
+                    className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30"
+                >
+                    <ImageUp className="mx-auto h-10 w-10 text-muted-foreground" />
+                    <p className="mt-2 text-xs text-muted-foreground">Click to upload thumbnail</p>
+                    <Input
+                        id="thumbnail-upload"
+                        name="thumbnailFile" // Will be handled client-side
+                        type="file"
+                        accept="image/*"
+                        onChange={handleThumbnailFileChange}
+                        className="sr-only"
+                        ref={thumbnailInputRef}
+                    />
+                </label>
+            )}
+            {isUploadingThumbnail && (
+                <Progress value={thumbnailUploadProgress} className="h-2 w-full mt-2" />
+            )}
+            {state?.errors?.uploadedThumbnailUrl && <p className="text-sm text-destructive mt-1">{state.errors.uploadedThumbnailUrl.join(', ')}</p>}
           </div>
+
 
           <div className="space-y-3">
             <div>
@@ -359,7 +524,7 @@ export default function PostForm({ post }: PostFormProps) {
               </PopoverTrigger>
               <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                 <Command>
-                  <CommandInput 
+                  <CommandInput
                     placeholder="Search or create tag..."
                     value={tagInputValue}
                     onValueChange={setTagInputValue}
@@ -380,7 +545,6 @@ export default function PostForm({ post }: PostFormProps) {
                             value={tag}
                             onSelect={(currentValue) => {
                               addTag(currentValue);
-                              // setIsTagPopoverOpen(false); // Keep open for multi-select
                             }}
                           >
                             <Check
@@ -422,7 +586,7 @@ export default function PostForm({ post }: PostFormProps) {
               disabled={isAISuggesting || !isClient || (!quillContent.trim() && !titleValue.trim()) || !quillInstanceRef.current}
               className="w-full text-xs py-2"
             >
-              {isAISuggesting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
+              {isAISuggesting ? <Image src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/Website%20Elements%2FLoading%20-%20Black%20-%20Transparent.gif?alt=media&token=528739e3-b870-4d1d-b450-70d860dad2df" alt="Suggesting..." width={16} height={16} className="mr-1.5" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
               Suggest Tags with AI
             </Button>
             {aiSuggestedTags.length > 0 && (
@@ -447,7 +611,7 @@ export default function PostForm({ post }: PostFormProps) {
              </p>
            )}
           <div className="mt-auto">
-            <PublishButton isUpdate={!!post} />
+            <PublishButton isUpdate={!!post} isUploading={isUploadingThumbnail} />
           </div>
         </div>
       </div>

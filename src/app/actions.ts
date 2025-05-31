@@ -16,6 +16,7 @@ const PostFormSchema = z.object({
     val ? val.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0) : []
   ),
   userId: z.string().optional(),
+  uploadedThumbnailUrl: z.string().url('Invalid thumbnail URL.').optional().or(z.literal('')),
 });
 
 const UserProfileSchema = z.object({
@@ -46,6 +47,7 @@ export type FormState = {
     content?: string[];
     tags?: string[];
     userId?: string[];
+    uploadedThumbnailUrl?: string[];
     form?: string[];
     // Profile specific errors
     displayName?: string[];
@@ -76,6 +78,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     content: formData.get('content'),
     tags: formData.get('tags'),
     userId: formData.get('userId'),
+    uploadedThumbnailUrl: formData.get('uploadedThumbnailUrl'),
   });
 
   if (!validatedFields.success) {
@@ -85,7 +88,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     };
   }
 
-  const { title, content, tags, userId } = validatedFields.data;
+  const { title, content, tags, userId, uploadedThumbnailUrl } = validatedFields.data;
 
   if (!userId) {
     return {
@@ -108,7 +111,7 @@ export async function createPostAction(prevState: FormState, formData: FormData)
 
   const newPostRef = doc(db, 'posts', slug);
 
-  const newPostData: Omit<Post, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
+  const newPostData: Omit<Post, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any, imageUrl?: string | undefined} = {
     title,
     content,
     tags: tags || [],
@@ -118,7 +121,10 @@ export async function createPostAction(prevState: FormState, formData: FormData)
     commentCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    imageUrl: uploadedThumbnailUrl || undefined,
   };
+  if (newPostData.imageUrl === '') delete newPostData.imageUrl;
+
 
   try {
     console.log('[createPostAction] Attempting to save post to Firestore with data:', newPostData);
@@ -143,6 +149,8 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     title: formData.get('title'),
     content: formData.get('content'),
     tags: formData.get('tags'),
+    // Note: userId is not typically updated, so it's not included here from formData for update
+    uploadedThumbnailUrl: formData.get('uploadedThumbnailUrl'),
   });
 
   if (!validatedFields.success) {
@@ -152,16 +160,23 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
     };
   }
 
-  const { title, content, tags } = validatedFields.data;
+  const { title, content, tags, uploadedThumbnailUrl } = validatedFields.data;
   const postDocRef = doc(db, 'posts', id);
   console.log('[updatePostAction] Attempting to update post. ID:', id);
 
-  const updatedPostData: Partial<Omit<Post, 'id'| 'createdAt'>> & {updatedAt: any} = {
+  const updatedPostData: Partial<Omit<Post, 'id'| 'createdAt'>> & {updatedAt: any, imageUrl?: string | any } = {
     title,
     content,
     tags: tags || [],
     updatedAt: serverTimestamp(),
   };
+
+  if (uploadedThumbnailUrl === '') {
+    updatedPostData.imageUrl = deleteField();
+  } else if (uploadedThumbnailUrl) {
+    updatedPostData.imageUrl = uploadedThumbnailUrl;
+  }
+  // If uploadedThumbnailUrl is undefined (not passed in form), imageUrl is not touched
 
   try {
     await updateDoc(postDocRef, updatedPostData);

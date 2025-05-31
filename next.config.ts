@@ -1,8 +1,13 @@
 
-import type {NextConfig} from 'next';
+import type {NextConfig, DevIndicators} from 'next';
+
+const devIndicatorsConfig: DevIndicators = {
+  allowedDevOrigins: ['https://3000-firebase-studio-1748108769403.cluster-sumfw3zmzzhzkx4mpvz3ogth4y.cloudworkstations.dev'],
+  // buildActivity: true, // Default: true. Explicitly adding might help TS in some cases.
+  // appIsrStatus: true,  // Default: true.
+};
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -31,9 +36,7 @@ const nextConfig: NextConfig = {
       }
     ],
   },
-  devIndicators: {
-    allowedDevOrigins: ['https://3000-firebase-studio-1748108769403.cluster-sumfw3zmzzhzkx4mpvz3ogth4y.cloudworkstations.dev'],
-  },
+  devIndicators: devIndicatorsConfig,
 };
 
 export default nextConfig;

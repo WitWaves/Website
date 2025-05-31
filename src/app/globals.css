@@ -5,10 +5,11 @@
 
 /*
 ================================================================================
-CUSTOM SATOSHI FONT FACES
+CUSTOM SATOSHI FONT FACES - Temporarily Commented Out for Debugging
 ================================================================================
 */
 
+/*
 @font-face {
   font-family: 'Satoshi';
   src: url('https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FFonts%2FSatoshiVariable%2FSatoshi-Light.otf?alt=media&token=3fda2648-1551-45b0-8b89-96b333abf845') format('opentype');
@@ -48,7 +49,7 @@ CUSTOM SATOSHI FONT FACES
   font-style: normal;
   font-display: swap;
 }
-
+*/
 
 @layer base {
   html {
@@ -191,7 +192,8 @@ CUSTOM SATOSHI FONT FACES
   }
 }
 
-/* Quill editor styling adjustments */
+/* Quill editor styling adjustments - Temporarily Commented Out for Debugging */
+/*
 @layer components {
   .ql-toolbar.ql-snow {
     @apply rounded-t-md border-input;
@@ -206,10 +208,10 @@ CUSTOM SATOSHI FONT FACES
   .ql-editor {
     @apply min-h-[250px] text-base leading-relaxed;
     color: hsl(var(--card-foreground)); 
-    font-family: var(--font-satoshi) !important; /* Ensure editor content uses Satoshi */
+    font-family: var(--font-satoshi) !important; 
   }
   .ql-editor p, .ql-editor li, .ql-editor blockquote, .ql-editor h1, .ql-editor h2, .ql-editor h3 {
-    font-family: var(--font-satoshi) !important; /* Ensure specific elements within editor use Satoshi */
+    font-family: var(--font-satoshi) !important; 
   }
 
 
@@ -228,3 +230,4 @@ CUSTOM SATOSHI FONT FACES
     color: hsl(var(--card-foreground));
   }
 }
+*/

@@ -1,17 +1,16 @@
-
 'use client';
 
 import Link from 'next/link';
 import Image from 'next/image';
-import type { Post } from '@/lib/posts';
+import type { Post } from '@/lib/posts'; // Ensure Post type includes isArchived?: boolean;
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Heart, MessageCircle, MoreHorizontal, Share2, Loader2, Edit3, Archive, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, MoreHorizontal, Share2, Loader2, Edit3, Archive, Trash2, ArchiveRestore } from 'lucide-react'; // Added ArchiveRestore
 import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useState, useEffect, useActionState, useTransition } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, deletePostAction, type FormState } from '@/app/actions';
+import { toggleLikePostAction, deletePostAction, toggleArchivePostAction, type FormState } from '@/app/actions'; // Added toggleArchivePostAction
 import { useToast } from '@/hooks/use-toast';
 import TagBadge from './tag-badge';
 import {
@@ -25,25 +24,42 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useRouter } from 'next/navigation'; // Although not strictly needed for list refresh, can be good practice
+// import { useRouter } from 'next/navigation'; // Not strictly needed here if revalidation works
 
 type BlogPostCardProps = {
-  post: Post;
+  post: Post; // Assumed to have isArchived?: boolean;
   author: AuthorProfileForCard;
 };
 
 export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const router = useRouter(); // For potential future use, revalidation from action is primary
+  // const router = useRouter(); 
+
+  // Transitions for server actions
   const [isLikePendingTransition, startLikeTransition] = useTransition();
   const [isDeletePendingTransition, startDeleteTransition] = useTransition();
+  const [isArchivePendingTransition, startArchiveTransition] = useTransition(); // New
+
+  // Action states
+  const [likeState, handleLikeAction, isLikePending] = useActionState<FormState, FormData>(
+    toggleLikePostAction,
+    undefined
+  );
+  const [deleteState, handleDeleteAction, isDeleteActionPending] = useActionState<FormState, FormData>(
+    deletePostAction,
+    undefined
+  );
+  const [archiveState, handleArchiveAction, isArchiveServerPending] = useActionState<FormState, FormData>( // New
+    toggleArchivePostAction,
+    undefined
+  );
 
   const [formattedDateDisplay, setFormattedDateDisplay] = useState<string>('...');
 
   useEffect(() => {
     if (post.createdAt) {
-      setFormattedDateDisplay(format(new Date(post.createdAt), 'dd MMM yyyy'));
+      setFormattedDateDisplay(format(new Date(post.createdAt), 'dd MMM yy'));
     }
   }, [post.createdAt]);
 
@@ -56,47 +72,52 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
 
   const postSummary = generateSummary(post.content, 150);
 
+  // Optimistic UI states (keep for like, adapt if needed for archive later)
   const [optimisticLiked, setOptimisticLiked] = useState(post.likedBy?.includes(user?.uid || '') || false);
   const [optimisticLikeCount, setOptimisticLikeCount] = useState(post.likeCount || 0);
-  const [optimisticCommentCount, setOptimisticCommentCount] = useState(post.commentCount || 0);
+  // No optimistic state for comment count as it's not interactive on the card directly
 
-  const [likeState, handleLikeAction, isLikePending] = useActionState<FormState, FormData>(
-    toggleLikePostAction,
-    undefined
-  );
-
-  const [deleteState, handleDeleteAction, isDeleteActionPending] = useActionState<FormState, FormData>(
-    deletePostAction,
-    undefined
-  );
-
+  // Sync optimistic states with post prop changes
   useEffect(() => {
     setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
     setOptimisticLikeCount(post.likeCount || 0);
-    setOptimisticCommentCount(post.commentCount || 0);
-  }, [post.likedBy, post.likeCount, post.commentCount, user?.uid]);
+  }, [post.likedBy, post.likeCount, user?.uid]);
 
+  // Effect for like action
   useEffect(() => {
     if (likeState?.success && likeState.updatedLikeStatus?.postId === post.id) {
       setOptimisticLiked(likeState.updatedLikeStatus.liked);
       setOptimisticLikeCount(likeState.updatedLikeStatus.newCount);
-    } else if (likeState?.message && !likeState.success && likeState?.updatedLikeStatus?.postId === post.id) {
+    } else if (likeState?.message && !likeState.success && likeState.updatedLikeStatus?.postId === post.id) {
       toast({ title: 'Error', description: likeState.message, variant: 'destructive' });
+      // Revert optimistic update
       setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
       setOptimisticLikeCount(post.likeCount || 0);
     }
   }, [likeState, post.id, toast, user?.uid, post.likedBy, post.likeCount]);
 
+  // Effect for delete action
   useEffect(() => {
     if (deleteState?.success && deleteState.deletedPostId === post.id) {
       toast({ title: 'Post Deleted', description: deleteState.message });
-      // Revalidation from action should update the list.
-      // router.refresh() could be an option if direct revalidation isn't enough,
-      // or if we need to navigate (e.g., if the list becomes empty).
+      // Revalidation from action handles UI update (card removal)
     } else if (deleteState?.message && !deleteState.success && deleteState.deletedPostId === post.id) {
       toast({ title: 'Error Deleting Post', description: deleteState.message, variant: 'destructive' });
     }
-  }, [deleteState, post.id, toast, router]);
+  }, [deleteState, post.id, toast]);
+
+  // Effect for archive action
+  useEffect(() => {
+    if (archiveState?.success && archiveState.updatedArchiveStatus?.postId === post.id) {
+      toast({ title: 'Success', description: archiveState.message });
+      // Revalidation from action handles UI update (card removal from some lists, or state change if shown)
+      // If this card is on a page that shows both archived and unarchived,
+      // the `post.isArchived` prop would need to be updated through a page refresh/refetch
+      // triggered by the revalidation.
+    } else if (archiveState?.message && !archiveState.success && archiveState.updatedArchiveStatus?.postId === post.id) {
+      toast({ title: 'Error', description: archiveState.message, variant: 'destructive' });
+    }
+  }, [archiveState, post.id, toast]);
 
 
   const handleLikeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -106,14 +127,25 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
       return;
     }
     const formData = new FormData(event.currentTarget);
-    setOptimisticLiked(!optimisticLiked);
-    setOptimisticLikeCount(optimisticLiked ? optimisticLikeCount - 1 : optimisticLikeCount + 1);
+    // Optimistic update for like
+    setOptimisticLiked(prev => !prev);
+    setOptimisticLikeCount(prev => optimisticLiked ? prev - 1 : prev + 1);
     startLikeTransition(() => handleLikeAction(formData));
   };
 
-  const handleArchive = () => {
-    toast({ title: 'Archive Clicked (Not Implemented)', description: `Archive action for post "${post.title}"`});
-    console.log('Archive clicked for post:', post.id);
+  const handleArchiveClick = () => { // Renamed from original placeholder handleArchive
+    if (!user) {
+      toast({ title: 'Authentication Required', description: 'Please log in to archive posts.', variant: 'destructive'});
+      return;
+    }
+    if (!post.userId || user.uid !== post.userId) {
+      toast({ title: 'Error', description: 'You are not authorized to archive this post.', variant: 'destructive' });
+      return;
+    }
+    const formData = new FormData();
+    formData.append('postId', post.id);
+    formData.append('userId', user.uid); // User performing the action
+    startArchiveTransition(() => handleArchiveAction(formData));
   };
 
   const handleDeleteConfirmed = () => {
@@ -123,8 +155,8 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     }
     const formData = new FormData();
     formData.append('postId', post.id);
-    formData.append('postAuthorId', post.userId);
-    formData.append('currentUserId', user.uid);
+    formData.append('postAuthorId', post.userId); // Author of the post
+    formData.append('currentUserId', user.uid); // User performing the delete
     startDeleteTransition(() => handleDeleteAction(formData));
   };
 
@@ -135,15 +167,18 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const isOwner = user && post.userId && user.uid === post.userId;
 
   return (
+    // Removed cn() and opacity changes for archived posts from article tag to keep design unchanged
     <article className="flex flex-col md:flex-row gap-6 p-4 border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow bg-card">
+      {/* Removed "Archived" badge to keep design unchanged */}
       <Link href={`/posts/${post.id}`} className="md:w-1/3 aspect-[4/3] md:aspect-video overflow-hidden rounded-md block shrink-0">
         <Image
-          src={post.imageUrl || `https://placehold.co/400x300.png?text=${encodeURIComponent(post.title.substring(0,10))}`}
+          src={post.imageUrl || `https://placehold.co/400x300/e2e8f0/64748b?text=${encodeURIComponent(post.title.substring(0,10))}`}
           alt={post.title}
           width={400}
           height={300}
           className="object-cover w-full h-full transition-transform duration-300 hover:scale-105"
           data-ai-hint="article preview"
+          onError={(e) => { e.currentTarget.src = `https://placehold.co/400x300/e2e8f0/64748b?text=No+Image`; }}
         />
       </Link>
       <div className="flex-1 flex flex-col justify-between">
@@ -183,10 +218,10 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
             </form>
 
             <Link href={`/posts/${post.id}#comments`} className="flex items-center hover:text-primary disabled:opacity-70 p-0 h-auto" title="Comment">
-              <MessageCircle className="h-4 w-4 mr-1" /> {optimisticCommentCount}
+              <MessageCircle className="h-4 w-4 mr-1" /> {post.commentCount || 0}
             </Link>
 
-            <button className="flex items-center hover:text-green-500 p-0 h-auto" title="Share">
+            <button className="flex items-center hover:text-green-500 p-0 h-auto" title="Share"> {/* Assuming original share button color was green */}
               <Share2 className="h-4 w-4 mr-1" /> <span className="sr-only">Share</span>
             </button>
           </div>
@@ -210,15 +245,31 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
             {isOwner ? (
               <>
                 <Link href={`/posts/${post.id}/edit`} passHref>
+                  {/* Reverted to original user-provided style */}
                   <Button variant="outline" size="icon" className="h-7 w-7 text-secondary border-secondary hover:bg-secondary hover:text-secondary-foreground focus-visible:ring-ring" title="Edit Post">
                     <Edit3 className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Button variant="outline" size="icon" className="h-7 w-7 text-accent border-accent hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring" title="Archive Post" onClick={handleArchive}>
-                  <Archive className="h-4 w-4" />
+
+                {/* Updated Archive Button for functionality, using original user-provided base style */}
+                <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-7 w-7 text-accent border-accent hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring" // Original base style
+                    title={post.isArchived ? "Unarchive Post" : "Archive Post"} 
+                    onClick={handleArchiveClick}
+                    disabled={isArchivePendingTransition || isArchiveServerPending}
+                >
+                    {(isArchivePendingTransition || isArchiveServerPending) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        post.isArchived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />
+                    )}
                 </Button>
+
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
+                    {/* Reverted to original user-provided style */}
                     <Button variant="outline" size="icon" className="h-7 w-7 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-ring" title="Delete Post">
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -232,7 +283,7 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel disabled={isDeleteActionPending || isDeletePendingTransition}>Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleDeleteConfirmed}
                         disabled={isDeleteActionPending || isDeletePendingTransition}

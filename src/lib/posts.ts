@@ -1,4 +1,3 @@
-
 import {
   collection,
   getDocs,
@@ -9,10 +8,10 @@ import {
   orderBy,
   Timestamp,
   limit,
-  setDoc, // For createPostWithId
-  updateDoc // For updatePost
+  // setDoc, // Not used in this file directly for create/update, actions.ts handles it
+  // updateDoc // Not used in this file directly for create/update, actions.ts handles it
 } from 'firebase/firestore';
-import { db } from './firebase/config';
+import { db } from './firebase/config'; // Assuming this is your Firestore db instance
 import { format } from 'date-fns';
 
 export interface Post {
@@ -27,55 +26,69 @@ export interface Post {
   likedBy: string[];
   likeCount: number;
   commentCount: number;
+  isArchived?: boolean; // Added for archive feature
 }
 
 // Helper to convert Firestore Timestamp to ISO string or return existing string
 const formatTimestamp = (timestamp: any): string => {
-  if (!timestamp) return new Date().toISOString();
+  if (!timestamp) return new Date().toISOString(); // Default to now if null/undefined
   if (timestamp instanceof Timestamp) {
     return timestamp.toDate().toISOString();
   }
   if (typeof timestamp === 'string') {
-    // Attempt to parse if it's a string that might be a date, otherwise return as is or handle error
     const parsedDate = new Date(timestamp);
     if (!isNaN(parsedDate.getTime())) {
       return parsedDate.toISOString();
     }
-    // If it's not a valid date string, log warning and return current time as fallback
-    console.warn('Unexpected string timestamp format, not a valid ISO string or parsable date:', timestamp);
-    return new Date().toISOString();
+    // console.warn('Unexpected string timestamp format, not a valid ISO string or parsable date:', timestamp);
+    // Fallback for strings that are not valid dates but might be stored (should be rare)
+    return timestamp; // Or handle as an error / return a default
   }
-  // For any other type, log warning and return current time
-  console.warn('Unexpected timestamp format:', timestamp, typeof timestamp, 'Returning current date as ISO string.');
-  return new Date().toISOString();
+  // console.warn('Unexpected timestamp format:', timestamp, typeof timestamp, 'Returning current date as ISO string.');
+  return new Date().toISOString(); // Fallback for other unexpected types
 };
 
+// Helper to map Firestore document data to Post interface
+const mapDocToPost = (docSnap: any): Post => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    title: data.title || 'Untitled Post',
+    content: data.content || '',
+    tags: data.tags || [],
+    createdAt: formatTimestamp(data.createdAt),
+    updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+    userId: data.userId,
+    imageUrl: data.imageUrl,
+    likedBy: data.likedBy || [],
+    likeCount: data.likeCount || 0,
+    commentCount: data.commentCount || 0,
+    isArchived: data.isArchived || false, // Default to false if undefined
+  } as Post;
+};
 
+/**
+ * Fetches non-archived posts, ordered by creation date.
+ * @param count Optional number of posts to limit.
+ * @returns A promise that resolves to an array of Post objects.
+ */
 export async function getPosts(count?: number): Promise<Post[]> {
   try {
     const postsCol = collection(db, 'posts');
-    let q = query(postsCol, orderBy('createdAt', 'desc'));
+    // Base query for non-archived posts
+    const queryConstraints = [
+        where('isArchived', '==', false),
+        orderBy('createdAt', 'desc')
+    ];
+
     if (count && count > 0) {
-        q = query(postsCol, orderBy('createdAt', 'desc'), limit(count));
+      queryConstraints.push(limit(count));
     }
+
+    const q = query(postsCol, ...queryConstraints);
     
     const postSnapshot = await getDocs(q);
-    const postsList = postSnapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        title: data.title,
-        content: data.content,
-        tags: data.tags || [],
-        createdAt: formatTimestamp(data.createdAt),
-        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
-        userId: data.userId,
-        imageUrl: data.imageUrl,
-        likedBy: data.likedBy || [],
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-      } as Post;
-    });
+    const postsList = postSnapshot.docs.map(mapDocToPost);
     return postsList;
   } catch (error) {
     console.error("Error fetching posts from Firestore:", error);
@@ -83,6 +96,11 @@ export async function getPosts(count?: number): Promise<Post[]> {
   }
 }
 
+/**
+ * Fetches a single post by its ID (slug), regardless of archive status.
+ * @param id The ID (slug) of the post.
+ * @returns A promise that resolves to a Post object or undefined if not found.
+ */
 export async function getPost(id: string): Promise<Post | undefined> {
   try {
     if (!id || typeof id !== 'string') {
@@ -92,22 +110,9 @@ export async function getPost(id: string): Promise<Post | undefined> {
     const postDocRef = doc(db, 'posts', id);
     const postSnap = await getDoc(postDocRef);
     if (postSnap.exists()) {
-      const data = postSnap.data();
-      return {
-        id: postSnap.id,
-        title: data.title,
-        content: data.content,
-        tags: data.tags || [],
-        createdAt: formatTimestamp(data.createdAt),
-        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
-        userId: data.userId,
-        imageUrl: data.imageUrl,
-        likedBy: data.likedBy || [],
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-      } as Post;
+      return mapDocToPost(postSnap);
     } else {
-      console.log(`No post found with ID: ${id}`);
+      // console.log(`No post found with ID: ${id}`); // Less noisy for 404s
       return undefined;
     }
   } catch (error) {
@@ -116,6 +121,12 @@ export async function getPost(id: string): Promise<Post | undefined> {
   }
 }
 
+/**
+ * Fetches all posts by a specific user ID, including archived posts.
+ * The profile page will handle filtering into "Published" and "Archived" tabs.
+ * @param userId The ID of the user.
+ * @returns A promise that resolves to an array of Post objects.
+ */
 export async function getPostsByUserId(userId: string): Promise<Post[]> {
   if (!userId) {
     console.warn('getPostsByUserId called without userId');
@@ -123,44 +134,35 @@ export async function getPostsByUserId(userId: string): Promise<Post[]> {
   }
   try {
     const postsCol = collection(db, 'posts');
+    // Fetches ALL posts by userId, archive status will be handled by client/profile page
     const q = query(
       postsCol,
       where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
     const postSnapshot = await getDocs(q);
-    return postSnapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        title: data.title,
-        content: data.content,
-        tags: data.tags || [],
-        createdAt: formatTimestamp(data.createdAt),
-        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
-        userId: data.userId,
-        imageUrl: data.imageUrl,
-        likedBy: data.likedBy || [],
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-      } as Post;
-    });
+    return postSnapshot.docs.map(mapDocToPost);
   } catch (error: any) {
     if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
       console.error(
         `Firestore query in getPostsByUserId failed because a composite index is missing. 
-         Please create the index in your Firebase console. 
+         Please create the index in your Firebase console (collection: 'posts', fields: 'userId' (==), 'createdAt' (desc)). 
          The error message usually provides a direct link to create it. 
          Error: ${error.message}`
       );
     } else {
       console.error(`Error fetching posts for user ${userId} from Firestore:`, error);
     }
-    return []; // Return empty array on error to prevent page crash
+    return [];
   }
 }
 
 
+/**
+ * Fetches non-archived posts by a specific tag.
+ * @param tag The tag to filter by.
+ * @returns A promise that resolves to an array of Post objects.
+ */
 export async function getPostsByTag(tag: string): Promise<Post[]> {
   try {
     const decodedTag = decodeURIComponent(tag).toLowerCase();
@@ -168,69 +170,51 @@ export async function getPostsByTag(tag: string): Promise<Post[]> {
     const q = query(
       postsCol,
       where('tags', 'array-contains', decodedTag),
+      where('isArchived', '==', false), // Filter out archived posts
       orderBy('createdAt', 'desc')
     );
     const postSnapshot = await getDocs(q);
-    return postSnapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        title: data.title,
-        content: data.content,
-        tags: data.tags || [],
-        createdAt: formatTimestamp(data.createdAt),
-        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
-        userId: data.userId,
-        imageUrl: data.imageUrl,
-        likedBy: data.likedBy || [],
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-      } as Post;
-    });
+    return postSnapshot.docs.map(mapDocToPost);
   } catch (error) {
     console.error(`Error fetching posts by tag ${tag} from Firestore:`, error);
     return [];
   }
 }
 
-export async function getPostsByArchive(year: number, month: number): Promise<Post[]> { // month is 0-indexed
+/**
+ * Fetches non-archived posts for a specific archive period (year and month).
+ * @param year The year of the archive period.
+ * @param month The month of the archive period (0-indexed).
+ * @returns A promise that resolves to an array of Post objects.
+ */
+export async function getPostsByArchive(year: number, month: number): Promise<Post[]> {
   try {
     const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 1);
+    const endDate = new Date(year, month + 1, 1); // Next month, day 1
 
     const postsCol = collection(db, 'posts');
     const q = query(
       postsCol,
+      where('isArchived', '==', false), // Filter out archived posts
       where('createdAt', '>=', Timestamp.fromDate(startDate)),
       where('createdAt', '<', Timestamp.fromDate(endDate)),
       orderBy('createdAt', 'desc')
     );
     const postSnapshot = await getDocs(q);
-    return postSnapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        title: data.title,
-        content: data.content,
-        tags: data.tags || [],
-        createdAt: formatTimestamp(data.createdAt),
-        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
-        userId: data.userId,
-        imageUrl: data.imageUrl,
-        likedBy: data.likedBy || [],
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-      } as Post;
-    });
-  } catch (error)
-    {
+    return postSnapshot.docs.map(mapDocToPost);
+  } catch (error) {
     console.error(`Error fetching posts for archive ${year}-${month + 1} from Firestore:`, error);
     return [];
   }
 }
 
+/**
+ * Gets all unique tags from non-archived posts.
+ * @returns A promise that resolves to an array of sorted tag strings.
+ */
 export async function getAllTags(): Promise<string[]> {
   try {
+    // getPosts() now fetches only non-archived posts by default
     const posts = await getPosts(); 
     const tagSet = new Set<string>();
     posts.forEach(post => {
@@ -252,8 +236,13 @@ export type ArchivePeriod = {
   count: number;
 };
 
+/**
+ * Gets archive periods (year, month, count) based on non-archived posts.
+ * @returns A promise that resolves to an array of ArchivePeriod objects.
+ */
 export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
    try {
+    // getPosts() now fetches only non-archived posts by default
     const posts = await getPosts(); 
     const periodsMap = new Map<string, ArchivePeriod>();
     posts.forEach(post => {
@@ -261,7 +250,7 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
         const date = new Date(post.createdAt);
         const year = date.getFullYear();
         const month = date.getMonth(); // 0-indexed
-        const monthName = format(date, 'MMMM');
+        const monthName = format(date, 'MMMM'); // e.g., "January"
         const key = `${year}-${month}`;
 
         if (periodsMap.has(key)) {
@@ -286,6 +275,7 @@ export async function getArchivePeriods(): Promise<ArchivePeriod[]> {
 
 
 export function generateSlug(title: string): string {
+  if (!title) return '';
   return title
     .toLowerCase()
     .replace(/\s+/g, '-') 
@@ -307,55 +297,40 @@ export async function isSlugUnique(slug: string): Promise<boolean> {
   }
 }
 
+/**
+ * Fetches non-archived posts liked by a specific user.
+ * @param userId The ID of the user.
+ * @returns A promise that resolves to an array of Post objects.
+ */
 export async function getLikedPostsByUser(userId: string): Promise<Post[]> {
   if (!userId) {
     console.warn('[getLikedPostsByUser] Called without userId');
     return [];
   }
-  console.log(`[getLikedPostsByUser] Fetching posts liked by userId: ${userId}`);
+  // console.log(`[getLikedPostsByUser] Fetching posts liked by userId: ${userId}`);
   try {
     const postsCol = collection(db, 'posts');
-    // Consider ordering by a field related to when the post was liked if available,
-    // otherwise ordering by post creation date is a reasonable default.
     const q = query(
       postsCol,
       where('likedBy', 'array-contains', userId),
-      orderBy('createdAt', 'desc') // Or some other relevant ordering
+      where('isArchived', '==', false), // Filter out archived posts
+      orderBy('createdAt', 'desc') 
     );
     const postSnapshot = await getDocs(q);
-    const likedPostsList = postSnapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        title: data.title,
-        content: data.content,
-        tags: data.tags || [],
-        createdAt: formatTimestamp(data.createdAt),
-        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
-        userId: data.userId,
-        imageUrl: data.imageUrl,
-        likedBy: data.likedBy || [],
-        likeCount: data.likeCount || 0,
-        commentCount: data.commentCount || 0,
-      } as Post;
-    });
-    console.log(`[getLikedPostsByUser] Found ${likedPostsList.length} posts liked by userId: ${userId}`);
+    const likedPostsList = postSnapshot.docs.map(mapDocToPost);
+    // console.log(`[getLikedPostsByUser] Found ${likedPostsList.length} posts liked by userId: ${userId}`);
     return likedPostsList;
   } catch (error: any) {
     if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
       console.error(
         `Firestore query in getLikedPostsByUser failed because a composite index is missing. 
-         Please create the index in your Firebase console (collection: 'posts', fields: 'likedBy' (array-contains), 'createdAt' (descending)). 
+         Please create the index in your Firebase console (collection: 'posts', fields: 'likedBy' (array-contains), 'isArchived' (==), 'createdAt' (desc)). 
          The error message usually provides a direct link to create it. 
          Error: ${error.message}`
       );
-      // Example to generate the link manually if needed (replace YOUR_PROJECT_ID):
-      // const manualIndexLink = `https://console.firebase.google.com/project/YOUR_PROJECT_ID/firestore/indexes?create_composite=projects%2FYOUR_PROJECT_ID%2Fdatabases%2F(default)%2FcollectionGroups%2Fposts%2Findexes%2F_EAEaCwoHbGlrZWRCeRgDGg0KCWNyZWF0ZWRBdBACGgwKCF9fbmFtZV9fEAI`;
-      // console.log("Manual index creation link hint:", manualIndexLink);
     } else {
       console.error(`Error fetching posts liked by user ${userId} from Firestore:`, error);
     }
     return [];
   }
 }
-

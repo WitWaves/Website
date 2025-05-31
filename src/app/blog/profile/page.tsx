@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useActionState, useTransition, useRef } from 'react';
@@ -7,15 +6,14 @@ import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
+// import { Separator } from '@/components/ui/separator'; // Not used
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, ImageUp, TagsIcon, Loader2 } from 'lucide-react';
+import { Settings2, X, Instagram, Linkedin, Briefcase, UserCircle, Github, Link as LinkIcon, Heart, MessageSquareIcon, Edit3, Globe, Users, FileCheck2, ImageUp, TagsIcon, Loader2, FileText, FileArchive, FileEdit } from 'lucide-react'; // Added icons for post sub-tabs
 import BlogPostCard from '@/components/posts/blog-post-card';
-// import PostCard from '@/components/posts/post-card'; // No longer used directly for liked posts here
-import { getPosts, type Post, getLikedPostsByUser } from '@/lib/posts';
+import { getPostsByUserId, type Post, getLikedPostsByUser } from '@/lib/posts'; // Changed getPosts to getPostsByUserId
 import type { AuthorProfileForCard, UserProfile, SocialLinks } from '@/lib/userProfile';
 import { useAuth } from '@/contexts/auth-context';
 import { updateUserProfileAction, type FormState } from '@/app/actions';
@@ -28,6 +26,7 @@ import { getCommentsByUser, type UserActivityComment } from '@/lib/comments';
 import { format } from 'date-fns';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 
 const socialIcons: Record<keyof Required<SocialLinks>, typeof LinkIcon> = {
@@ -39,18 +38,22 @@ const socialIcons: Record<keyof Required<SocialLinks>, typeof LinkIcon> = {
 };
 
 const staticProfileStats = {
-    following: 45,
-    followers: 45,
+    following: 45, // Placeholder
+    followers: 45, // Placeholder
 };
 
-// const topInterestsStatic = ["Web", "Web Design", "Programming", "Art", "Maths"]; // Removed, will be dynamic
+const postsSubTabs = [
+    { id: "published", label: "Published", icon: FileText },
+    { id: "archived", label: "Archived", icon: FileArchive },
+    { id: "drafts", label: "Drafts", icon: FileEdit },
+];
 const activitySubTabs = [{id: "liked", label: "Liked"}, {id: "comments", label: "Comments"}];
 
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [userPosts, setUserPosts] = useState<Post[]>([]); // Will hold all posts by user
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [customProfile, setCustomProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -72,12 +75,14 @@ export default function ProfilePage() {
   const [isLoadingLikedPosts, setIsLoadingLikedPosts] = useState(false);
   const [userComments, setUserComments] = useState<UserActivityComment[]>([]);
   const [isLoadingUserComments, setIsLoadingUserComments] = useState(false);
-  const [activeActivityTab, setActiveActivityTab] = useState<string>("posts");
+  
+  const [activeMainTab, setActiveMainTab] = useState<string>("posts"); // For main tabs: "posts", "activity"
+  const [activePostsSubTab, setActivePostsSubTab] = useState<string>(postsSubTabs[0].id); // For sub-tabs under "Posts"
   const [activeActivitySubTab, setActiveActivitySubTab] = useState<string>(activitySubTabs[0].id);
 
 
   useEffect(() => {
-    async function fetchAndFilterPosts() {
+    async function fetchUserPostsData() { // Renamed function
       if (authLoading) return;
       if (!user?.uid) {
         setIsLoadingPosts(false);
@@ -85,36 +90,33 @@ export default function ProfilePage() {
         return;
       }
       setIsLoadingPosts(true);
-      console.log('[ProfilePage] Fetching posts for user:', user.uid);
+      console.log('[ProfilePage] Fetching all posts for user (incl. archived):', user.uid);
       try {
-        const allPosts = await getPosts();
-        console.log('[ProfilePage] All posts fetched for profile consideration:', allPosts);
-        const filteredPosts = allPosts.filter(post => post.userId === user.uid);
-        console.log('[ProfilePage] Filtered posts for current user:', filteredPosts);
-        setUserPosts(filteredPosts);
+        // Use getPostsByUserId to fetch all posts by the user
+        const allUserPosts = await getPostsByUserId(user.uid); 
+        console.log('[ProfilePage] All posts fetched for current user via getPostsByUserId:', allUserPosts);
+        setUserPosts(allUserPosts);
       } catch (error) {
         console.error("[ProfilePage] Error fetching user posts:", error);
         setUserPosts([]);
+        toast({ title: "Error", description: "Could not load your posts.", variant: "destructive" });
       } finally {
         setIsLoadingPosts(false);
       }
     }
-    fetchAndFilterPosts();
-  }, [user, authLoading]);
+    fetchUserPostsData();
+  }, [user, authLoading, toast]); // Added toast to dependencies
 
   useEffect(() => {
     async function fetchCustomProfile() {
       if (authLoading) return;
       if (user?.uid) {
         setIsLoadingProfile(true);
-        console.log('[ProfilePage] Fetching custom profile for user:', user.uid);
         try {
           const profileDataFromDb = await getUserProfile(user.uid);
-          console.log('[ProfilePage] Custom profile data from DB:', profileDataFromDb);
           if (profileDataFromDb) {
             setCustomProfile(profileDataFromDb);
           } else {
-            console.log('[ProfilePage] No custom profile in DB, creating fallback from Auth data.');
             setCustomProfile({
               uid: user.uid,
               displayName: user.displayName || "User",
@@ -127,7 +129,7 @@ export default function ProfilePage() {
           }
         } catch (error) {
             console.error("[ProfilePage] Error fetching custom profile:", error);
-            setCustomProfile({ // Fallback on error
+            setCustomProfile({ 
               uid: user.uid,
               displayName: user.displayName || "User",
               photoURL: user.photoURL || undefined,
@@ -157,19 +159,16 @@ export default function ProfilePage() {
       setSelectedFile(null);
       setPreviewUrl(null);
       if (user?.uid) {
-        console.log('[ProfilePage] Re-fetching custom profile after successful edit for user:', user.uid);
         getUserProfile(user.uid).then(profileDataFromDb => {
             if (profileDataFromDb) {
                 setCustomProfile(profileDataFromDb);
-            } else {
+            } else { // Fallback if somehow profile is gone after update
                  setCustomProfile({
                     uid: user.uid,
                     displayName: auth.currentUser?.displayName || user.displayName || "User",
                     photoURL: auth.currentUser?.photoURL || user.photoURL || undefined,
                     username: user.email?.split('@')[0] || 'username',
-                    bio: "",
-                    socialLinks: {},
-                    interests: [],
+                    bio: "", socialLinks: {}, interests: [],
                 });
             }
         });
@@ -184,42 +183,28 @@ export default function ProfilePage() {
   }, [editProfileState, toast, user]);
 
   useEffect(() => {
-    if (activeActivityTab === 'activity' && user?.uid) {
-      console.log('[ProfilePage] Activity tab active, fetching data for user:', user.uid);
-
+    if (activeMainTab === 'activity' && user?.uid) {
       setIsLoadingLikedPosts(true);
       getLikedPostsByUser(user.uid)
-        .then(data => {
-          console.log('[ProfilePage] Fetched liked posts data (client-side):', data);
-          setLikedPosts(data);
-        })
+        .then(data => setLikedPosts(data))
         .catch(err => {
           console.error("[ProfilePage] Error fetching liked posts (client-side):", err);
-          toast({ title: "Error Loading Liked Posts", description: "Could not load your liked posts. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
+          toast({ title: "Error Loading Liked Posts", description: "Could not load your liked posts.", variant: "destructive" });
           setLikedPosts([]);
         })
-        .finally(() => {
-          console.log('[ProfilePage] Finished fetching liked posts.');
-          setIsLoadingLikedPosts(false);
-        });
+        .finally(() => setIsLoadingLikedPosts(false));
 
       setIsLoadingUserComments(true);
       getCommentsByUser(user.uid)
-        .then(data => {
-          console.log('[ProfilePage] Fetched user comments data (client-side):', data);
-          setUserComments(data);
-        })
+        .then(data => setUserComments(data))
         .catch(err => {
           console.error("[ProfilePage] Error fetching user comments (client-side):", err);
-          toast({ title: "Error Loading Your Comments", description: "Could not load your comments. Check browser and server console logs for Firestore errors (rules or missing indexes might be the cause).", variant: "destructive" });
+          toast({ title: "Error Loading Your Comments", description: "Could not load your comments.", variant: "destructive" });
           setUserComments([]);
         })
-        .finally(() => {
-          console.log('[ProfilePage] Finished fetching user comments.');
-          setIsLoadingUserComments(false);
-        });
+        .finally(() => setIsLoadingUserComments(false));
     }
-  }, [activeActivityTab, user?.uid, toast]);
+  }, [activeMainTab, user?.uid, toast]);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,14 +244,13 @@ export default function ProfilePage() {
             },
             async () => {
               newPhotoURL = await getDownloadURL(uploadTask.snapshot.ref);
-              console.log('File available at', newPhotoURL);
               resolve();
             }
           );
         });
       } catch (error) {
         setIsUploading(false);
-        return;
+        return; 
       } finally {
         setIsUploading(false);
       }
@@ -282,11 +266,9 @@ export default function ProfilePage() {
       authProfileUpdates.photoURL = null;
     }
 
-
     if (Object.keys(authProfileUpdates).length > 0 && auth.currentUser) {
       try {
         await updateFirebaseAuthProfile(auth.currentUser, authProfileUpdates);
-        console.log("Firebase Auth profile updated with:", authProfileUpdates);
       } catch (error) {
         console.error("Error updating Firebase Auth profile:", error);
         toast({ title: "Auth Update Error", description: `Failed to update Firebase Auth profile. ${ (error as Error).message }`, variant: "destructive" });
@@ -320,13 +302,24 @@ export default function ProfilePage() {
       }))
     : [];
 
+  // Filter posts based on the active sub-tab for "Posts"
+  const publishedPosts = userPosts.filter(post => !post.isArchived);
+  const archivedPosts = userPosts.filter(post => post.isArchived);
+
+  let postsToDisplay: Post[] = [];
+  if (activePostsSubTab === "published") {
+    postsToDisplay = publishedPosts;
+  } else if (activePostsSubTab === "archived") {
+    postsToDisplay = archivedPosts;
+  }
+
   const authorForCards: AuthorProfileForCard = {
-    uid: user?.uid || 'mock-user-id',
+    uid: user?.uid || 'mock-user-id', // Should always have user here if this component renders
     displayName: customProfile?.displayName || user?.displayName || 'WitWaves User',
     photoURL: customProfile?.photoURL || user?.photoURL,
   };
 
-  if (authLoading || (user && (isLoadingProfile || isLoadingPosts))) {
+  if (authLoading || (user && (isLoadingProfile))) { // Removed isLoadingPosts from here as content is tab-dependent
     return (
       <div className="flex flex-col justify-center items-center h-screen">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -351,11 +344,12 @@ export default function ProfilePage() {
         <Card className="shadow-lg rounded-xl overflow-hidden relative">
           <div className="relative h-32 md:h-36 bg-muted">
             <Image
-              src="https://placehold.co/400x150.png"
+              src="https://images.unsplash.com/photo-1526660690207-adaebd1dc233?q=80&w=1000&auto=format&fit=crop" // Example bg
               alt="Profile background decorative"
               layout="fill"
               objectFit="cover"
               data-ai-hint="abstract waves"
+              priority
             />
             <Avatar className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-24 w-24 md:h-28 md:w-28 border-4 border-card shadow-md">
               <AvatarImage src={currentAvatarUrl} alt={displayName} data-ai-hint="person fashion"/>
@@ -366,7 +360,7 @@ export default function ProfilePage() {
           <div className="pt-16 pb-6 px-6 text-center relative">
             <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
                 setIsEditModalOpen(isOpen);
-                if (!isOpen) {
+                if (!isOpen) { // Reset file input when dialog closes
                     setSelectedFile(null);
                     setPreviewUrl(null);
                     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -391,7 +385,7 @@ export default function ProfilePage() {
                       </Avatar>
                       <Input
                         id="photoURLForm"
-                        name="photoFile"
+                        name="photoFile" 
                         type="file"
                         accept="image/*"
                         onChange={handleFileChange}
@@ -448,7 +442,7 @@ export default function ProfilePage() {
                     <Input id="linkedinForm" name="linkedin" defaultValue={customProfile?.socialLinks?.linkedin || ''} placeholder="https://linkedin.com/in/yourprofile" />
                     {editProfileState?.errors?.linkedin && <p className="text-sm text-destructive mt-1">{editProfileState.errors.linkedin.join(', ')}</p>}
                   </div>
-                  <div>
+                   <div>
                     <Label htmlFor="instagramForm">Instagram URL</Label>
                     <Input id="instagramForm" name="instagram" defaultValue={customProfile?.socialLinks?.instagram || ''} placeholder="https://instagram.com/yourprofile" />
                     {editProfileState?.errors?.instagram && <p className="text-sm text-destructive mt-1">{editProfileState.errors.instagram.join(', ')}</p>}
@@ -463,18 +457,18 @@ export default function ProfilePage() {
                     <Input id="githubForm" name="github" defaultValue={customProfile?.socialLinks?.github || ''} placeholder="https://github.com/yourusername" />
                      {editProfileState?.errors?.github && <p className="text-sm text-destructive mt-1">{editProfileState.errors.github.join(', ')}</p>}
                   </div>
-                  {editProfileState?.message && !editProfileState.success && (!editProfileState.errors || Object.keys(editProfileState.errors).length === 0 || (Object.keys(editProfileState.errors).length === 1 && editProfileState.errors.photoURL)) && (
-                     <p className="text-sm text-destructive mt-1">{editProfileState.message}</p>
+                  {editProfileState?.message && !editProfileState.success && (!editProfileState.errors || Object.keys(editProfileState.errors).length === 0 || (Object.keys(editProfileState.errors).length === 1 && editProfileState.errors.photoURL )) && (
+                       <p className="text-sm text-destructive mt-1">{editProfileState.message}</p>
                   )}
                    {editProfileState?.errors?.photoURL && <p className="text-sm text-destructive mt-1">{editProfileState.errors.photoURL.join(', ')}</p>}
                   <DialogFooter>
                       <DialogClose asChild>
-                          <Button type="button" variant="outline" onClick={() => {
-                              setIsEditModalOpen(false);
-                              setSelectedFile(null);
-                              setPreviewUrl(null);
-                              if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}>Cancel</Button>
+                        <Button type="button" variant="outline" onClick={() => {
+                            setIsEditModalOpen(false);
+                            setSelectedFile(null);
+                            setPreviewUrl(null);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}>Cancel</Button>
                       </DialogClose>
                       <Button type="submit" disabled={isEditPending || isEditPendingTransition || isUploading}>
                           {(isEditPending || isEditPendingTransition || isUploading) ? (
@@ -499,7 +493,9 @@ export default function ProfilePage() {
                 <p className="text-xs text-muted-foreground">Followers</p>
               </div>
               <div>
-                <p className="font-semibold text-lg text-foreground">{isLoadingPosts ? <Loader2 className="h-5 w-5 animate-spin inline text-primary" /> : userPosts.length}</p>
+                <p className="font-semibold text-lg text-foreground">
+                    {isLoadingPosts && activeMainTab === 'posts' ? <Loader2 className="h-5 w-5 animate-spin inline text-primary" /> : userPosts.length}
+                </p>
                 <p className="text-xs text-muted-foreground">Posts</p>
               </div>
             </div>
@@ -541,7 +537,7 @@ export default function ProfilePage() {
       </aside>
 
       <main className="flex-1 min-w-0">
-        <Tabs defaultValue="posts" className="w-full" onValueChange={setActiveActivityTab}>
+        <Tabs defaultValue="posts" className="w-full" onValueChange={setActiveMainTab}>
           <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50 p-1 rounded-lg border">
             <TabsTrigger value="posts" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Posts</TabsTrigger>
             <TabsTrigger value="activity" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">Activity</TabsTrigger>
@@ -549,103 +545,139 @@ export default function ProfilePage() {
 
           <TabsContent value="posts">
             <div className="mb-4 flex space-x-1 border border-border rounded-lg p-1 bg-muted/50 w-fit">
-              {["Published", "Drafts", "Archived"].map((tab, index) => (
+              {postsSubTabs.map((subTab) => (
                 <Button
-                  key={tab}
-                  variant={index === 0 ? "secondary" : "ghost"}
+                  key={subTab.id}
+                  variant={activePostsSubTab === subTab.id ? "secondary" : "ghost"}
                   size="sm"
-                  className={index === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}
+                  onClick={() => setActivePostsSubTab(subTab.id)}
+                  className={cn(
+                    "px-3 py-1.5 h-auto",
+                    activePostsSubTab === subTab.id 
+                      ? "bg-background text-foreground shadow-sm" 
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  )}
                 >
-                  {tab}
+                  <subTab.icon className="mr-1.5 h-4 w-4" /> {subTab.label}
                 </Button>
               ))}
             </div>
+            
             {isLoadingPosts ? (
               <div className="flex flex-col justify-center items-center h-40">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                  <p className="ml-3 mt-2">Loading posts...</p>
               </div>
-            ) : userPosts.length === 0 ? (
-              <p className="text-center text-muted-foreground text-lg py-12">
-                You haven&apos;t published any posts yet. <Link href="/posts/new" className="text-primary hover:underline">Create one!</Link>
-              </p>
             ) : (
-              <div className="space-y-8">
-                {userPosts.map((post) => (
-                   <BlogPostCard key={post.id} post={post} author={authorForCards} />
-                ))}
-              </div>
+              <>
+                {activePostsSubTab === "published" && (
+                  publishedPosts.length === 0 ? (
+                    <p className="text-center text-muted-foreground text-lg py-12">
+                      You haven&apos;t published any posts yet. <Link href="/posts/new" className="text-primary hover:underline">Create one!</Link>
+                    </p>
+                  ) : (
+                    <div className="space-y-8">
+                      {publishedPosts.map((post) => (
+                          <BlogPostCard key={post.id} post={post} author={authorForCards} />
+                      ))}
+                    </div>
+                  )
+                )}
+                {activePostsSubTab === "archived" && (
+                  archivedPosts.length === 0 ? (
+                    <p className="text-center text-muted-foreground text-lg py-12">
+                      You have no archived posts.
+                    </p>
+                  ) : (
+                    <div className="space-y-8">
+                      {archivedPosts.map((post) => (
+                          <BlogPostCard key={post.id} post={post} author={authorForCards} />
+                      ))}
+                    </div>
+                  )
+                )}
+                {activePostsSubTab === "drafts" && (
+                  <p className="text-center text-muted-foreground text-lg py-12">
+                    Drafts feature coming soon!
+                  </p>
+                )}
+              </>
             )}
           </TabsContent>
 
           <TabsContent value="activity">
-            <Card className="p-0 border-0 shadow-none">
+            <Card className="p-0 border-0 shadow-none"> {/* Changed from p-6 to p-0 or adjust as needed */}
                 <div className="mb-4 flex space-x-1 border border-border rounded-lg p-1 bg-muted/50 w-fit">
-                  {activitySubTabs.map((subTab) => (
+                    {activitySubTabs.map((subTab) => (
                     <Button
-                      key={subTab.id}
-                      variant={activeActivitySubTab === subTab.id ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setActiveActivitySubTab(subTab.id)}
-                      className={activeActivitySubTab === subTab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}
+                        key={subTab.id}
+                        variant={activeActivitySubTab === subTab.id ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setActiveActivitySubTab(subTab.id)}
+                        className={cn(
+                            "px-3 py-1.5 h-auto",
+                            activeActivitySubTab === subTab.id 
+                            ? "bg-background text-foreground shadow-sm" 
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        )}
                     >
-                      {subTab.label}
+                        {subTab.label}
                     </Button>
-                  ))}
+                    ))}
                 </div>
 
                 {activeActivitySubTab === 'liked' && (
                   <section>
-                     <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
-                     {isLoadingLikedPosts ? (
-                         <div className="flex flex-col justify-center items-center h-40">
-                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                            <p className="ml-3 mt-2">Loading liked posts...</p>
-                         </div>
-                    ) : likedPosts.length === 0 ? (
-                        <p className="text-muted-foreground text-sm py-4">Your liked posts will appear here.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {likedPosts.map(post => (
-                                <div key={post.id} className="p-3 border rounded-md bg-muted/50 text-sm">
-                                    <p className="mb-1 text-foreground/80">
-                                        You liked <Link href={`/posts/${post.id}`} className="text-primary hover:underline font-medium">{post.title}</Link>
-                                    </p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Originally published on: {format(new Date(post.createdAt), 'MMM d, yyyy')}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Liked Posts</h3>
+                      {isLoadingLikedPosts ? (
+                           <div className="flex flex-col justify-center items-center h-40">
+                             <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                              <p className="ml-3 mt-2">Loading liked posts...</p>
+                           </div>
+                      ) : likedPosts.length === 0 ? (
+                          <p className="text-muted-foreground text-sm py-4">Your liked posts will appear here.</p>
+                      ) : (
+                          <div className="space-y-3">
+                              {likedPosts.map(post => (
+                                  <div key={post.id} className="p-3 border rounded-md bg-muted/50 text-sm">
+                                      <p className="mb-1 text-foreground/80">
+                                          You liked <Link href={`/posts/${post.id}`} className="text-primary hover:underline font-medium">{post.title}</Link>
+                                      </p>
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                          Originally published on: {format(new Date(post.createdAt), 'MMM d, yyyy')}
+                                      </p>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
                   </section>
                 )}
 
                 {activeActivitySubTab === 'comments' && (
                   <section>
-                     <h3 className="text-md font-medium mb-3 text-muted-foreground">Your Comments</h3>
-                     {isLoadingUserComments ? (
-                        <div className="flex flex-col justify-center items-center h-40">
+                      <h3 className="text-md font-medium mb-3 text-muted-foreground">Your Comments</h3>
+                      {isLoadingUserComments ? (
+                          <div className="flex flex-col justify-center items-center h-40">
                             <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                            <p className="ml-3 mt-2">Loading your comments...</p>
-                        </div>
-                    ) : userComments.length === 0 ? (
-                        <p className="text-muted-foreground text-sm py-4">You haven&apos;t made any comments yet.</p>
-                    ) : (
-                        <div className="space-y-4">
-                            {userComments.map(comment => (
-                                <div key={comment.id} className="p-3 border rounded-md bg-muted/50 text-sm">
-                                    <p className="mb-1 text-foreground/80">
-                                        You commented on <Link href={`/posts/${comment.postSlug || comment.postId}`} className="text-primary hover:underline font-medium">{comment.postTitle || `Post ID: ${comment.postId}`}</Link>:
-                                    </p>
-                                    <blockquote className="pl-3 border-l-2 border-border italic text-foreground">
-                                        "{comment.text.length > 100 ? `${comment.text.substring(0, 100)}...` : comment.text}"
-                                    </blockquote>
-                                    <p className="text-xs text-muted-foreground mt-1.5">{format(new Date(comment.createdAt), 'MMM d, yyyy, HH:mm')}</p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                             <p className="ml-3 mt-2">Loading your comments...</p>
+                          </div>
+                      ) : userComments.length === 0 ? (
+                          <p className="text-muted-foreground text-sm py-4">You haven&apos;t made any comments yet.</p>
+                      ) : (
+                          <div className="space-y-4">
+                              {userComments.map(comment => (
+                                  <div key={comment.id} className="p-3 border rounded-md bg-muted/50 text-sm">
+                                      <p className="mb-1 text-foreground/80">
+                                          You commented on <Link href={`/posts/${comment.postSlug || comment.postId}`} className="text-primary hover:underline font-medium">{comment.postTitle || `Post ID: ${comment.postId}`}</Link>:
+                                      </p>
+                                      <blockquote className="pl-3 border-l-2 border-border italic text-foreground">
+                                          "{comment.text.length > 100 ? `${comment.text.substring(0, 100)}...` : comment.text}"
+                                      </blockquote>
+                                      <p className="text-xs text-muted-foreground mt-1.5">{format(new Date(comment.createdAt), 'MMM d, yyyy, HH:mm')}</p>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
                   </section>
                 )}
             </Card>
@@ -655,7 +687,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
-
-    

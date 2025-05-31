@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { createPostAction, updatePostAction, getAISuggestedTagsAction, type FormState }
+import { createPostAction, updatePostAction, getAISuggestedTagsAction, deleteUserImageAction, type FormState }
   from '@/app/actions';
 import type { Post } from '@/lib/posts';
 import { getAllTags } from '@/lib/posts';
@@ -20,8 +20,8 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { storage } from '@/lib/firebase/config';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase/config'; // Storage instance for uploads
+import { ref as storageFileRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'; // Renamed 'storageRef' to avoid conflict
 import imageCompression from 'browser-image-compression';
 import {
   Dialog,
@@ -31,6 +31,16 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { recordUserImageUpload, getRecentUserImages, type UserUploadedImage } from '@/lib/imageUploads';
 
@@ -99,33 +109,34 @@ export default function PostForm({ post }: PostFormProps) {
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(post?.imageUrl || null);
   const [isProcessingImage, setIsProcessingImage] = useState<boolean>(false);
   const [imageUploadProgress, setImageUploadProgress] = useState<number>(0);
-  
+
   const [imageDialogState, setImageDialogState] = useState<{
     isOpen: boolean;
     target: 'thumbnail' | 'quill' | null;
     quillRange: any | null;
   }>({ isOpen: false, target: null, quillRange: null });
-  
+
   const genericFileInputRef = useRef<HTMLInputElement>(null);
   const [previousUploads, setPreviousUploads] = useState<UserUploadedImage[]>([]);
   const [isLoadingPreviousUploads, setIsLoadingPreviousUploads] = useState(false);
 
+  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+  const [imageToDelete, setImageToDelete] = useState<UserUploadedImage | null>(null);
+
+
   useEffect(() => {
     if (post?.tags) {
       setCurrentTags(post.tags);
-    } else if (!post) { 
+    } else if (!post) {
       setCurrentTags([]);
     }
-    // If post is defined but post.tags is empty or undefined,
-    // currentTags will be initialized to [] by useState, so no specific handling needed here.
   }, [post]);
 
-  // Moved fetchUserImages definition before processAndUploadFile
   const fetchUserImages = useCallback(async () => {
     if (user?.uid) {
         setIsLoadingPreviousUploads(true);
         try {
-            const images = await getRecentUserImages(user.uid, 12); 
+            const images = await getRecentUserImages(user.uid, 12);
             setPreviousUploads(images);
         } catch (error) {
             console.error("Error fetching user's previous uploads:", error);
@@ -143,7 +154,7 @@ export default function PostForm({ post }: PostFormProps) {
       createToast({ title: "Error", description: "User not logged in or editor not ready.", variant: "destructive" });
       return;
     }
-    
+
     setIsProcessingImage(true);
     setImageUploadProgress(0);
     const toastId = `image-process-${Date.now()}`;
@@ -159,7 +170,7 @@ export default function PostForm({ post }: PostFormProps) {
       const optimizationOptions: imageCompression.Options = target === 'thumbnail'
         ? { maxSizeMB: 0.5, maxWidthOrHeight: 800, useWebWorker: true, initialQuality: 0.7 }
         : { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: true, initialQuality: 0.75 };
-      
+
       const optimizedFile = await optimizeImageFile(file, optimizationOptions);
       console.log(`[PostForm ProcessAndUpload] Image optimized for ${target}:`, optimizedFile.name);
 
@@ -171,12 +182,11 @@ export default function PostForm({ post }: PostFormProps) {
       });
 
       const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      // Modified imageFilePath to use the common 'userUploads' folder
       const imageFilePath = `userUploads/${user.uid}/${uniqueId}-${optimizedFile.name}`;
-      
+
       console.log(`[PostForm ProcessAndUpload] Upload path: ${imageFilePath}`);
-      const imageFileRef = storageRef(storage, imageFilePath);
-      const uploadTask = uploadBytesResumable(imageFileRef, optimizedFile);
+      const imageFileRefInstance = storageFileRef(storage, imageFilePath); // Using renamed import
+      const uploadTask = uploadBytesResumable(imageFileRefInstance, optimizedFile);
 
       const downloadURL = await new Promise<string>((resolve, reject) => {
         uploadTask.on('state_changed',
@@ -201,7 +211,7 @@ export default function PostForm({ post }: PostFormProps) {
             try {
               const url = await getDownloadURL(uploadTask.snapshot.ref);
               console.log(`[PostForm ProcessAndUpload] Download URL for ${target} obtained:`, url);
-              
+
               await recordUserImageUpload({
                 userId: user.uid,
                 storagePath: imageFilePath,
@@ -210,16 +220,16 @@ export default function PostForm({ post }: PostFormProps) {
                 mimeType: optimizedFile.type,
               });
               if (imageDialogState.isOpen) {
-                  fetchUserImages(); // This call is now valid
+                  fetchUserImages();
               }
 
               dismiss(toastId);
               resolve(url);
             } catch (recordError: any) {
               console.error(`[PostForm ProcessAndUpload] Error recording image metadata for ${target}:`, recordError);
-              dismiss(toastId); 
+              dismiss(toastId);
               createToast({ title: "Metadata Error", description: `Image uploaded, but failed to record metadata: ${recordError.message}`, variant: "destructive" });
-              resolve(await getDownloadURL(uploadTask.snapshot.ref)); 
+              resolve(await getDownloadURL(uploadTask.snapshot.ref)); // Still resolve with URL if metadata fails
             }
           }
         );
@@ -228,7 +238,7 @@ export default function PostForm({ post }: PostFormProps) {
       if (target === 'thumbnail') {
         setThumbnailPreviewUrl(downloadURL);
         if (uploadedThumbnailUrlHiddenInputRef.current) {
-               uploadedThumbnailUrlHiddenInputRef.current.value = downloadURL;
+            uploadedThumbnailUrlHiddenInputRef.current.value = downloadURL;
         }
         createToast({ title: "Thumbnail Set", description: "Thumbnail image uploaded and preview updated.", variant: "default" });
       } else if (target === 'quill' && quillRangeToInsert && quillInstanceRef.current) {
@@ -236,7 +246,7 @@ export default function PostForm({ post }: PostFormProps) {
         quillInstanceRef.current.setSelection(quillRangeToInsert.index + 1);
         createToast({ title: "Image Inserted", description: `${optimizedFile.name} inserted into post.`, variant: "default" });
       }
-      setImageDialogState({ isOpen: false, target: null, quillRange: null }); 
+      setImageDialogState({ isOpen: false, target: null, quillRange: null });
 
     } catch (error: any) {
       console.error(`[PostForm ProcessAndUpload] Error during image processing/upload for ${target}:`, error);
@@ -247,7 +257,7 @@ export default function PostForm({ post }: PostFormProps) {
       setImageUploadProgress(0);
       if (genericFileInputRef.current) genericFileInputRef.current.value = '';
     }
-  }, [user, post?.id, createToast, dismiss, imageDialogState.isOpen, fetchUserImages]);
+  }, [user, createToast, dismiss, imageDialogState.isOpen, fetchUserImages]); // Removed post?.id as it's not directly used for new uploads
 
 
   const handleFileSelectedViaDialog = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,7 +269,7 @@ export default function PostForm({ post }: PostFormProps) {
       if (genericFileInputRef.current) genericFileInputRef.current.value = '';
     }
   };
-  
+
   const openImageUploadDialog = (target: 'thumbnail' | 'quill') => {
     if (!user?.uid) {
       createToast({ title: "Authentication Required", description: "Please log in to add images.", variant: "destructive" });
@@ -270,7 +280,7 @@ export default function PostForm({ post }: PostFormProps) {
       quillRange = quillInstanceRef.current.getSelection(true) || { index: quillInstanceRef.current.getLength(), length: 0 };
     }
     setImageDialogState({ isOpen: true, target, quillRange });
-    fetchUserImages(); 
+    fetchUserImages();
   };
 
   const handlePreviousImageSelect = (image: UserUploadedImage) => {
@@ -287,11 +297,11 @@ export default function PostForm({ post }: PostFormProps) {
       quillInstanceRef.current.setSelection(imageDialogState.quillRange.index + 1);
       createToast({ title: "Image Inserted", description: "Selected image inserted into post.", variant: "default" });
     }
-    setImageDialogState({ isOpen: false, target: null, quillRange: null }); 
+    setImageDialogState({ isOpen: false, target: null, quillRange: null });
   };
 
 
-  const localImageHandler = useCallback(() => { 
+  const localImageHandler = useCallback(() => {
     if (!user?.uid) {
       createToast({ title: "Authentication Required", description: "Please log in to add images.", variant: "destructive" });
       return;
@@ -321,11 +331,11 @@ export default function PostForm({ post }: PostFormProps) {
                 [{ 'direction': 'rtl' }],
                 [{ 'color': [] }, { 'background': [] }],
                 [{ 'align': [] }],
-                ['link', 'image', 'video'], 
+                ['link', 'image', 'video'],
                 ['clean']
               ],
               handlers: {
-                'image': localImageHandler 
+                'image': localImageHandler
               }
             },
           },
@@ -390,15 +400,13 @@ export default function PostForm({ post }: PostFormProps) {
         return;
     }
     formData.set('content', quillContent);
-    
-    // --- START: ADDED LOGS FOR DEBUGGING TAGS ---
+
     console.log('[PostForm] currentTags state before formData.set:', currentTags);
-    formData.set('tags', currentTags.join(',')); 
+    formData.set('tags', currentTags.join(','));
     console.log('[PostForm] Value of "tags" in FormData after setting:', formData.get('tags'));
-    // --- END: ADDED LOGS FOR DEBUGGING TAGS ---
 
     console.log('[PostForm] Content set on formData from Quill state.');
-    
+
     let finalThumbnailUrlForForm = uploadedThumbnailUrlHiddenInputRef.current?.value || '';
 
     if (thumbnailPreviewUrl === null && post?.imageUrl) {
@@ -465,9 +473,9 @@ export default function PostForm({ post }: PostFormProps) {
         } else if (newAISuggestions.length === 0 && tagsFromAI.length > 0) {
            createToast({ title: 'AI Suggestions', description: 'No new tags suggested or all suggestions already added.', variant: 'default' });
         } else if (newAISuggestions.length > 0) {
-            createToast({ title: 'AI Suggestions', description: 'New tags suggested below!', variant: 'default' });
+           createToast({ title: 'AI Suggestions', description: 'New tags suggested below!', variant: 'default' });
         } else {
-            createToast({ title: 'AI Suggestions', description: 'No tags were suggested by the AI for this content.', variant: 'default' });
+           createToast({ title: 'AI Suggestions', description: 'No tags were suggested by the AI for this content.', variant: 'default' });
         }
       } catch (error) {
         createToast({ title: 'AI Error', description: "An error occurred while trying to suggest tags.", variant: "destructive" });
@@ -489,16 +497,50 @@ export default function PostForm({ post }: PostFormProps) {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
 
-  // --- START: handleRemoveThumbnail function ---
   const handleRemoveThumbnail = async () => {
       console.log("[PostForm] handleRemoveThumbnail called. Current preview URL:", thumbnailPreviewUrl);
-      setThumbnailPreviewUrl(null); // Clear the visual preview
+      setThumbnailPreviewUrl(null);
       if (uploadedThumbnailUrlHiddenInputRef.current) {
-          uploadedThumbnailUrlHiddenInputRef.current.value = ''; // Signal deletion to the server action
+          uploadedThumbnailUrlHiddenInputRef.current.value = '';
       }
       createToast({title: "Thumbnail Marked for Removal", description: "Thumbnail will be removed when you save the post."});
   };
-  // --- END: handleRemoveThumbnail function ---
+
+  const [isDeletingUserImage, startDeleteUserImageTransition] = useTransition();
+
+  const handleUserImageDelete = (image: UserUploadedImage) => {
+    setImageToDelete(image);
+    setIsConfirmDeleteDialogOpen(true);
+  };
+
+  // ======== UPDATED FUNCTION WITH CLIENT DEBUG LOG ========
+  const confirmDeleteUserImage = async () => {
+    if (!imageToDelete || !user?.uid) {
+      createToast({ title: "Error", description: "Missing image or user info for deletion.", variant: "destructive" });
+      return;
+    }
+
+    // Client-side debug log
+    console.log(`[PostForm CLIENT DEBUG] Attempting to delete image. ID: "${imageToDelete.id}", Path: "${imageToDelete.storagePath}", User: "${user.uid}" (Length of ID: ${imageToDelete.id?.length})`);
+
+    startDeleteUserImageTransition(async () => {
+      const formData = new FormData();
+      formData.append('imageId', imageToDelete.id);
+      formData.append('storagePath', imageToDelete.storagePath);
+      formData.append('userId', user.uid);
+
+      const result = await deleteUserImageAction(undefined, formData);
+
+      if (result?.success) {
+        createToast({ title: "Image Deleted", description: result.message, variant: "default" });
+        fetchUserImages(); // Refresh the list of images in the dialog
+      } else {
+        createToast({ title: "Deletion Failed", description: result?.message || "An unknown error occurred during deletion.", variant: "destructive" });
+      }
+      setIsConfirmDeleteDialogOpen(false);
+      setImageToDelete(null);
+    });
+  };
 
 
   if (authLoading && !post) {
@@ -536,9 +578,7 @@ export default function PostForm({ post }: PostFormProps) {
           <input type="hidden" name="userId" value={user.uid} />
         )}
         <input type="hidden" name="content" ref={contentHiddenInputRef} value={quillContent} />
-        {/* Keeping this hidden input, but formData.set will take precedence */}
-        <input type="hidden" name="tags" value={currentTags.join(',')} /> 
-        {/* The hidden input that will send the thumbnail URL or an empty string for deletion */}
+        <input type="hidden" name="tags" value={currentTags.join(',')} />
         <input type="hidden" name="uploadedThumbnailUrl" ref={uploadedThumbnailUrlHiddenInputRef} defaultValue={post?.imageUrl || ""} />
 
 
@@ -584,7 +624,6 @@ export default function PostForm({ post }: PostFormProps) {
                           className="w-full h-40 object-cover rounded-lg border border-border"
                           data-ai-hint="article thumbnail"
                       />
-                      {/* --- START: REMOVE BUTTON FOR THUMBNAIL --- */}
                       <Button
                           type="button"
                           variant="destructive"
@@ -596,7 +635,6 @@ export default function PostForm({ post }: PostFormProps) {
                       >
                           <Trash2 className="h-4 w-4" />
                       </Button>
-                      {/* --- END: REMOVE BUTTON FOR THUMBNAIL --- */}
                        <Button
                           type="button"
                           variant="outline"
@@ -741,7 +779,7 @@ export default function PostForm({ post }: PostFormProps) {
               </p>
             )}
             <div className="mt-auto">
-              <PublishButton isUpdate={!!post} isUploadingOrProcessing={isProcessingImage} />
+              <PublishButton isUpdate={!!post} isUploadingOrProcessing={isProcessingImage || isDeletingUserImage} />
             </div>
           </div>
         </div>
@@ -769,25 +807,50 @@ export default function PostForm({ post }: PostFormProps) {
                 <ScrollArea className="h-64 border rounded-md p-2">
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                         {previousUploads.map(img => (
-                            <button
+                            <div
                                 key={img.id}
-                                onClick={() => handlePreviousImageSelect(img)}
-                                className="relative aspect-square group focus:outline-none focus:ring-2 focus:ring-primary rounded overflow-hidden"
+                                className="relative aspect-square group focus:outline-none focus:ring-2 focus:ring-primary rounded overflow-hidden cursor-pointer"
                                 title={`Use ${img.fileName}`}
-                                disabled={isProcessingImage}
                             >
-                                <Image src={img.downloadURL} alt={img.fileName} layout="fill" objectFit="cover" className="transition-transform group-hover:scale-105" data-ai-hint="uploaded image"/>
-                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Image
+                                    src={img.downloadURL}
+                                    alt={img.fileName}
+                                    fill // Changed from layout="fill" and objectFit="cover"
+                                    sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw" // Example sizes, adjust as needed
+                                    style={{ objectFit: 'cover' }} //
+                                    className="transition-transform group-hover:scale-105"
+                                    data-ai-hint="uploaded image"
+                                    onClick={() => handlePreviousImageSelect(img)}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 z-10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUserImageDelete(img);
+                                    }}
+                                    disabled={isDeletingUserImage || isProcessingImage}
+                                    title={`Delete ${img.fileName}`}
+                                >
+                                    {isDeletingUserImage && imageToDelete?.id === img.id ? ( // Show loader only for the image being deleted
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
+                                </Button>
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                                     <Check className="h-6 w-6 text-white" />
                                 </div>
-                            </button>
+                            </div>
                         ))}
                     </div>
                 </ScrollArea>
             ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">No recent images found. Upload one below.</p>
             )}
-            
+
             <div className="flex items-center space-x-2 pt-4 border-t">
                 <span className="flex-grow border-b"></span>
                 <span className="text-xs text-muted-foreground">OR</span>
@@ -795,7 +858,7 @@ export default function PostForm({ post }: PostFormProps) {
             </div>
 
             <Button type="button" onClick={() => genericFileInputRef.current?.click()} className="w-full" disabled={isProcessingImage}>
-              {isProcessingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :  <ImageUp className="mr-2 h-4 w-4" />}
+              {isProcessingImage && imageUploadProgress === 0 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :  <ImageUp className="mr-2 h-4 w-4" />}
               Upload New Image
             </Button>
             <Input
@@ -822,6 +885,37 @@ export default function PostForm({ post }: PostFormProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your image from storage and remove its record.
+              {imageToDelete && (
+                <span className="block mt-2 font-semibold text-foreground">
+                  Image: "{imageToDelete.fileName}"
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingUserImage}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUserImage}
+              disabled={isDeletingUserImage}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeletingUserImage ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -2,22 +2,23 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage'; // Import Storage
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
+// User-provided Firebase configuration
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyDl26LUxzdmiDf40fJ5b-8gGEStwm-VnUY",
+  authDomain: "witwaves.firebaseapp.com",
+  projectId: "witwaves",
+  storageBucket: "witwaves.firebasestorage.app", // Updated as per user's snippet
+  messagingSenderId: "109711058796",
+  appId: "1:109711058796:web:ae9bf478689547e7363549"
+  // measurementId is not in the user's provided snippet, so it's omitted.
 };
 
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
-let storage: FirebaseStorage; // Declare storage variable
+let storage: FirebaseStorage;
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
@@ -27,6 +28,6 @@ if (getApps().length === 0) {
 
 auth = getAuth(app);
 db = getFirestore(app);
-storage = getStorage(app); // Initialize Storage
+storage = getStorage(app);
 
-export { app, auth, db, storage }; // Export storage
+export { app, auth, db, storage };

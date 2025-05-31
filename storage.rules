@@ -1,42 +1,36 @@
 rules_version = '2';
 
 service firebase.storage {
-  match /b/{bucket}/o { // Root match for all objects in your bucket
+  match /b/{bucket}/o { // This matches all objects in the bucket
 
-    // Rule 1: Public read access for "Website Elements" like fonts and images.
-    // Path segments with spaces (like "Website Elements") must be enclosed in quotes.
-    match /"Website Elements"/{allPaths=**} {
+    // Rule for files within the "Website Elements" folder.
+    // Example: gs://<bucket>/Website Elements/font.woff
+    match "Website Elements/{filePath=**}" { // Path segment directly, quoted
       allow read: if true;
-      allow write: if false; // Explicitly deny writes to these public assets by users
+      allow write: if false; // Explicitly deny writes to these public assets
     }
 
-    // Rule 2: User profile images.
-    // Authenticated users can write (upload/update/delete) their own profile image.
-    // Anyone can read profile images (e.g., to display on profiles).
-    match /profileImages/{userId}/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Rule 3: Post thumbnails.
-    // Authenticated users can write thumbnails for posts they own (assuming userId in path is post author).
-    // Anyone can read post thumbnails.
-    match /postThumbnails/{userId}/{postId}/{fileName} {
+    // Profile images:
+    // Example: gs://<bucket>/profileImages/user123/profile.jpg
+    match "profileImages/{userId}/{filePath=**}" { // Path segment directly
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Rule 4: Images embedded within post content.
-    // Authenticated users can write images for their own post content.
-    // Anyone can read these images.
-    match /postContentImages/{userId}/{postId}/{fileName} {
+    // Post thumbnails:
+    // Example: gs://<bucket>/postThumbnails/user123/postABC/thumb.png
+    match "postThumbnails/{userId}/{postId}/{filePath=**}" { // Path segment directly
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Note: Firebase Storage rules have an implicit deny.
-    // If none of the above rules match and explicitly grant permission for a specific path and operation,
-    // the operation will be denied. An explicit "deny all" rule (e.g., match /{allPaths=**} { allow read, write: if false; })
-    // at the end is generally not necessary if your allow rules are comprehensive.
+    // Images uploaded within post content (Quill):
+    // Example: gs://<bucket>/postContentImages/user123/postABC/image.png
+    match "postContentImages/{userId}/{postId}/{filePath=**}" { // Path segment directly
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Access is denied by default if no rule matches a path.
   }
 }

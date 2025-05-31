@@ -11,9 +11,21 @@ import { format } from 'date-fns';
 import type { AuthorProfileForCard } from '@/lib/userProfile';
 import { useState, useEffect, useActionState, useTransition } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { toggleLikePostAction, type FormState } from '@/app/actions';
+import { toggleLikePostAction, deletePostAction, type FormState } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import TagBadge from './tag-badge'; // Import TagBadge
+import TagBadge from './tag-badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useRouter } from 'next/navigation'; // Although not strictly needed for list refresh, can be good practice
 
 type BlogPostCardProps = {
   post: Post;
@@ -23,7 +35,9 @@ type BlogPostCardProps = {
 export default function BlogPostCard({ post, author }: BlogPostCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const router = useRouter(); // For potential future use, revalidation from action is primary
   const [isLikePendingTransition, startLikeTransition] = useTransition();
+  const [isDeletePendingTransition, startDeleteTransition] = useTransition();
 
   const [formattedDateDisplay, setFormattedDateDisplay] = useState<string>('...');
 
@@ -51,6 +65,11 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     undefined
   );
 
+  const [deleteState, handleDeleteAction, isDeleteActionPending] = useActionState<FormState, FormData>(
+    deletePostAction,
+    undefined
+  );
+
   useEffect(() => {
     setOptimisticLiked(post.likedBy?.includes(user?.uid || '') || false);
     setOptimisticLikeCount(post.likeCount || 0);
@@ -68,6 +87,17 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     }
   }, [likeState, post.id, toast, user?.uid, post.likedBy, post.likeCount]);
 
+  useEffect(() => {
+    if (deleteState?.success && deleteState.deletedPostId === post.id) {
+      toast({ title: 'Post Deleted', description: deleteState.message });
+      // Revalidation from action should update the list.
+      // router.refresh() could be an option if direct revalidation isn't enough,
+      // or if we need to navigate (e.g., if the list becomes empty).
+    } else if (deleteState?.message && !deleteState.success && deleteState.deletedPostId === post.id) {
+      toast({ title: 'Error Deleting Post', description: deleteState.message, variant: 'destructive' });
+    }
+  }, [deleteState, post.id, toast, router]);
+
 
   const handleLikeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -81,20 +111,28 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
     startLikeTransition(() => handleLikeAction(formData));
   };
 
-  const authorDisplayName = author?.displayName || 'WitWaves User';
-  const authorAvatarUrl = author?.photoURL;
-  const authorFallback = authorDisplayName.substring(0, 1).toUpperCase();
-  const isOwner = user && post.userId && user.uid === post.userId;
-
   const handleArchive = () => {
     toast({ title: 'Archive Clicked (Not Implemented)', description: `Archive action for post "${post.title}"`});
     console.log('Archive clicked for post:', post.id);
   };
 
-  const handleDelete = () => {
-    toast({ title: 'Delete Clicked (Not Implemented)', description: `Delete action for post "${post.title}" - Confirmation needed.`});
-    console.log('Delete clicked for post:', post.id);
+  const handleDeleteConfirmed = () => {
+    if (!user || !post.userId || user.uid !== post.userId) {
+      toast({ title: 'Error', description: 'You are not authorized to delete this post.', variant: 'destructive' });
+      return;
+    }
+    const formData = new FormData();
+    formData.append('postId', post.id);
+    formData.append('postAuthorId', post.userId);
+    formData.append('currentUserId', user.uid);
+    startDeleteTransition(() => handleDeleteAction(formData));
   };
+
+
+  const authorDisplayName = author?.displayName || 'WitWaves User';
+  const authorAvatarUrl = author?.photoURL;
+  const authorFallback = authorDisplayName.substring(0, 1).toUpperCase();
+  const isOwner = user && post.userId && user.uid === post.userId;
 
   return (
     <article className="flex flex-col md:flex-row gap-6 p-4 border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow bg-card">
@@ -179,9 +217,34 @@ export default function BlogPostCard({ post, author }: BlogPostCardProps) {
                 <Button variant="outline" size="icon" className="h-7 w-7 text-accent border-accent hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring" title="Archive Post" onClick={handleArchive}>
                   <Archive className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" className="h-7 w-7 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-ring" title="Delete Post" onClick={handleDelete}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-7 w-7 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-ring" title="Delete Post">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the post
+                        and remove its data from our servers.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDeleteConfirmed}
+                        disabled={isDeleteActionPending || isDeletePendingTransition}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {(isDeleteActionPending || isDeletePendingTransition) ? (
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        ) : "Yes, delete post"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </>
             ) : (
               <Button variant="ghost" size="icon" className="h-7 w-7" title="More options">

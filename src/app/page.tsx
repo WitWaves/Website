@@ -16,7 +16,6 @@ export default async function HomePage() {
             <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter">
               <span className="block text-destructive">Dive.</span>
               <span className="block text-secondary relative"> {/* Changed text-primary to text-secondary for green */}
-                {/*
                 <Image
                   src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FExploreImage.svg?alt=media&token=def9967b-2824-4cfe-897e-cc749dd082e2"
                   alt="Decorative illustration"
@@ -25,7 +24,6 @@ export default async function HomePage() {
                   className="inline-block mr-2 relative top-[-0.1em] lg:top-[-0.15em]"
                   data-ai-hint="explore theme"
                 />
-                */}
                 Explore.
               </span>
               <span className="block text-accent">Wonder.</span>
@@ -61,7 +59,6 @@ export default async function HomePage() {
             </Button>
           </div>
           <div className="order-1 md:order-2">
-            {/*
             <Image
               src="https://firebasestorage.googleapis.com/v0/b/witwaves.firebasestorage.app/o/WebsiteElements%2FBlogImage.png?alt=media&token=202c8670-c370-4aee-bdb8-d2558ea7abeb"
               alt="Blog preview"
@@ -70,7 +67,6 @@ export default async function HomePage() {
               className="rounded-lg shadow-xl"
               data-ai-hint="technology article"
             />
-            */}
           </div>
         </div>
       </section>

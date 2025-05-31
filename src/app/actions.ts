@@ -3,11 +3,12 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getPost, generateSlug, isSlugUnique, type Post } from '@/lib/posts';
 import { db } from '@/lib/firebase/config';
-import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc, getDocs } from 'firebase/firestore';
+// Import FieldValue from 'firebase/firestore'
+import { doc, setDoc, updateDoc, serverTimestamp, deleteField, getDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc, getDocs, FieldValue } from 'firebase/firestore';
 import type { UserProfile, SocialLinks } from '@/lib/userProfile';
 import { updateUserProfileData as updateUserProfileDataInDb } from '@/lib/userProfile';
-import { storage } from '@/lib/firebase/config'; // Added storage import
-import { ref as storageRef, deleteObject } from 'firebase/storage'; // Added deleteObject
+import { storage } from '@/lib/firebase/config'; 
+import { ref as storageRef, deleteObject } from 'firebase/storage'; 
 
 
 const PostFormSchema = z.object({
@@ -31,7 +32,7 @@ const UserProfileSchema = z.object({
   portfolio: z.string().url('Invalid Portfolio URL.').optional().or(z.literal('')),
   github: z.string().url('Invalid GitHub URL.').optional().or(z.literal('')),
   interests: z.string().optional().transform(val =>
-    val ? val.split(',').map(interest => interest.trim().toLowerCase()).filter(interest => interest.length > 0) : []
+    val ? val.split(',').map(interest => interest.trim().toLowerCase()).filter(tag => tag.length > 0) : []
   ),
 });
 
@@ -154,6 +155,10 @@ export async function createPostAction(prevState: FormState, formData: FormData)
 }
 
 export async function updatePostAction(id: string, prevState: FormState, formData: FormData): Promise<FormState> {
+  // --- ADDED THIS NEW LOG AT THE VERY TOP ---
+  console.log('[updatePostAction] Server action triggered for post ID:', id);
+  // --- END ADDED LOG ---
+
   const validatedFields = PostFormSchema.safeParse({
     title: formData.get('title'),
     content: formData.get('content'),
@@ -177,22 +182,28 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
   const userId = existingPost?.userId;
 
 
-  const updatedPostData: Partial<Omit<Post, 'id'| 'createdAt'>> & {updatedAt: any, imageUrl?: string | any } = {
+  // Changed type to include FieldValue for deleteField()
+  const updatedPostData: Partial<Omit<Post, 'id'| 'createdAt'>> & {updatedAt: any, imageUrl?: string | FieldValue } = {
     title,
     content,
-    tags: tags || [], // This is the parsed array
+    tags: tags || [],
     updatedAt: serverTimestamp(),
   };
 
+  // --- START: Thumbnail deletion logic ---
   if (uploadedThumbnailUrl === '') {
+    // If an empty string is passed, delete the imageUrl field from Firestore
     updatedPostData.imageUrl = deleteField();
+    console.log('[updatePostAction] Thumbnail removal signaled: imageUrl field will be deleted.');
   } else if (uploadedThumbnailUrl) { 
+    // If a URL is provided (either existing or new upload), set it
     updatedPostData.imageUrl = uploadedThumbnailUrl;
+    console.log('[updatePostAction] Thumbnail URL set:', uploadedThumbnailUrl);
   }
+  // --- END: Thumbnail deletion logic ---
 
-  // --- ADDED LOG FOR DEBUGGING TAGS IN UPDATE ---
+
   console.log('[updatePostAction] Data prepared for Firestore update (including tags):', updatedPostData.tags);
-  // --- END ADDED LOG ---
 
 
   try {
@@ -207,8 +218,8 @@ export async function updatePostAction(id: string, prevState: FormState, formDat
   revalidatePath(`/posts/${id}`);
   (tags || []).forEach(tag => revalidatePath(`/tags/${encodeURIComponent(tag)}`));
   revalidatePath('/archive/[year]/[month]', 'page');
-  revalidatePath('/blog/profile'); // For user's own profile
-  if (userId) revalidatePath(`/blog/profile/${userId}`); // For public profile
+  revalidatePath('/blog/profile');
+  if (userId) revalidatePath(`/blog/profile/${userId}`);
 
 
   return { message: `Post "${title}" updated successfully!`, success: true, errors: {} };

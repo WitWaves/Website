@@ -470,7 +470,7 @@ export default function PostForm({ post }: PostFormProps) {
             createToast({ title: 'AI Suggestions', description: 'No tags were suggested by the AI for this content.', variant: 'default' });
         }
       } catch (error) {
-        createToast({ title: 'AI Error', description: "An error occurred while trying to suggest tags.", variant: 'destructive' });
+        createToast({ title: 'AI Error', description: "An error occurred while trying to suggest tags.", variant: "destructive" });
         setAISuggestedTags([]);
       }
     });
@@ -489,14 +489,16 @@ export default function PostForm({ post }: PostFormProps) {
     setCurrentTags(currentTags.filter(tag => tag !== tagToRemove));
   };
 
+  // --- START: handleRemoveThumbnail function ---
   const handleRemoveThumbnail = async () => {
       console.log("[PostForm] handleRemoveThumbnail called. Current preview URL:", thumbnailPreviewUrl);
-      setThumbnailPreviewUrl(null);
+      setThumbnailPreviewUrl(null); // Clear the visual preview
       if (uploadedThumbnailUrlHiddenInputRef.current) {
-          uploadedThumbnailUrlHiddenInputRef.current.value = '';
+          uploadedThumbnailUrlHiddenInputRef.current.value = ''; // Signal deletion to the server action
       }
       createToast({title: "Thumbnail Marked for Removal", description: "Thumbnail will be removed when you save the post."});
   };
+  // --- END: handleRemoveThumbnail function ---
 
 
   if (authLoading && !post) {
@@ -536,6 +538,7 @@ export default function PostForm({ post }: PostFormProps) {
         <input type="hidden" name="content" ref={contentHiddenInputRef} value={quillContent} />
         {/* Keeping this hidden input, but formData.set will take precedence */}
         <input type="hidden" name="tags" value={currentTags.join(',')} /> 
+        {/* The hidden input that will send the thumbnail URL or an empty string for deletion */}
         <input type="hidden" name="uploadedThumbnailUrl" ref={uploadedThumbnailUrlHiddenInputRef} defaultValue={post?.imageUrl || ""} />
 
 
@@ -581,6 +584,7 @@ export default function PostForm({ post }: PostFormProps) {
                           className="w-full h-40 object-cover rounded-lg border border-border"
                           data-ai-hint="article thumbnail"
                       />
+                      {/* --- START: REMOVE BUTTON FOR THUMBNAIL --- */}
                       <Button
                           type="button"
                           variant="destructive"
@@ -592,6 +596,7 @@ export default function PostForm({ post }: PostFormProps) {
                       >
                           <Trash2 className="h-4 w-4" />
                       </Button>
+                      {/* --- END: REMOVE BUTTON FOR THUMBNAIL --- */}
                        <Button
                           type="button"
                           variant="outline"
